@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import Screen from "../../components/layout/Screen";
 
-import AppButton from "../../components/buttons/AppButton";
+import GradientButton from "@/src/components/buttons/GradientButton";
+import NavigationService from "@/src/navigation/NavigationService";
 import OutlineButton from "../../components/buttons/OutlineButton";
 import AppText from "../../components/inputs/AppText";
 
@@ -51,7 +52,7 @@ export default function WelcomeScreen() {
         {/* BUTTON SECTION */}
         <View style={styles.bottomContainer}>
           <View style={styles.buttonContainer}>
-            <AppButton
+            <GradientButton
               title="Sign Up"
               onPress={() => console.log("Sign Up")}
               style={styles.signUpButton}
@@ -59,7 +60,7 @@ export default function WelcomeScreen() {
 
             <OutlineButton
               title="Log In"
-              onPress={() => console.log("Log In")}
+              onPress={() => NavigationService.replace("LoginScreen")}
             />
           </View>
         </View>

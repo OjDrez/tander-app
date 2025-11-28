@@ -1,96 +1,3 @@
-// import Constants from "expo-constants";
-// import React from "react";
-// import { StyleSheet, View, ViewStyle } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-
-// type ScreenProps = {
-//   children: React.ReactNode;
-//   style?: ViewStyle | ViewStyle[];
-// };
-
-// export default function Screen({ children, style }: ScreenProps) {
-//   return (
-//     <SafeAreaView style={[styles.screen, style]}>
-//       <View style={[styles.view, style]}>{children}</View>
-//     </SafeAreaView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   screen: {
-//     paddingTop: Constants.statusBarHeight, // same behavior as Mosh
-//     flex: 1,
-//   },
-//   view: {
-//     flex: 1,
-//   },
-// // });
-// import Constants from "expo-constants";
-// import React from "react";
-// import { StyleSheet, View, ViewStyle } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-
-// type ScreenProps = {
-//   children: React.ReactNode;
-//   style?: ViewStyle | ViewStyle[];
-// };
-
-// export default function Screen({ children, style }: ScreenProps) {
-//   return (
-//     <SafeAreaView
-//       edges={["left", "right"]} // ⭐ ONLY protect sides from notches
-//       style={[styles.screen, style]}
-//     >
-//       <View style={[styles.view, style]}>{children}</View>
-//     </SafeAreaView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   screen: {
-//     flex: 1,
-//     paddingTop: Constants.statusBarHeight,
-//     backgroundColor: "transparent", // ⭐ must be transparent
-//   },
-//   view: {
-//     flex: 1,
-//     backgroundColor: "transparent", // ⭐ must be transparent
-//   },
-// });
-
-// Screen.tsx (default for normal pages)
-// import Constants from "expo-constants";
-// import React from "react";
-// import { StyleSheet, View, ViewStyle } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-
-// type ScreenProps = {
-//   children: React.ReactNode;
-//   style?: ViewStyle | ViewStyle[];
-// };
-
-// export default function Screen({ children, style }: ScreenProps) {
-//   return (
-//     <SafeAreaView
-//       edges={["top", "left", "right"]}
-//       style={[styles.screen, style]}
-//     >
-//       <View style={[styles.view, style]}>{children}</View>
-//     </SafeAreaView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   screen: {
-//     paddingTop: Constants.statusBarHeight,
-//     flex: 1,
-//     backgroundColor: "FBF9F1",
-//   },
-//   view: {
-//     flex: 1,
-//   },
-// });
-
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { StyleSheet, View, ViewStyle } from "react-native";
@@ -138,7 +45,6 @@ function isColorLight(color: string): boolean {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "FBF9F1",
   },
   view: {
     flex: 1,
