@@ -52,9 +52,16 @@ export default function WelcomeScreen() {
         {/* BUTTON SECTION */}
         <View style={styles.bottomContainer}>
           <View style={styles.buttonContainer}>
-            <GradientButton
+            {/* <GradientButton
               title="Sign Up"
               onPress={() => console.log("Sign Up")}
+              style={styles.signUpButton}
+            /> */}
+            <GradientButton
+              title="Sign Up"
+              onPress={() =>
+                NavigationService.navigate("Auth", { screen: "Register" })
+              }
               style={styles.signUpButton}
             />
 
