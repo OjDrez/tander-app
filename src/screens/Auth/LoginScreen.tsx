@@ -1,24 +1,102 @@
-import BiometricButton from "@/src/components/buttons/BiometricButton";
 import GradientButton from "@/src/components/buttons/GradientButton";
 import SocialButton from "@/src/components/buttons/SocialButton";
 import AuthFooterLink from "@/src/components/common/AuthFooterLink";
 import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
 import FullScreen from "@/src/components/layout/FullScreen";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
 import AppTextInput from "../../components/common/AppTextInput";
 import FormCard from "../../components/common/FormCard";
 import colors from "../../config/colors";
 
+import { loginSchema } from "@/src/validation/schemas/login";
+import { Formik } from "formik";
+
+import UniversalBiometricButton from "@/src/components/buttons/UniversalBiometricButton";
+import NavigationService from "@/src/navigation/NavigationService";
+import * as LocalAuthentication from "expo-local-authentication";
+
 export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
+  const [biometricType, setBiometricType] = useState<
+    "face" | "touch" | "unknown"
+  >("unknown");
+
+  // ⭐ Detect biometric type
+  useEffect(() => {
+    (async () => {
+      const types =
+        await LocalAuthentication.supportedAuthenticationTypesAsync();
+
+      if (Platform.OS === "ios") {
+        if (
+          types.includes(
+            LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
+          )
+        ) {
+          setBiometricType("face");
+        } else if (
+          types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
+        ) {
+          setBiometricType("touch");
+        }
+      } else {
+        // ANDROID ALWAYS RETURNS FINGERPRINT (even if device has face unlock)
+        setBiometricType("touch");
+      }
+    })();
+  }, []);
+
+  // ⭐ Unified biometric handler for both Face ID & Touch ID
+  const handleBiometricLogin = async () => {
+    try {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      if (!compatible) {
+        Alert.alert("Unsupported", "Your device does not support biometrics.");
+        return;
+      }
+
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!enrolled) {
+        Alert.alert(
+          "Not Setup",
+          "Please register biometrics (Face ID or Fingerprint) in your device settings."
+        );
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage:
+          biometricType === "face"
+            ? "Login with Face ID"
+            : "Login with Touch ID",
+        fallbackLabel: "Use Passcode",
+        cancelLabel: "Cancel",
+      });
+
+      if (result.success) {
+        console.log("BIOMETRIC LOGIN SUCCESS");
+        // TODO: navigate home
+      } else {
+        Alert.alert("Authentication Failed", "Please try again.");
+      }
+    } catch (err) {
+      console.log("Biometric Error:", err);
+    }
+  };
 
   return (
     <FullScreen statusBarStyle="dark">
-      {/* ⭐ FULLSCREEN BACKGROUND */}
       <LinearGradient
         colors={["#C8E6E2", "#FFE2C1"]}
         start={{ x: 0, y: 0 }}
@@ -26,105 +104,113 @@ export default function LoginScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* ⭐ FIXED HEADER (View1) */}
       <SafeAreaView edges={["top"]} style={styles.headerView}>
         <AppHeaderWithLogo />
       </SafeAreaView>
 
-      {/* ⭐ FORM SECTION (View2) */}
       <View style={styles.body}>
         <FormCard
-          style={{
-            borderBottomLeftRadius: 0,
-            borderBottomRightRadius: 0,
-          }}
           title="Login to your account"
           subtitle="Welcome back, we missed you!"
+          style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
         >
           <View style={styles.content}>
-            {/* Username */}
-            <AppTextInput
-              icon="person-outline"
-              placeholder="Email or Username"
-              autoCapitalize="none"
-            />
-
-            {/* Password */}
-            <AppTextInput
-              icon="lock-closed-outline"
-              placeholder="Password"
-              secureTextEntry
-            />
-
-            {/* Forgot Password */}
-            <TouchableOpacity
-              //   onPress={() => NavigationService.navigate("ForgotPasswordScreen")}
-              onPress={() => console.log("Forgot pressed")}
+            <Formik
+              initialValues={{ username: "", password: "" }}
+              validationSchema={loginSchema}
+              onSubmit={(values) => {
+                console.log("LOGIN:", values);
+                NavigationService.replace("LoginSuccessScreen");
+              }}
             >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
+              {({
+                handleChange,
+                handleSubmit,
+                handleBlur,
+                values,
+                errors,
+                touched,
+              }) => (
+                <>
+                  {/* Username */}
+                  <AppTextInput
+                    icon="person-outline"
+                    placeholder="Email or Username"
+                    autoCapitalize="none"
+                    value={values.username}
+                    onChangeText={handleChange("username")}
+                    onBlur={handleBlur("username")}
+                    error={touched.username ? errors.username : null}
+                  />
 
-            {/* Login CTA */}
-            <GradientButton
-              title="Login"
-              onPress={() => console.log("Login pressed")}
-              style={{ marginTop: 5 }}
-            />
+                  {/* Password */}
+                  <AppTextInput
+                    icon="lock-closed-outline"
+                    placeholder="Password"
+                    secureTextEntry
+                    value={values.password}
+                    onChangeText={handleChange("password")}
+                    onBlur={handleBlur("password")}
+                    error={touched.password ? errors.password : null}
+                  />
 
-            {/* Biometric Row */}
-            <View style={styles.biometricRow}>
-              <View style={styles.biometricInner}>
-                <BiometricButton
-                  label="Touch ID"
-                  icon={require("../../assets/icons/touchId.png")}
-                />
+                  <TouchableOpacity onPress={() => console.log("Forgot")}>
+                    <Text style={styles.forgotText}>Forgot Password?</Text>
+                  </TouchableOpacity>
 
-                <Text style={styles.or}>or</Text>
+                  {/* Login */}
+                  <GradientButton
+                    title="Login"
+                    onPress={handleSubmit}
+                    disabled={!values.username || !values.password}
+                    style={{ marginTop: 5 }}
+                  />
 
-                <BiometricButton
-                  label="Face ID"
-                  icon={require("../../assets/icons/faceId.png")}
-                />
-              </View>
-            </View>
+                  {/* BIOMETRIC BUTTONS — kept separate for now */}
 
-            {/* Divider */}
-            <Text style={styles.dividerText}>continue with</Text>
+                  <View style={styles.biometricRow}>
+                    <UniversalBiometricButton
+                      onAuthenticate={() => {
+                        console.log("BIOMETRIC SUCCESS");
+                        NavigationService.replace("LoginSuccessScreen");
+                      }}
+                    />
+                  </View>
 
-            {/* Social Buttons */}
-            <SocialButton
-              title="Continue with Apple"
-              icon={require("../../assets/icons/apple.png")}
-              onPress={() => console.log("Apple Login")}
-              style={{ marginTop: 10 }}
-            />
+                  <Text style={styles.dividerText}>continue with</Text>
 
-            <SocialButton
-              title="Continue with Google"
-              icon={require("../../assets/icons/google.png")}
-              light
-              onPress={() => console.log("Google Login")}
-              style={{ marginTop: 20 }}
-            />
+                  <SocialButton
+                    title="Continue with Apple"
+                    icon={require("../../assets/icons/apple.png")}
+                    onPress={() => console.log("Apple Login")}
+                    style={{ marginTop: 10 }}
+                  />
 
-            {/* Footer Sign Up */}
-            <View style={{ marginTop: 10, marginBottom: 10 }}>
-              <AuthFooterLink
-                label="Don't have an account?"
-                actionText="Sign Up"
-                // onPress={() => NavigationService.navigate("RegisterScreen")}
-                onPress={() => console.log("SignUp pressed")}
-              />
-            </View>
+                  <SocialButton
+                    title="Continue with Google"
+                    icon={require("../../assets/icons/google.png")}
+                    light
+                    onPress={() => console.log("Google Login")}
+                    style={{ marginTop: 10 }}
+                  />
 
-            {/* Terms Checkbox */}
-            <View style={{ marginBottom: 40 }}>
-              <CheckboxWithLabel
-                checked={agree}
-                label="I agree to the Terms and Condition and Privacy Policy"
-                onToggle={() => setAgree(!agree)}
-              />
-            </View>
+                  <View style={{ marginTop: 10, marginBottom: 10 }}>
+                    <AuthFooterLink
+                      label="Don't have an account?"
+                      actionText="Sign Up"
+                      onPress={() => console.log("SignUp pressed")}
+                    />
+                  </View>
+
+                  {/* Terms */}
+                  <CheckboxWithLabel
+                    checked={agree}
+                    label="I agree to the Terms and Condition and Privacy Policy"
+                    onToggle={() => setAgree(!agree)}
+                  />
+                </>
+              )}
+            </Formik>
           </View>
         </FormCard>
       </View>
@@ -133,59 +219,42 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  /* Header (View1) */
   headerView: {
-    flexShrink: 0,
     justifyContent: "center",
     alignItems: "center",
-    // paddingTop: 10,
-    // paddingBottom: 10,
   },
-
-  /* Body (View2) */
   body: {
     flex: 1,
     justifyContent: "flex-end",
   },
-
-  /* Inside FormCard */
   content: {
     marginHorizontal: 24,
   },
-
   forgotText: {
     textAlign: "right",
-    marginTop: -10,
-    marginBottom: 15,
+    marginTop: -25,
+    marginBottom: 5,
     color: colors.accentTeal,
     fontSize: 14,
     fontWeight: "500",
   },
-
   biometricRow: {
     justifyContent: "center",
     alignItems: "center",
     marginTop: 24,
     marginBottom: 12,
   },
-
   biometricInner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 16,
   },
-
   or: {
-    marginHorizontal: 8,
     color: colors.textMuted,
-    fontSize: 13,
   },
-
   dividerText: {
     textAlign: "center",
     color: colors.textMuted,
-    fontSize: 13,
-    // marginBottom: 5,
+    marginTop: 10,
   },
 });

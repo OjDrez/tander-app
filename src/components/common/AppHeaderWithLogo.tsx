@@ -15,12 +15,11 @@ export default function AppHeaderWithLogo() {
 
 const styles = StyleSheet.create({
   logoRow: {
-    paddingTop: 10,
+    paddingTop: 15,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    // backgroundColor: "#fff",
   },
 
   logo: {

@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
 
-    marginBottom: 20,
+    // marginBottom: 20,
   },
 
   title: {

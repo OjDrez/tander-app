@@ -60,7 +60,11 @@ export default function WelcomeScreen() {
 
             <OutlineButton
               title="Log In"
-              onPress={() => NavigationService.replace("LoginScreen")}
+              onPress={() =>
+                NavigationService.replace("Auth", {
+                  screen: "LoginScreen",
+                })
+              }
             />
           </View>
         </View>
