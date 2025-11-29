@@ -4,15 +4,8 @@ import AuthFooterLink from "@/src/components/common/AuthFooterLink";
 import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
 import FullScreen from "@/src/components/layout/FullScreen";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useState } from "react";
-import {
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
 import AppTextInput from "../../components/common/AppTextInput";
@@ -24,75 +17,37 @@ import { Formik } from "formik";
 
 import UniversalBiometricButton from "@/src/components/buttons/UniversalBiometricButton";
 import NavigationService from "@/src/navigation/NavigationService";
-import * as LocalAuthentication from "expo-local-authentication";
+
+// 🔥 Our new Google login hook
+import { useGoogleLogin } from "@/src/hooks/useGoogleLogin";
 
 export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
-  const [biometricType, setBiometricType] = useState<
-    "face" | "touch" | "unknown"
-  >("unknown");
 
-  // ⭐ Detect biometric type
-  useEffect(() => {
-    (async () => {
-      const types =
-        await LocalAuthentication.supportedAuthenticationTypesAsync();
+  // 🎉 Import Google login handler
+  const { login: googleLogin } = useGoogleLogin();
 
-      if (Platform.OS === "ios") {
-        if (
-          types.includes(
-            LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
-          )
-        ) {
-          setBiometricType("face");
-        } else if (
-          types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
-        ) {
-          setBiometricType("touch");
-        }
-      } else {
-        // ANDROID ALWAYS RETURNS FINGERPRINT (even if device has face unlock)
-        setBiometricType("touch");
-      }
-    })();
-  }, []);
-
-  // ⭐ Unified biometric handler for both Face ID & Touch ID
-  const handleBiometricLogin = async () => {
+  // ⭐ GOOGLE LOGIN HANDLER
+  const handleGoogleLogin = async () => {
     try {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      if (!compatible) {
-        Alert.alert("Unsupported", "Your device does not support biometrics.");
+      const user = await googleLogin();
+      if (!user) {
+        Alert.alert("Google Login Failed", "Please try again.");
         return;
       }
 
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-      if (!enrolled) {
-        Alert.alert(
-          "Not Setup",
-          "Please register biometrics (Face ID or Fingerprint) in your device settings."
-        );
-        return;
-      }
+      console.log("GOOGLE USER:", user);
 
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage:
-          biometricType === "face"
-            ? "Login with Face ID"
-            : "Login with Touch ID",
-        fallbackLabel: "Use Passcode",
-        cancelLabel: "Cancel",
-      });
-
-      if (result.success) {
-        console.log("BIOMETRIC LOGIN SUCCESS");
-        // TODO: navigate home
-      } else {
-        Alert.alert("Authentication Failed", "Please try again.");
-      }
+      NavigationService.replace("LoginSuccessScreen");
     } catch (err) {
-      console.log("Biometric Error:", err);
+      console.log("Google Login Error:", err);
     }
+  };
+
+  // ⭐ BIOMETRIC HANDLER
+  const handleBiometricAuthSuccess = () => {
+    console.log("BIOMETRIC SUCCESS");
+    NavigationService.replace("LoginSuccessScreen");
   };
 
   return (
@@ -104,10 +59,12 @@ export default function LoginScreen() {
         style={StyleSheet.absoluteFill}
       />
 
+      {/* HEADER */}
       <SafeAreaView edges={["top"]} style={styles.headerView}>
         <AppHeaderWithLogo />
       </SafeAreaView>
 
+      {/* FORM */}
       <View style={styles.body}>
         <FormCard
           title="Login to your account"
@@ -154,11 +111,12 @@ export default function LoginScreen() {
                     error={touched.password ? errors.password : null}
                   />
 
+                  {/* Forgot Password */}
                   <TouchableOpacity onPress={() => console.log("Forgot")}>
                     <Text style={styles.forgotText}>Forgot Password?</Text>
                   </TouchableOpacity>
 
-                  {/* Login */}
+                  {/* LOGIN */}
                   <GradientButton
                     title="Login"
                     onPress={handleSubmit}
@@ -166,34 +124,33 @@ export default function LoginScreen() {
                     style={{ marginTop: 5 }}
                   />
 
-                  {/* BIOMETRIC BUTTONS — kept separate for now */}
-
+                  {/* ⭐ UNIVERSAL BIOMETRIC BUTTON */}
                   <View style={styles.biometricRow}>
                     <UniversalBiometricButton
-                      onAuthenticate={() => {
-                        console.log("BIOMETRIC SUCCESS");
-                        NavigationService.replace("LoginSuccessScreen");
-                      }}
+                      onAuthenticate={handleBiometricAuthSuccess}
                     />
                   </View>
 
                   <Text style={styles.dividerText}>continue with</Text>
 
+                  {/* 🍎 APPLE LOGIN (Later we implement this) */}
                   <SocialButton
                     title="Continue with Apple"
                     icon={require("../../assets/icons/apple.png")}
-                    onPress={() => console.log("Apple Login")}
+                    onPress={() => Alert.alert("Apple login not yet enabled")}
                     style={{ marginTop: 10 }}
                   />
 
+                  {/* 🔥 GOOGLE LOGIN */}
                   <SocialButton
                     title="Continue with Google"
                     icon={require("../../assets/icons/google.png")}
                     light
-                    onPress={() => console.log("Google Login")}
+                    onPress={handleGoogleLogin}
                     style={{ marginTop: 10 }}
                   />
 
+                  {/* SIGNUP LINK */}
                   <View style={{ marginTop: 10, marginBottom: 10 }}>
                     <AuthFooterLink
                       label="Don't have an account?"
@@ -202,7 +159,7 @@ export default function LoginScreen() {
                     />
                   </View>
 
-                  {/* Terms */}
+                  {/* TERMS CHECKBOX */}
                   <CheckboxWithLabel
                     checked={agree}
                     label="I agree to the Terms and Condition and Privacy Policy"
@@ -243,14 +200,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
     marginBottom: 12,
-  },
-  biometricInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  or: {
-    color: colors.textMuted,
   },
   dividerText: {
     textAlign: "center",
