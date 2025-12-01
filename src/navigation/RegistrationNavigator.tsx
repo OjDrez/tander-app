@@ -42,7 +42,8 @@ export default function RegistrationNavigator() {
         screenOptions={{
           headerShown: false,
           animation: "slide_from_right",
-          animationDuration: 300,
+          animationDuration: 350,
+          animationTypeForReplace: "push",
         }}
       >
         <Stack.Screen
@@ -50,6 +51,7 @@ export default function RegistrationNavigator() {
           component={Step1BasicInfo}
           options={{
             animation: "fade",
+            animationDuration: 400,
           }}
         />
         <Stack.Screen
@@ -57,6 +59,7 @@ export default function RegistrationNavigator() {
           component={Step2Upload}
           options={{
             animation: "slide_from_right",
+            animationDuration: 350,
           }}
         />
         <Stack.Screen
@@ -64,6 +67,7 @@ export default function RegistrationNavigator() {
           component={Step3AboutYou}
           options={{
             animation: "slide_from_right",
+            animationDuration: 350,
           }}
         />
         <Stack.Screen
@@ -71,6 +75,7 @@ export default function RegistrationNavigator() {
           component={RegistrationComplete}
           options={{
             animation: "fade_from_bottom",
+            animationDuration: 400,
           }}
         />
       </Stack.Navigator>

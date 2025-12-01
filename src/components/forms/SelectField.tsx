@@ -102,7 +102,7 @@
 // });
 
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface SelectFieldProps {
   label: string;
@@ -122,26 +122,70 @@ export default function SelectField({
   onPress,
 }: SelectFieldProps) {
   const showError = touched && error;
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (showError) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showError]);
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
 
   return (
     <View style={{ marginBottom: 20 }}>
       <Text style={styles.label}>{label}</Text>
 
-      <Pressable
-        style={[styles.box, showError && styles.errorBox]}
-        onPress={onPress}
-      >
-        <Text style={[styles.valueText, !value && styles.placeholder]}>
-          {value || placeholder}
-        </Text>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Pressable
+          style={[styles.box, showError && styles.errorBox]}
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <Text style={[styles.valueText, !value && styles.placeholder]}>
+            {value || placeholder}
+          </Text>
 
-        <Image
-          source={require("../../assets/icons/chevron-down.png")}
-          style={styles.icon}
-        />
-      </Pressable>
+          <Image
+            source={require("../../assets/icons/chevron-down.png")}
+            style={styles.icon}
+          />
+        </Pressable>
+      </Animated.View>
 
-      {showError && <Text style={styles.errorText}>{error}</Text>}
+      {showError && (
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <Text style={styles.errorText}>{error}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }

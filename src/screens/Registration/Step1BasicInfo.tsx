@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { Step1Nav } from "@/src/navigation/NavigationTypes";
 import { useSlideUp } from "../../hooks/useFadeIn";
@@ -18,6 +19,7 @@ import DatePickerInput from "../../components/inputs/DatePickerInput";
 import PickerModal from "../../components/modals/PickerModal";
 import SelectField from "../../components/forms/SelectField";
 import TextInputField from "../../components/forms/TextInputField";
+import colors from "../../config/colors";
 import {
   CIVIL_STATUS_OPTIONS,
   COUNTRIES,
@@ -85,6 +87,28 @@ export default function Step1BasicInfo({ navigation }: Props) {
     return age >= 0 ? age : null;
   };
 
+  // Calculate field completion for progress indicator
+  const calculateCompletion = () => {
+    const requiredFields = [
+      "firstName",
+      "lastName",
+      "nickName",
+      "birthday",
+      "age",
+      "country",
+      "civilStatus",
+      "city",
+      "hobby",
+    ];
+    const completedFields = requiredFields.filter(
+      (field) => values[field] && values[field].toString().trim() !== ""
+    ).length;
+    return { completed: completedFields, total: requiredFields.length };
+  };
+
+  const completion = calculateCompletion();
+  const isFormComplete = completion.completed === completion.total;
+
   const handleNext = async () => {
     const validationErrors = await validateForm();
 
@@ -106,33 +130,63 @@ export default function Step1BasicInfo({ navigation }: Props) {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 50 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <ProgressBar step={1} total={3} />
-
-      {/* ANIMATED HEADER & LOGO */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: headerAnim.opacity,
-            transform: [{ translateY: headerAnim.translateY }],
-          },
-        ]}
+    <View style={styles.wrapper}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
       >
-        <Image
-          source={require("../../assets/icons/tander-logo.png")}
-          style={styles.logo}
-        />
-        <Text style={styles.title}>Welcome to Tander</Text>
-        <Text style={styles.subtitle}>
-          Please complete this registration to join Tander, Social, Connect,
-          Companionship & Dating.
-        </Text>
-      </Animated.View>
+        <ProgressBar step={1} total={3} />
+
+        {/* ANIMATED HEADER & LOGO */}
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: headerAnim.opacity,
+              transform: [{ translateY: headerAnim.translateY }],
+            },
+          ]}
+        >
+          <Image
+            source={require("../../assets/icons/tander-logo.png")}
+            style={styles.logo}
+          />
+          <Text style={styles.title}>Welcome to Tander</Text>
+          <Text style={styles.subtitle}>
+            Complete your registration to join Tander for social connections,
+            companionship, and dating.
+          </Text>
+        </Animated.View>
+
+        {/* Completion Indicator */}
+        <Animated.View
+          style={[
+            styles.completionIndicator,
+            {
+              opacity: headerAnim.opacity,
+              transform: [{ translateY: headerAnim.translateY }],
+            },
+          ]}
+        >
+          <View style={styles.completionRow}>
+            <Ionicons
+              name={
+                isFormComplete ? "checkmark-circle" : "information-circle-outline"
+              }
+              size={18}
+              color={isFormComplete ? colors.success : colors.textSecondary}
+            />
+            <Text style={styles.completionText}>
+              {completion.completed} of {completion.total} fields completed
+            </Text>
+          </View>
+          {!isFormComplete && (
+            <Text style={styles.completionHint}>
+              All fields are required
+            </Text>
+          )}
+        </Animated.View>
 
       {/* ANIMATED BASIC INFO CARD */}
       <Animated.View
@@ -148,8 +202,8 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
         {/* FIRST NAME */}
         <TextInputField
-          label="First Name"
-          placeholder="Enter your name"
+          label="First Name *"
+          placeholder="Enter your first name"
           value={values.firstName}
           touched={!!touched.firstName}
           error={getErrorString(errors.firstName)}
@@ -159,8 +213,8 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
         {/* LAST NAME */}
         <TextInputField
-          label="Last Name"
-          placeholder="Enter your name"
+          label="Last Name *"
+          placeholder="Enter your last name"
           value={values.lastName}
           touched={!!touched.lastName}
           error={getErrorString(errors.lastName)}
@@ -170,8 +224,8 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
         {/* NICKNAME */}
         <TextInputField
-          label="Nick Name"
-          placeholder="Enter your nickname"
+          label="Nickname *"
+          placeholder="How should we call you?"
           value={values.nickName}
           touched={!!touched.nickName}
           error={getErrorString(errors.nickName)}
@@ -183,8 +237,8 @@ export default function Step1BasicInfo({ navigation }: Props) {
         <View style={styles.row}>
           <View style={styles.col}>
             <DatePickerInput
-              label="Birthday"
-              placeholder="mm/dd/yyyy"
+              label="Birthday *"
+              placeholder="Select date"
               value={values.birthday}
               touched={!!touched.birthday}
               error={getErrorString(errors.birthday)}
@@ -197,8 +251,16 @@ export default function Step1BasicInfo({ navigation }: Props) {
             <View style={styles.ageContainer}>
               <Text style={styles.label}>Age</Text>
               <View style={styles.ageDisplay}>
-                <Text style={styles.ageText}>{values.age || ""}</Text>
+                <Text style={styles.ageText}>
+                  {values.age || "—"}
+                </Text>
+                {values.age && (
+                  <Text style={styles.ageUnit}>years</Text>
+                )}
               </View>
+              {values.age && (
+                <Text style={styles.autoCalculated}>Auto-calculated</Text>
+              )}
             </View>
           </View>
         </View>
@@ -207,8 +269,8 @@ export default function Step1BasicInfo({ navigation }: Props) {
         <View style={styles.row}>
           <View style={styles.col}>
             <SelectField
-              label="Country"
-              placeholder="Phil"
+              label="Country *"
+              placeholder="Select country"
               value={values.country}
               touched={!!touched.country}
               error={getErrorString(errors.country)}
@@ -218,7 +280,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
           <View style={styles.col}>
             <SelectField
-              label="Civil Status"
+              label="Civil Status *"
               placeholder="Select status"
               value={values.civilStatus}
               touched={!!touched.civilStatus}
@@ -232,8 +294,8 @@ export default function Step1BasicInfo({ navigation }: Props) {
         <View style={styles.row}>
           <View style={styles.col}>
             <SelectField
-              label="City/Province"
-              placeholder=""
+              label="City/Province *"
+              placeholder="Select city"
               value={values.city}
               touched={!!touched.city}
               error={getErrorString(errors.city)}
@@ -243,7 +305,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
           <View style={styles.col}>
             <SelectField
-              label="Hobby"
+              label="Hobby *"
               placeholder="Select hobby"
               value={values.hobby}
               touched={!!touched.hobby}
@@ -254,19 +316,37 @@ export default function Step1BasicInfo({ navigation }: Props) {
         </View>
       </Animated.View>
 
-      {/* ANIMATED NEXT BUTTON */}
+        {/* Spacer for bottom navigation */}
+        <View style={{ height: 20 }} />
+      </ScrollView>
+
+      {/* ANIMATED Bottom Navigation */}
       <Animated.View
-        style={{
-          opacity: buttonAnim.opacity,
-          transform: [{ translateY: buttonAnim.translateY }],
-        }}
+        style={[
+          styles.bottomNav,
+          {
+            opacity: buttonAnim.opacity,
+            transform: [{ translateY: buttonAnim.translateY }],
+          },
+        ]}
       >
+        {/* Next Button (no back button on step 1) */}
         <TouchableOpacity
-          style={styles.nextBtn}
+          style={[styles.nextButton, !isFormComplete && styles.nextButtonDisabled]}
           onPress={handleNext}
-          activeOpacity={0.85}
+          activeOpacity={isFormComplete ? 0.8 : 1}
+          disabled={!isFormComplete}
         >
-          <Text style={styles.nextText}>Next  ›</Text>
+          <Text
+            style={[styles.nextText, !isFormComplete && styles.nextTextDisabled]}
+          >
+            Continue to Photos
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={isFormComplete ? colors.white : "#9CA3AF"}
+          />
         </TouchableOpacity>
       </Animated.View>
 
@@ -322,39 +402,93 @@ export default function Step1BasicInfo({ navigation }: Props) {
         onClose={() => setHobbyPickerVisible(false)}
         searchPlaceholder="Search hobby..."
       />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, backgroundColor: "#F9F9F9" },
+  wrapper: {
+    flex: 1,
+    backgroundColor: colors.backgroundLight,
+  },
 
-  header: { alignItems: "center", marginBottom: 20 },
-  logo: { width: 56, height: 56, marginBottom: 10 },
-  title: { fontSize: 24, fontWeight: "700", marginBottom: 6 },
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: colors.backgroundLight,
+  },
+
+  header: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  logo: {
+    width: 56,
+    height: 56,
+    marginBottom: 10,
+  },
+
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 6,
+    color: colors.textPrimary,
+  },
+
   subtitle: {
-    color: "#666",
+    color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
-    width: "90%",
+    width: "95%",
+    fontSize: 14,
+  },
+
+  completionIndicator: {
+    backgroundColor: colors.white,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.borderMedium,
+  },
+
+  completionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  completionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+
+  completionHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+    marginLeft: 26,
   },
 
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.white,
     padding: 20,
     borderRadius: 20,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    marginBottom: 30,
+    shadowColor: colors.shadowMedium,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    marginBottom: 20,
   },
 
   cardTitle: {
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 16,
+    color: colors.textPrimary,
   },
 
   row: {
@@ -370,38 +504,98 @@ const styles = StyleSheet.create({
   ageContainer: {
     marginBottom: 18,
   },
+
   label: {
     fontWeight: "600",
     marginBottom: 6,
     fontSize: 14,
-    color: "#333",
+    color: colors.textPrimary,
   },
+
   ageDisplay: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundLight,
     borderWidth: 1.5,
-    borderColor: "#E5E5E5",
+    borderColor: colors.borderMedium,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "baseline",
     justifyContent: "center",
-  },
-  ageText: {
-    fontSize: 16,
-    color: "#333",
+    gap: 6,
   },
 
-  nextBtn: {
-    backgroundColor: "#F5A14B",
-    padding: 18,
-    borderRadius: 30,
+  ageText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+
+  ageUnit: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+
+  autoCalculated: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 4,
+    textAlign: "center",
+  },
+
+  // Bottom Navigation
+  bottomNav: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 10,
-    shadowColor: "#F5A14B",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+
+    shadowColor: colors.shadowMedium,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: -2 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  nextButton: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+
+    shadowColor: colors.primary,
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 4,
   },
 
-  nextText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
+  nextButtonDisabled: {
+    backgroundColor: colors.borderMedium,
+    shadowOpacity: 0.05,
+    elevation: 0,
+  },
+
+  nextText: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+
+  nextTextDisabled: {
+    color: "#9CA3AF",
+  },
 });

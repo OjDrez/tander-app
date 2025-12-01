@@ -118,8 +118,8 @@ export default function Step2Upload({ navigation }: Props) {
           }}
         >
           <PhotoUploadSection
-            title="Upload Photos"
-            helperText="Add at least 2 photos to continue"
+            title="Your Photos"
+            helperText="Add at least 2 photos to showcase yourself (maximum 6)"
             photos={photos}
             onPhotosChange={handlePhotosChange}
             maxPhotos={6}
@@ -135,8 +135,8 @@ export default function Step2Upload({ navigation }: Props) {
           }}
         >
           <PhotoUploadSection
-            title="Upload Senior Citizen ID"
-            helperText="Add at least 2 front and back of id"
+            title="Senior Citizen ID"
+            helperText="Upload front and back of your ID (minimum 2 photos)"
             photos={seniorCitizenId}
             onPhotosChange={handleIdPhotosChange}
             maxPhotos={3}
@@ -177,7 +177,7 @@ export default function Step2Upload({ navigation }: Props) {
           <Text
             style={[styles.nextText, !canProceed && styles.nextTextDisabled]}
           >
-            Next
+            {canProceed ? "Continue to Final Step" : "Upload Required Photos"}
           </Text>
           <Ionicons
             name="chevron-forward"

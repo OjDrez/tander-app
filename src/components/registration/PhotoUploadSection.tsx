@@ -29,9 +29,13 @@ export default function PhotoUploadSection({
   maxPhotos,
   columns = 3,
 }: PhotoUploadSectionProps) {
+  const [loadingIndex, setLoadingIndex] = React.useState<number | null>(null);
+
   // Request permissions and pick image
   const pickImage = async (index: number) => {
     try {
+      setLoadingIndex(index);
+
       // Request permissions
       if (Platform.OS !== "web") {
         const { status } =
@@ -41,6 +45,7 @@ export default function PhotoUploadSection({
             "Permission Denied",
             "Sorry, we need camera roll permissions to upload photos."
           );
+          setLoadingIndex(null);
           return;
         }
       }
@@ -61,6 +66,8 @@ export default function PhotoUploadSection({
     } catch (error) {
       console.error("Error picking image:", error);
       Alert.alert("Error", "Failed to pick image. Please try again.");
+    } finally {
+      setLoadingIndex(null);
     }
   };
 
@@ -85,22 +92,43 @@ export default function PhotoUploadSection({
     const slots = [];
     for (let i = 0; i < maxPhotos; i++) {
       const hasPhoto = photos[i];
+      const isLoading = loadingIndex === i;
+      const isFirstSlot = i === 0;
 
       slots.push(
         <Pressable
           key={i}
-          style={styles.uploadBox}
+          style={[
+            styles.uploadBox,
+            isFirstSlot && styles.firstUploadBox,
+            hasPhoto && styles.uploadBoxWithPhoto,
+          ]}
           onPress={() => pickImage(i)}
           onLongPress={() => hasPhoto && removeImage(i)}
         >
-          {hasPhoto ? (
-            <Image source={{ uri: hasPhoto }} style={styles.uploadedImage} />
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
+          ) : hasPhoto ? (
+            <>
+              <Image source={{ uri: hasPhoto }} style={styles.uploadedImage} />
+              {/* Remove indicator on long press */}
+              <View style={styles.removeHint}>
+                <Ionicons name="close-circle" size={24} color={colors.white} />
+              </View>
+            </>
           ) : (
-            <Ionicons
-              name={i === 0 ? "cloud-upload-outline" : "add"}
-              size={i === 0 ? 28 : 32}
-              color="#B0B0B0"
-            />
+            <View style={styles.emptySlotContent}>
+              <Ionicons
+                name={isFirstSlot ? "cloud-upload-outline" : "add"}
+                size={isFirstSlot ? 32 : 28}
+                color={isFirstSlot ? colors.primary : colors.textMuted}
+              />
+              {isFirstSlot && (
+                <Text style={styles.firstSlotText}>Add Photo</Text>
+              )}
+            </View>
           )}
         </Pressable>
       );
@@ -108,13 +136,28 @@ export default function PhotoUploadSection({
     return slots;
   };
 
+  // Calculate upload count
+  const uploadedCount = photos.filter((photo) => photo !== "").length;
+
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>
+            {uploadedCount}/{maxPhotos}
+          </Text>
+        </View>
+      </View>
 
       <View style={[styles.grid, { gap: 12 }]}>{renderSlots()}</View>
 
       <Text style={styles.helperText}>{helperText}</Text>
+      {uploadedCount > 0 && (
+        <Text style={styles.removeHintText}>
+          💡 Tip: Long press on a photo to remove it
+        </Text>
+      )}
     </View>
   );
 }
@@ -134,11 +177,30 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
   cardTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: 16,
+  },
+
+  countBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+
+  countText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.white,
   },
 
   grid: {
@@ -154,11 +216,46 @@ const styles = StyleSheet.create({
     height: 95,
     backgroundColor: "#F8F8F8",
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#ECECEC",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
+  },
+
+  firstUploadBox: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    backgroundColor: "#FFF9F5",
+  },
+
+  uploadBoxWithPhoto: {
+    borderWidth: 0,
+    position: "relative",
+  },
+
+  emptySlotContent: {
+    alignItems: "center",
+    gap: 4,
+  },
+
+  firstSlotText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.primary,
+    marginTop: 2,
+  },
+
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loadingText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: "500",
   },
 
   uploadedImage: {
@@ -167,9 +264,25 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
 
+  removeHint: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    opacity: 0.9,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 12,
+  },
+
   helperText: {
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+
+  removeHintText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 8,
+    fontStyle: "italic",
   },
 });
