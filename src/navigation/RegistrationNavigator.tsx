@@ -38,13 +38,40 @@ export default function RegistrationNavigator() {
       }}
     >
       {/* ❗ Now ALL screens inside can use useFormikContext() safely */}
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Step1" component={Step1BasicInfo} />
-        <Stack.Screen name="Step2" component={Step2Upload} />
-        <Stack.Screen name="Step3" component={Step3AboutYou} />
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+          animationDuration: 300,
+        }}
+      >
+        <Stack.Screen
+          name="Step1"
+          component={Step1BasicInfo}
+          options={{
+            animation: "fade",
+          }}
+        />
+        <Stack.Screen
+          name="Step2"
+          component={Step2Upload}
+          options={{
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
+          name="Step3"
+          component={Step3AboutYou}
+          options={{
+            animation: "slide_from_right",
+          }}
+        />
         <Stack.Screen
           name="RegistrationComplete"
           component={RegistrationComplete}
+          options={{
+            animation: "fade_from_bottom",
+          }}
         />
       </Stack.Navigator>
     </Formik>

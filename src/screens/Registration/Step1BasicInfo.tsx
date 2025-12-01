@@ -1,161 +1,9 @@
-// import ProgressBar from "@/src/components/ui/ProgressBar";
-// import { getErrorString } from "@/src/utility/helpers";
-// import { useFormikContext } from "formik";
-// import {
-//   ScrollView,
-//   StyleSheet,
-//   Text,
-//   TouchableOpacity,
-//   View,
-// } from "react-native";
-// import SelectField from "../../components/forms/SelectField";
-// import TextInputField from "../../components/forms/TextInputField";
-
-// // Typed navigation for Step1
-// import { Step1Nav } from "@/src/navigation/NavigationTypes";
-
-// interface Props {
-//   navigation: Step1Nav;
-// }
-
-// export default function Step1BasicInfo({ navigation }: Props) {
-//   const {
-//     values,
-//     errors,
-//     touched,
-//     setFieldValue,
-//     setFieldTouched,
-//     validateForm,
-//     setTouched,
-//   } = useFormikContext<any>();
-
-//   // -------------------------------
-//   // VALIDATION-AWARE NEXT BUTTON
-//   // -------------------------------
-//   const handleNext = async () => {
-//     const validationErrors = await validateForm();
-
-//     if (Object.keys(validationErrors).length === 0) {
-//       return navigation.navigate("Step2");
-//     }
-
-//     // Mark all fields touched so errors become visible
-//     setTouched({
-//       firstName: true,
-//       lastName: true,
-//       nickName: true,
-//       birthday: true,
-//       age: true,
-//       country: true,
-//     });
-//   };
-
-//   return (
-//     <ScrollView
-//       style={styles.container}
-//       contentContainerStyle={{ paddingBottom: 40 }}
-//     >
-//       <ProgressBar step={1} total={3} />
-
-//       <Text style={styles.title}>Welcome to Tander</Text>
-//       <Text style={styles.subtitle}>
-//         Please complete this registration to join Tander, Social, Connect,
-//         Companionship & Dating.
-//       </Text>
-
-//       {/* FORM CARD */}
-//       <View style={styles.card}>
-//         {/* FIRST NAME */}
-//         <TextInputField
-//           label="First Name"
-//           value={values.firstName}
-//           touched={touched.firstName === true}
-//           error={getErrorString(errors.firstName)}
-//           onChangeText={(t) => setFieldValue("firstName", t)}
-//           onBlur={() => setFieldTouched("firstName", true)}
-//         />
-
-//         <TextInputField
-//           label="Last Name"
-//           value={values.lastName}
-//           touched={touched.lastName === true}
-//           error={getErrorString(errors.lastName)}
-//           onChangeText={(t) => setFieldValue("lastName", t)}
-//           onBlur={() => setFieldTouched("lastName", true)}
-//         />
-
-//         <TextInputField
-//           label="Nick Name"
-//           value={values.nickName}
-//           touched={touched.nickName === true}
-//           error={getErrorString(errors.nickName)}
-//           onChangeText={(t) => setFieldValue("nickName", t)}
-//           onBlur={() => setFieldTouched("nickName", true)}
-//         />
-
-//         <TextInputField
-//           label="Birthday"
-//           value={values.birthday}
-//           touched={touched.birthday === true}
-//           error={getErrorString(errors.birthday)}
-//           onChangeText={(t) => setFieldValue("birthday", t)}
-//           onBlur={() => setFieldTouched("birthday", true)}
-//         />
-
-//         <TextInputField
-//           label="Age"
-//           value={values.age}
-//           touched={touched.age === true}
-//           error={getErrorString(errors.age)}
-//           keyboardType="numeric"
-//           onChangeText={(t) => setFieldValue("age", t)}
-//           onBlur={() => setFieldTouched("age", true)}
-//         />
-
-//         {/* COUNTRY DROPDOWN */}
-//         <SelectField
-//           label="Country"
-//           placeholder="Select..."
-//           value={values.country}
-//           touched={touched.country === true}
-//           error={getErrorString(errors.country)}
-//           onPress={() => console.log("Open country picker")}
-//         />
-//       </View>
-
-//       {/* NEXT BUTTON */}
-//       <TouchableOpacity style={styles.button} onPress={handleNext}>
-//         <Text style={styles.buttonText}>Next</Text>
-//       </TouchableOpacity>
-//     </ScrollView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { padding: 20 },
-//   title: { fontSize: 22, fontWeight: "700", marginBottom: 6 },
-//   subtitle: { color: "#666", marginBottom: 20 },
-//   card: {
-//     backgroundColor: "#FFF",
-//     padding: 20,
-//     borderRadius: 16,
-//     marginBottom: 30,
-//     elevation: 4,
-//   },
-//   button: {
-//     backgroundColor: "#F5A14B",
-//     padding: 16,
-//     borderRadius: 30,
-//     alignItems: "center",
-//   },
-//   buttonText: { color: "#FFF", fontWeight: "700" },
-// });
-
 import ProgressBar from "@/src/components/ui/ProgressBar";
 import { getErrorString } from "@/src/utility/helpers";
 import { useFormikContext } from "formik";
 import React from "react";
 import {
+  Animated,
   Image,
   ScrollView,
   StyleSheet,
@@ -165,6 +13,7 @@ import {
 } from "react-native";
 
 import { Step1Nav } from "@/src/navigation/NavigationTypes";
+import { useSlideUp } from "../../hooks/useFadeIn";
 import DatePickerInput from "../../components/inputs/DatePickerInput";
 import PickerModal from "../../components/modals/PickerModal";
 import SelectField from "../../components/forms/SelectField";
@@ -191,9 +40,15 @@ export default function Step1BasicInfo({ navigation }: Props) {
     setTouched,
   } = useFormikContext<any>();
 
+  // Animations
+  const headerAnim = useSlideUp(500, 0, 30);
+  const cardAnim = useSlideUp(600, 100, 40);
+  const buttonAnim = useSlideUp(600, 200, 30);
+
   // Picker modal states
   const [countryPickerVisible, setCountryPickerVisible] = React.useState(false);
-  const [civilStatusPickerVisible, setCivilStatusPickerVisible] = React.useState(false);
+  const [civilStatusPickerVisible, setCivilStatusPickerVisible] =
+    React.useState(false);
   const [cityPickerVisible, setCityPickerVisible] = React.useState(false);
   const [hobbyPickerVisible, setHobbyPickerVisible] = React.useState(false);
 
@@ -210,7 +65,6 @@ export default function Step1BasicInfo({ navigation }: Props) {
   const calculateAge = (dateString: string): number | null => {
     if (!dateString) return null;
 
-    // Date format: MM/DD/YYYY
     const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
     if (!dateRegex.test(dateString)) return null;
 
@@ -221,7 +75,10 @@ export default function Step1BasicInfo({ navigation }: Props) {
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
 
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
       age--;
     }
 
@@ -252,11 +109,20 @@ export default function Step1BasicInfo({ navigation }: Props) {
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 50 }}
+      showsVerticalScrollIndicator={false}
     >
       <ProgressBar step={1} total={3} />
 
-      {/* HEADER & LOGO */}
-      <View style={styles.header}>
+      {/* ANIMATED HEADER & LOGO */}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            opacity: headerAnim.opacity,
+            transform: [{ translateY: headerAnim.translateY }],
+          },
+        ]}
+      >
         <Image
           source={require("../../assets/icons/tander-logo.png")}
           style={styles.logo}
@@ -266,10 +132,18 @@ export default function Step1BasicInfo({ navigation }: Props) {
           Please complete this registration to join Tander, Social, Connect,
           Companionship & Dating.
         </Text>
-      </View>
+      </Animated.View>
 
-      {/* BASIC INFO CARD */}
-      <View style={styles.card}>
+      {/* ANIMATED BASIC INFO CARD */}
+      <Animated.View
+        style={[
+          styles.card,
+          {
+            opacity: cardAnim.opacity,
+            transform: [{ translateY: cardAnim.translateY }],
+          },
+        ]}
+      >
         <Text style={styles.cardTitle}>Basic Info</Text>
 
         {/* FIRST NAME */}
@@ -323,9 +197,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
             <View style={styles.ageContainer}>
               <Text style={styles.label}>Age</Text>
               <View style={styles.ageDisplay}>
-                <Text style={styles.ageText}>
-                  {values.age || ""}
-                </Text>
+                <Text style={styles.ageText}>{values.age || ""}</Text>
               </View>
             </View>
           </View>
@@ -380,12 +252,23 @@ export default function Step1BasicInfo({ navigation }: Props) {
             />
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      {/* NEXT BUTTON */}
-      <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-        <Text style={styles.nextText}>Next  ›</Text>
-      </TouchableOpacity>
+      {/* ANIMATED NEXT BUTTON */}
+      <Animated.View
+        style={{
+          opacity: buttonAnim.opacity,
+          transform: [{ translateY: buttonAnim.translateY }],
+        }}
+      >
+        <TouchableOpacity
+          style={styles.nextBtn}
+          onPress={handleNext}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.nextText}>Next  ›</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* PICKER MODALS */}
       <PickerModal
@@ -484,7 +367,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Age display styles
   ageContainer: {
     marginBottom: 18,
   },
@@ -514,6 +396,11 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: "center",
     marginTop: 10,
+    shadowColor: "#F5A14B",
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
   },
 
   nextText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
