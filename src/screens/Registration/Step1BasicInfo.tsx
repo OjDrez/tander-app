@@ -154,6 +154,7 @@
 import ProgressBar from "@/src/components/ui/ProgressBar";
 import { getErrorString } from "@/src/utility/helpers";
 import { useFormikContext } from "formik";
+import React from "react";
 import {
   Image,
   ScrollView,
@@ -164,6 +165,7 @@ import {
 } from "react-native";
 
 import { Step1Nav } from "@/src/navigation/NavigationTypes";
+import DatePickerInput from "../../components/inputs/DatePickerInput";
 import SelectField from "../../components/forms/SelectField";
 import TextInputField from "../../components/forms/TextInputField";
 
@@ -181,6 +183,37 @@ export default function Step1BasicInfo({ navigation }: Props) {
     validateForm,
     setTouched,
   } = useFormikContext<any>();
+
+  // Auto-calculate age from birthday
+  React.useEffect(() => {
+    if (values.birthday) {
+      const age = calculateAge(values.birthday);
+      if (age !== null && age !== values.age) {
+        setFieldValue("age", age.toString());
+      }
+    }
+  }, [values.birthday]);
+
+  const calculateAge = (dateString: string): number | null => {
+    if (!dateString) return null;
+
+    // Date format: MM/DD/YYYY
+    const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
+    if (!dateRegex.test(dateString)) return null;
+
+    const [month, day, year] = dateString.split("/").map(Number);
+    const birthDate = new Date(year, month - 1, day);
+    const today = new Date();
+
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    return age >= 0 ? age : null;
+  };
 
   const handleNext = async () => {
     const validationErrors = await validateForm();
@@ -229,6 +262,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
         {/* FIRST NAME */}
         <TextInputField
           label="First Name"
+          placeholder="Enter your name"
           value={values.firstName}
           touched={!!touched.firstName}
           error={getErrorString(errors.firstName)}
@@ -239,6 +273,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
         {/* LAST NAME */}
         <TextInputField
           label="Last Name"
+          placeholder="Enter your name"
           value={values.lastName}
           touched={!!touched.lastName}
           error={getErrorString(errors.lastName)}
@@ -249,6 +284,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
         {/* NICKNAME */}
         <TextInputField
           label="Nick Name"
+          placeholder="Enter your name"
           value={values.nickName}
           touched={!!touched.nickName}
           error={getErrorString(errors.nickName)}
@@ -259,27 +295,26 @@ export default function Step1BasicInfo({ navigation }: Props) {
         {/* BIRTHDAY + AGE (2-column layout) */}
         <View style={styles.row}>
           <View style={styles.col}>
-            <TextInputField
+            <DatePickerInput
               label="Birthday"
-              placeholder="MM/DD/YYYY"
+              placeholder="mm/dd/yyyy"
               value={values.birthday}
               touched={!!touched.birthday}
               error={getErrorString(errors.birthday)}
-              onChangeText={(t) => setFieldValue("birthday", t)}
+              onChangeText={(date) => setFieldValue("birthday", date)}
               onBlur={() => setFieldTouched("birthday", true)}
             />
           </View>
 
           <View style={styles.col}>
-            <TextInputField
-              label="Age"
-              value={values.age}
-              touched={!!touched.age}
-              error={getErrorString(errors.age)}
-              keyboardType="numeric"
-              onChangeText={(t) => setFieldValue("age", t)}
-              onBlur={() => setFieldTouched("age", true)}
-            />
+            <View style={styles.ageContainer}>
+              <Text style={styles.label}>Age</Text>
+              <View style={styles.ageDisplay}>
+                <Text style={styles.ageText}>
+                  {values.age || ""}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -288,7 +323,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
           <View style={styles.col}>
             <SelectField
               label="Country"
-              placeholder="Select..."
+              placeholder="Phil"
               value={values.country}
               touched={!!touched.country}
               error={getErrorString(errors.country)}
@@ -313,7 +348,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
           <View style={styles.col}>
             <SelectField
               label="City/Province"
-              placeholder="Select..."
+              placeholder=""
               value={values.city}
               touched={!!touched.city}
               error={getErrorString(errors.city)}
@@ -336,7 +371,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
       {/* NEXT BUTTON */}
       <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-        <Text style={styles.nextText}>Next</Text>
+        <Text style={styles.nextText}>Next  ›</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -381,6 +416,30 @@ const styles = StyleSheet.create({
 
   col: {
     flex: 1,
+  },
+
+  // Age display styles
+  ageContainer: {
+    marginBottom: 18,
+  },
+  label: {
+    fontWeight: "600",
+    marginBottom: 6,
+    fontSize: 14,
+    color: "#333",
+  },
+  ageDisplay: {
+    backgroundColor: "#F5F5F5",
+    borderWidth: 1.5,
+    borderColor: "#E5E5E5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    justifyContent: "center",
+  },
+  ageText: {
+    fontSize: 16,
+    color: "#333",
   },
 
   nextBtn: {
