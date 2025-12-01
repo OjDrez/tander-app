@@ -166,8 +166,15 @@ import {
 
 import { Step1Nav } from "@/src/navigation/NavigationTypes";
 import DatePickerInput from "../../components/inputs/DatePickerInput";
+import PickerModal from "../../components/modals/PickerModal";
 import SelectField from "../../components/forms/SelectField";
 import TextInputField from "../../components/forms/TextInputField";
+import {
+  CIVIL_STATUS_OPTIONS,
+  COUNTRIES,
+  HOBBY_OPTIONS,
+  PHILIPPINES_CITIES,
+} from "../../constants/formData";
 
 interface Props {
   navigation: Step1Nav;
@@ -183,6 +190,12 @@ export default function Step1BasicInfo({ navigation }: Props) {
     validateForm,
     setTouched,
   } = useFormikContext<any>();
+
+  // Picker modal states
+  const [countryPickerVisible, setCountryPickerVisible] = React.useState(false);
+  const [civilStatusPickerVisible, setCivilStatusPickerVisible] = React.useState(false);
+  const [cityPickerVisible, setCityPickerVisible] = React.useState(false);
+  const [hobbyPickerVisible, setHobbyPickerVisible] = React.useState(false);
 
   // Auto-calculate age from birthday
   React.useEffect(() => {
@@ -284,7 +297,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
         {/* NICKNAME */}
         <TextInputField
           label="Nick Name"
-          placeholder="Enter your name"
+          placeholder="Enter your nickname"
           value={values.nickName}
           touched={!!touched.nickName}
           error={getErrorString(errors.nickName)}
@@ -327,7 +340,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
               value={values.country}
               touched={!!touched.country}
               error={getErrorString(errors.country)}
-              onPress={() => console.log("Open Country Picker")}
+              onPress={() => setCountryPickerVisible(true)}
             />
           </View>
 
@@ -338,7 +351,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
               value={values.civilStatus}
               touched={!!touched.civilStatus}
               error={getErrorString(errors.civilStatus)}
-              onPress={() => console.log("Open Civil Status Picker")}
+              onPress={() => setCivilStatusPickerVisible(true)}
             />
           </View>
         </View>
@@ -352,7 +365,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
               value={values.city}
               touched={!!touched.city}
               error={getErrorString(errors.city)}
-              onPress={() => console.log("Open City Picker")}
+              onPress={() => setCityPickerVisible(true)}
             />
           </View>
 
@@ -363,7 +376,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
               value={values.hobby}
               touched={!!touched.hobby}
               error={getErrorString(errors.hobby)}
-              onPress={() => console.log("Open Hobby Picker")}
+              onPress={() => setHobbyPickerVisible(true)}
             />
           </View>
         </View>
@@ -373,6 +386,59 @@ export default function Step1BasicInfo({ navigation }: Props) {
       <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
         <Text style={styles.nextText}>Next  ›</Text>
       </TouchableOpacity>
+
+      {/* PICKER MODALS */}
+      <PickerModal
+        visible={countryPickerVisible}
+        title="Select Country"
+        options={COUNTRIES}
+        selectedValue={values.country}
+        onSelect={(value) => {
+          setFieldValue("country", value);
+          setFieldTouched("country", true);
+        }}
+        onClose={() => setCountryPickerVisible(false)}
+        searchPlaceholder="Search country..."
+      />
+
+      <PickerModal
+        visible={civilStatusPickerVisible}
+        title="Select Civil Status"
+        options={CIVIL_STATUS_OPTIONS}
+        selectedValue={values.civilStatus}
+        onSelect={(value) => {
+          setFieldValue("civilStatus", value);
+          setFieldTouched("civilStatus", true);
+        }}
+        onClose={() => setCivilStatusPickerVisible(false)}
+        enableSearch={false}
+      />
+
+      <PickerModal
+        visible={cityPickerVisible}
+        title="Select City/Province"
+        options={PHILIPPINES_CITIES}
+        selectedValue={values.city}
+        onSelect={(value) => {
+          setFieldValue("city", value);
+          setFieldTouched("city", true);
+        }}
+        onClose={() => setCityPickerVisible(false)}
+        searchPlaceholder="Search city..."
+      />
+
+      <PickerModal
+        visible={hobbyPickerVisible}
+        title="Select Hobby"
+        options={HOBBY_OPTIONS}
+        selectedValue={values.hobby}
+        onSelect={(value) => {
+          setFieldValue("hobby", value);
+          setFieldTouched("hobby", true);
+        }}
+        onClose={() => setHobbyPickerVisible(false)}
+        searchPlaceholder="Search hobby..."
+      />
     </ScrollView>
   );
 }

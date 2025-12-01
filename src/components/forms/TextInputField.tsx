@@ -54,7 +54,12 @@ interface TextInputFieldProps {
   error?: string | undefined;
   touched?: boolean;
   placeholder?: string;
-  keyboardType?: string; // <-- ADD THIS
+  keyboardType?: string;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCorrect?: boolean;
+  maxLength?: number;
+  multiline?: boolean;
+  numberOfLines?: number;
 }
 
 export default function TextInputField({
@@ -65,6 +70,12 @@ export default function TextInputField({
   error,
   touched,
   placeholder,
+  keyboardType,
+  autoCapitalize = "sentences",
+  autoCorrect = true,
+  maxLength,
+  multiline = false,
+  numberOfLines = 1,
 }: TextInputFieldProps) {
   // Fade animation for error message
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -93,12 +104,19 @@ export default function TextInputField({
 
       <View style={[styles.inputWrapper, { borderColor }]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, multiline && styles.multilineInput]}
           value={value}
           placeholder={placeholder}
           placeholderTextColor="#BDBDBD"
           onChangeText={onChangeText}
           onBlur={onBlur}
+          keyboardType={keyboardType as any}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+          maxLength={maxLength}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          textAlignVertical={multiline ? "top" : "center"}
         />
       </View>
 
@@ -131,6 +149,10 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     color: "#333",
+  },
+  multilineInput: {
+    minHeight: 80,
+    paddingTop: 8,
   },
   errorText: {
     marginTop: 6,
