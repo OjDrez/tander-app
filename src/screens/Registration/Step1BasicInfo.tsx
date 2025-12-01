@@ -110,12 +110,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
   const isFormComplete = completion.completed === completion.total;
 
   const handleNext = async () => {
-    const validationErrors = await validateForm();
-
-    if (Object.keys(validationErrors).length === 0) {
-      return navigation.navigate("Step2");
-    }
-
+    // First, mark all fields as touched so errors show
     setTouched({
       firstName: true,
       lastName: true,
@@ -127,6 +122,13 @@ export default function Step1BasicInfo({ navigation }: Props) {
       city: true,
       hobby: true,
     });
+
+    // Then validate
+    const validationErrors = await validateForm();
+
+    if (Object.keys(validationErrors).length === 0) {
+      navigation.navigate("Step2");
+    }
   };
 
   return (
@@ -332,15 +334,14 @@ export default function Step1BasicInfo({ navigation }: Props) {
       >
         {/* Next Button (no back button on step 1) */}
         <TouchableOpacity
-          style={[styles.nextButton, !isFormComplete && styles.nextButtonDisabled]}
+          style={[styles.nextButton, !isFormComplete && styles.nextButtonMuted]}
           onPress={handleNext}
-          activeOpacity={isFormComplete ? 0.8 : 1}
-          disabled={!isFormComplete}
+          activeOpacity={0.8}
         >
           <Text
-            style={[styles.nextText, !isFormComplete && styles.nextTextDisabled]}
+            style={[styles.nextText, !isFormComplete && styles.nextTextMuted]}
           >
-            Continue to Photos
+            {isFormComplete ? "Continue to Photos" : "Complete All Fields"}
           </Text>
           <Ionicons
             name="chevron-forward"
@@ -583,7 +584,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  nextButtonDisabled: {
+  nextButtonMuted: {
     backgroundColor: colors.borderMedium,
     shadowOpacity: 0.05,
     elevation: 0,
@@ -595,7 +596,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  nextTextDisabled: {
+  nextTextMuted: {
     color: "#9CA3AF",
   },
 });
