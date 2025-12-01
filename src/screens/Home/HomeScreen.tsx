@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 const profile = {
   name: "Gloria Ramos",
@@ -53,12 +54,15 @@ const suggestions = [
 ];
 
 export default function HomeScreen() {
+  const navigation = useNavigation();
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Top Row */}
         <View style={styles.topRow}>
           <View style={styles.brandRow}>
             <View style={styles.brandIcon}>
@@ -75,6 +79,17 @@ export default function HomeScreen() {
 
         <Text style={styles.videoPrompt}>Press me to video call</Text>
 
+        {/* Inbox Navigation */}
+        <TouchableOpacity
+          style={styles.inboxNavButton}
+          activeOpacity={0.9}
+          onPress={() => navigation.navigate("InboxScreen" as never)}
+        >
+          <Text style={styles.inboxNavText}>Go to Inbox</Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+        </TouchableOpacity>
+
+        {/* Hero Card */}
         <LinearGradient
           colors={["#FFF1E0", "#E9F7F5"]}
           start={{ x: 0, y: 0 }}
@@ -87,12 +102,14 @@ export default function HomeScreen() {
               We found people who share your interests and values.
             </Text>
           </View>
+
           <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
             <Ionicons name="call" size={16} color={colors.white} />
             <Text style={styles.primaryButtonText}>Start Video Call</Text>
           </TouchableOpacity>
         </LinearGradient>
 
+        {/* Profile Card */}
         <View style={styles.card}>
           <View style={styles.profileRow}>
             <Image source={{ uri: profile.avatar }} style={styles.avatar} />
@@ -108,6 +125,7 @@ export default function HomeScreen() {
                   style={styles.verifiedIcon}
                 />
               </View>
+
               <View style={styles.locationRow}>
                 <Ionicons
                   name="location-outline"
@@ -118,27 +136,32 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
+
           <View style={styles.aboutBox}>
             <Text style={styles.aboutLabel}>About Me</Text>
             <Text style={styles.aboutText}>{profile.about}</Text>
           </View>
         </View>
 
-        <View style={styles.card}> 
+        {/* Complete Profile */}
+        <View style={styles.card}>
           <View style={styles.badgeRow}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>New to our community</Text>
             </View>
           </View>
+
           <Text style={styles.cardTitle}>Complete your Profile</Text>
           <Text style={styles.cardSubtitle}>
             Add your photos and details to get better matches.
           </Text>
+
           <TouchableOpacity style={styles.outlineButton} activeOpacity={0.9}>
             <Text style={styles.outlineButtonText}>Complete Profile</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Suggestions Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>People You May Know!</Text>
           <Text style={styles.sectionSubtitle}>Select gender</Text>
@@ -235,6 +258,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 14,
+  },
+
+  inboxNavButton: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadowLight,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+    marginBottom: 12,
+  },
+
+  inboxNavText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.primary,
   },
 
   heroCard: {
