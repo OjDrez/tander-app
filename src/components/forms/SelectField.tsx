@@ -1,108 +1,12 @@
-// // import { Pressable, StyleSheet, Text, View } from "react-native";
-
-// // interface SelectFieldProps {
-// //   label: string;
-// //   value?: string | null;
-// //   placeholder?: string;
-// //   onPress?: () => void;
-// // }
-
-// // export default function SelectField({
-// //   label,
-// //   value,
-// //   placeholder,
-// //   onPress,
-// // }: SelectFieldProps) {
-// //   return (
-// //     <View style={{ marginBottom: 16 }}>
-// //       <Text style={styles.label}>{label}</Text>
-
-// //       <Pressable style={styles.box} onPress={onPress}>
-// //         <Text style={{ color: value ? "#000" : "#999" }}>
-// //           {value || placeholder}
-// //         </Text>
-// //       </Pressable>
-// //     </View>
-// //   );
-// // }
-
-// // const styles = StyleSheet.create({
-// //   label: { fontSize: 14, fontWeight: "500", marginBottom: 6 },
-// //   box: {
-// //     backgroundColor: "#F4F4F4",
-// //     padding: 14,
-// //     borderRadius: 10,
-// //   },
-// // });
-
-// import { Pressable, StyleSheet, Text, View } from "react-native";
-
-// interface SelectFieldProps {
-//   label: string;
-//   value?: string | null;
-//   placeholder?: string;
-//   onPress?: () => void;
-
-//   // NEW: Validation support
-//   touched?: boolean;
-//   error?: string;
-// }
-
-// export default function SelectField({
-//   label,
-//   value,
-//   placeholder,
-//   onPress,
-//   touched,
-//   error,
-// }: SelectFieldProps) {
-//   const isError = touched && !!error;
-
-//   return (
-//     <View style={{ marginBottom: 18 }}>
-//       {/* Label */}
-//       <Text style={styles.label}>{label}</Text>
-
-//       {/* Select Box */}
-//       <Pressable
-//         style={[
-//           styles.box,
-//           isError && { borderColor: "#D9534F", borderWidth: 1.5 }, // red border
-//         ]}
-//         onPress={onPress}
-//       >
-//         <Text style={{ color: value ? "#000" : "#999" }}>
-//           {value || placeholder}
-//         </Text>
-//       </Pressable>
-
-//       {/* Error Text */}
-//       {isError && <Text style={styles.errorText}>{error}</Text>}
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   label: {
-//     fontSize: 14,
-//     fontWeight: "500",
-//     marginBottom: 6,
-//   },
-//   box: {
-//     backgroundColor: "#F4F4F4",
-//     padding: 14,
-//     borderRadius: 10,
-//   },
-//   errorText: {
-//     marginTop: 6,
-//     fontSize: 13,
-//     color: "#D9534F",
-//     fontWeight: "500",
-//   },
-// });
-
 import React from "react";
-import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 interface SelectFieldProps {
   label: string;

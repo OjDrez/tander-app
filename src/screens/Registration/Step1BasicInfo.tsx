@@ -1,5 +1,6 @@
 import ProgressBar from "@/src/components/ui/ProgressBar";
 import { getErrorString } from "@/src/utility/helpers";
+import { Ionicons } from "@expo/vector-icons";
 import { useFormikContext } from "formik";
 import React from "react";
 import {
@@ -11,14 +12,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
+import FullScreen from "@/src/components/layout/FullScreen";
 import { Step1Nav } from "@/src/navigation/NavigationTypes";
-import { useSlideUp } from "../../hooks/useFadeIn";
-import DatePickerInput from "../../components/inputs/DatePickerInput";
-import PickerModal from "../../components/modals/PickerModal";
+import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from "react-native-safe-area-context";
 import SelectField from "../../components/forms/SelectField";
 import TextInputField from "../../components/forms/TextInputField";
+import DatePickerInput from "../../components/inputs/DatePickerInput";
+import PickerModal from "../../components/modals/PickerModal";
 import colors from "../../config/colors";
 import {
   CIVIL_STATUS_OPTIONS,
@@ -26,6 +28,7 @@ import {
   HOBBY_OPTIONS,
   PHILIPPINES_CITIES,
 } from "../../constants/formData";
+import { useSlideUp } from "../../hooks/useFadeIn";
 
 interface Props {
   navigation: Step1Nav;
@@ -132,12 +135,14 @@ export default function Step1BasicInfo({ navigation }: Props) {
   };
 
   return (
-    <View style={styles.wrapper}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
+    <FullScreen statusBarStyle="dark">
+      <LinearGradient
+        colors={["#C8E6E2", "#FFE2C1"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <SafeAreaView edges={["top"]} style={styles.headerView}>
         <ProgressBar step={1} total={3} />
 
         {/* ANIMATED HEADER & LOGO */}
@@ -160,7 +165,6 @@ export default function Step1BasicInfo({ navigation }: Props) {
             companionship, and dating.
           </Text>
         </Animated.View>
-
         {/* Completion Indicator */}
         <Animated.View
           style={[
@@ -174,7 +178,9 @@ export default function Step1BasicInfo({ navigation }: Props) {
           <View style={styles.completionRow}>
             <Ionicons
               name={
-                isFormComplete ? "checkmark-circle" : "information-circle-outline"
+                isFormComplete
+                  ? "checkmark-circle"
+                  : "information-circle-outline"
               }
               size={18}
               color={isFormComplete ? colors.success : colors.textSecondary}
@@ -184,239 +190,247 @@ export default function Step1BasicInfo({ navigation }: Props) {
             </Text>
           </View>
           {!isFormComplete && (
-            <Text style={styles.completionHint}>
-              All fields are required
-            </Text>
+            <Text style={styles.completionHint}>All fields are required</Text>
           )}
         </Animated.View>
-
-      {/* ANIMATED BASIC INFO CARD */}
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            opacity: cardAnim.opacity,
-            transform: [{ translateY: cardAnim.translateY }],
-          },
-        ]}
-      >
-        <Text style={styles.cardTitle}>Basic Info</Text>
-
-        {/* FIRST NAME */}
-        <TextInputField
-          label="First Name *"
-          placeholder="Enter your first name"
-          value={values.firstName}
-          touched={!!touched.firstName}
-          error={getErrorString(errors.firstName)}
-          onChangeText={(t) => setFieldValue("firstName", t)}
-          onBlur={() => setFieldTouched("firstName", true)}
-        />
-
-        {/* LAST NAME */}
-        <TextInputField
-          label="Last Name *"
-          placeholder="Enter your last name"
-          value={values.lastName}
-          touched={!!touched.lastName}
-          error={getErrorString(errors.lastName)}
-          onChangeText={(t) => setFieldValue("lastName", t)}
-          onBlur={() => setFieldTouched("lastName", true)}
-        />
-
-        {/* NICKNAME */}
-        <TextInputField
-          label="Nickname *"
-          placeholder="How should we call you?"
-          value={values.nickName}
-          touched={!!touched.nickName}
-          error={getErrorString(errors.nickName)}
-          onChangeText={(t) => setFieldValue("nickName", t)}
-          onBlur={() => setFieldTouched("nickName", true)}
-        />
-
-        {/* BIRTHDAY + AGE (2-column layout) */}
-        <View style={styles.row}>
-          <View style={styles.col}>
-            <DatePickerInput
-              label="Birthday *"
-              placeholder="Select date"
-              value={values.birthday}
-              touched={!!touched.birthday}
-              error={getErrorString(errors.birthday)}
-              onChangeText={(date) => setFieldValue("birthday", date)}
-              onBlur={() => setFieldTouched("birthday", true)}
-            />
-          </View>
-
-          <View style={styles.col}>
-            <View style={styles.ageContainer}>
-              <Text style={styles.label}>Age</Text>
-              <View style={styles.ageDisplay}>
-                <Text style={styles.ageText}>
-                  {values.age || "—"}
-                </Text>
-                {values.age && (
-                  <Text style={styles.ageUnit}>years</Text>
-                )}
-              </View>
-              {values.age && (
-                <Text style={styles.autoCalculated}>Auto-calculated</Text>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* COUNTRY + CIVIL STATUS */}
-        <View style={styles.row}>
-          <View style={styles.col}>
-            <SelectField
-              label="Country *"
-              placeholder="Select country"
-              value={values.country}
-              touched={!!touched.country}
-              error={getErrorString(errors.country)}
-              onPress={() => setCountryPickerVisible(true)}
-            />
-          </View>
-
-          <View style={styles.col}>
-            <SelectField
-              label="Civil Status *"
-              placeholder="Select status"
-              value={values.civilStatus}
-              touched={!!touched.civilStatus}
-              error={getErrorString(errors.civilStatus)}
-              onPress={() => setCivilStatusPickerVisible(true)}
-            />
-          </View>
-        </View>
-
-        {/* CITY + HOBBY */}
-        <View style={styles.row}>
-          <View style={styles.col}>
-            <SelectField
-              label="City/Province *"
-              placeholder="Select city"
-              value={values.city}
-              touched={!!touched.city}
-              error={getErrorString(errors.city)}
-              onPress={() => setCityPickerVisible(true)}
-            />
-          </View>
-
-          <View style={styles.col}>
-            <SelectField
-              label="Hobby *"
-              placeholder="Select hobby"
-              value={values.hobby}
-              touched={!!touched.hobby}
-              error={getErrorString(errors.hobby)}
-              onPress={() => setHobbyPickerVisible(true)}
-            />
-          </View>
-        </View>
-      </Animated.View>
-
-        {/* Spacer for bottom navigation */}
-        <View style={{ height: 20 }} />
-      </ScrollView>
-
-      {/* ANIMATED Bottom Navigation */}
-      <Animated.View
-        style={[
-          styles.bottomNav,
-          {
-            opacity: buttonAnim.opacity,
-            transform: [{ translateY: buttonAnim.translateY }],
-          },
-        ]}
-      >
-        {/* Next Button (no back button on step 1) */}
-        <TouchableOpacity
-          style={[styles.nextButton, !isFormComplete && styles.nextButtonMuted]}
-          onPress={handleNext}
-          activeOpacity={0.8}
+      </SafeAreaView>
+      <View style={styles.wrapper}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
         >
-          <Text
-            style={[styles.nextText, !isFormComplete && styles.nextTextMuted]}
+          {/* ANIMATED BASIC INFO CARD */}
+          <Animated.View
+            style={[
+              styles.card,
+              {
+                opacity: cardAnim.opacity,
+                transform: [{ translateY: cardAnim.translateY }],
+              },
+            ]}
           >
-            {isFormComplete ? "Continue to Photos" : "Complete All Fields"}
-          </Text>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={isFormComplete ? colors.white : "#9CA3AF"}
-          />
-        </TouchableOpacity>
-      </Animated.View>
+            <Text style={styles.cardTitle}>Basic Info</Text>
 
-      {/* PICKER MODALS */}
-      <PickerModal
-        visible={countryPickerVisible}
-        title="Select Country"
-        options={COUNTRIES}
-        selectedValue={values.country}
-        onSelect={(value) => {
-          setFieldValue("country", value);
-          setFieldTouched("country", true);
-        }}
-        onClose={() => setCountryPickerVisible(false)}
-        searchPlaceholder="Search country..."
-      />
+            {/* FIRST NAME */}
+            <TextInputField
+              label="First Name *"
+              placeholder="Enter your first name"
+              value={values.firstName}
+              touched={!!touched.firstName}
+              error={getErrorString(errors.firstName)}
+              onChangeText={(t) => setFieldValue("firstName", t)}
+              onBlur={() => setFieldTouched("firstName", true)}
+            />
 
-      <PickerModal
-        visible={civilStatusPickerVisible}
-        title="Select Civil Status"
-        options={CIVIL_STATUS_OPTIONS}
-        selectedValue={values.civilStatus}
-        onSelect={(value) => {
-          setFieldValue("civilStatus", value);
-          setFieldTouched("civilStatus", true);
-        }}
-        onClose={() => setCivilStatusPickerVisible(false)}
-        enableSearch={false}
-      />
+            {/* LAST NAME */}
+            <TextInputField
+              label="Last Name *"
+              placeholder="Enter your last name"
+              value={values.lastName}
+              touched={!!touched.lastName}
+              error={getErrorString(errors.lastName)}
+              onChangeText={(t) => setFieldValue("lastName", t)}
+              onBlur={() => setFieldTouched("lastName", true)}
+            />
 
-      <PickerModal
-        visible={cityPickerVisible}
-        title="Select City/Province"
-        options={PHILIPPINES_CITIES}
-        selectedValue={values.city}
-        onSelect={(value) => {
-          setFieldValue("city", value);
-          setFieldTouched("city", true);
-        }}
-        onClose={() => setCityPickerVisible(false)}
-        searchPlaceholder="Search city..."
-      />
+            {/* NICKNAME */}
+            <TextInputField
+              label="Nickname *"
+              placeholder="How should we call you?"
+              value={values.nickName}
+              touched={!!touched.nickName}
+              error={getErrorString(errors.nickName)}
+              onChangeText={(t) => setFieldValue("nickName", t)}
+              onBlur={() => setFieldTouched("nickName", true)}
+            />
 
-      <PickerModal
-        visible={hobbyPickerVisible}
-        title="Select Hobby"
-        options={HOBBY_OPTIONS}
-        selectedValue={values.hobby}
-        onSelect={(value) => {
-          setFieldValue("hobby", value);
-          setFieldTouched("hobby", true);
-        }}
-        onClose={() => setHobbyPickerVisible(false)}
-        searchPlaceholder="Search hobby..."
-      />
-    </View>
+            {/* BIRTHDAY + AGE (2-column layout) */}
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <DatePickerInput
+                  label="Birthday *"
+                  placeholder="Select date"
+                  value={values.birthday}
+                  touched={!!touched.birthday}
+                  error={getErrorString(errors.birthday)}
+                  onChangeText={(date) => setFieldValue("birthday", date)}
+                  onBlur={() => setFieldTouched("birthday", true)}
+                />
+              </View>
+
+              <View style={styles.col}>
+                <View style={styles.ageContainer}>
+                  <Text style={styles.label}>Age</Text>
+                  <View style={styles.ageDisplay}>
+                    <Text style={styles.ageText}>{values.age || "—"}</Text>
+                    {values.age && <Text style={styles.ageUnit}>years</Text>}
+                  </View>
+                  {values.age && (
+                    <Text style={styles.autoCalculated}>Auto-calculated</Text>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            {/* COUNTRY + CIVIL STATUS */}
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <SelectField
+                  label="Country *"
+                  placeholder="Select country"
+                  value={values.country}
+                  touched={!!touched.country}
+                  error={getErrorString(errors.country)}
+                  onPress={() => setCountryPickerVisible(true)}
+                />
+              </View>
+
+              <View style={styles.col}>
+                <SelectField
+                  label="Civil Status *"
+                  placeholder="Select status"
+                  value={values.civilStatus}
+                  touched={!!touched.civilStatus}
+                  error={getErrorString(errors.civilStatus)}
+                  onPress={() => setCivilStatusPickerVisible(true)}
+                />
+              </View>
+            </View>
+
+            {/* CITY + HOBBY */}
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <SelectField
+                  label="City/Province *"
+                  placeholder="Select city"
+                  value={values.city}
+                  touched={!!touched.city}
+                  error={getErrorString(errors.city)}
+                  onPress={() => setCityPickerVisible(true)}
+                />
+              </View>
+
+              <View style={styles.col}>
+                <SelectField
+                  label="Hobby *"
+                  placeholder="Select hobby"
+                  value={values.hobby}
+                  touched={!!touched.hobby}
+                  error={getErrorString(errors.hobby)}
+                  onPress={() => setHobbyPickerVisible(true)}
+                />
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* Spacer for bottom navigation */}
+          <View style={{ height: 20 }} />
+        </ScrollView>
+
+        {/* ANIMATED Bottom Navigation */}
+        <Animated.View
+          style={[
+            styles.bottomNav,
+            {
+              opacity: buttonAnim.opacity,
+              transform: [{ translateY: buttonAnim.translateY }],
+            },
+          ]}
+        >
+          {/* Next Button (no back button on step 1) */}
+          <TouchableOpacity
+            style={[
+              styles.nextButton,
+              !isFormComplete && styles.nextButtonMuted,
+            ]}
+            onPress={handleNext}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[styles.nextText, !isFormComplete && styles.nextTextMuted]}
+            >
+              {isFormComplete ? "Continue to Photos" : "Complete All Fields"}
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={isFormComplete ? colors.white : "#9CA3AF"}
+            />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* PICKER MODALS */}
+        <PickerModal
+          visible={countryPickerVisible}
+          title="Select Country"
+          options={COUNTRIES}
+          selectedValue={values.country}
+          onSelect={(value) => {
+            setFieldValue("country", value);
+            setFieldTouched("country", true);
+          }}
+          onClose={() => setCountryPickerVisible(false)}
+          searchPlaceholder="Search country..."
+        />
+
+        <PickerModal
+          visible={civilStatusPickerVisible}
+          title="Select Civil Status"
+          options={CIVIL_STATUS_OPTIONS}
+          selectedValue={values.civilStatus}
+          onSelect={(value) => {
+            setFieldValue("civilStatus", value);
+            setFieldTouched("civilStatus", true);
+          }}
+          onClose={() => setCivilStatusPickerVisible(false)}
+          enableSearch={false}
+        />
+
+        <PickerModal
+          visible={cityPickerVisible}
+          title="Select City/Province"
+          options={PHILIPPINES_CITIES}
+          selectedValue={values.city}
+          onSelect={(value) => {
+            setFieldValue("city", value);
+            setFieldTouched("city", true);
+          }}
+          onClose={() => setCityPickerVisible(false)}
+          searchPlaceholder="Search city..."
+        />
+
+        <PickerModal
+          visible={hobbyPickerVisible}
+          title="Select Hobby"
+          options={HOBBY_OPTIONS}
+          selectedValue={values.hobby}
+          onSelect={(value) => {
+            setFieldValue("hobby", value);
+            setFieldTouched("hobby", true);
+          }}
+          onClose={() => setHobbyPickerVisible(false)}
+          searchPlaceholder="Search hobby..."
+        />
+      </View>
+    </FullScreen>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: colors.backgroundLight,
+    // backgroundColor: colors.backgroundLight,
   },
 
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: colors.backgroundLight,
+    // backgroundColor: colors.backgroundLight,
+  },
+  headerView: {
+    padding: 20,
+    // backgroundColor: colors.backgroundLight,
   },
 
   header: {
@@ -425,8 +439,8 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    width: 56,
-    height: 56,
+    width: 36,
+    height: 36,
     marginBottom: 10,
   },
 
@@ -449,7 +463,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     padding: 12,
     borderRadius: 12,
-    marginBottom: 20,
+    marginBottom: 0,
     borderWidth: 1,
     borderColor: colors.borderMedium,
   },

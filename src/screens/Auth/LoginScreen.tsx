@@ -155,7 +155,11 @@ export default function LoginScreen() {
                     <AuthFooterLink
                       label="Don't have an account?"
                       actionText="Sign Up"
-                      onPress={() => console.log("SignUp pressed")}
+                      onPress={() =>
+                        NavigationService.navigate("Auth", {
+                          screen: "Register",
+                        })
+                      }
                     />
                   </View>
 

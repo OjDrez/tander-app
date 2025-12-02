@@ -1,50 +1,12 @@
-// import {
-//   StyleSheet,
-//   Text,
-//   TextInput,
-//   TextInputProps,
-//   View,
-// } from "react-native";
-
-// interface TextInputFieldProps extends TextInputProps {
-//   label: string;
-//   error?: string | undefined;
-// }
-
-// export default function TextInputField({
-//   label,
-//   error,
-//   ...props
-// }: TextInputFieldProps) {
-//   return (
-//     <View style={{ marginBottom: 16 }}>
-//       <Text style={styles.label}>{label}</Text>
-
-//       <TextInput
-//         style={[styles.input, error && styles.errorInput]}
-//         placeholderTextColor="#999"
-//         {...props}
-//       />
-
-//       {error && <Text style={styles.errorText}>{error}</Text>}
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   label: { fontSize: 14, fontWeight: "500", marginBottom: 4 },
-//   input: {
-//     backgroundColor: "#F4F4F4",
-//     padding: 14,
-//     borderRadius: 10,
-//     fontSize: 15,
-//   },
-//   errorInput: { borderWidth: 1, borderColor: "red" },
-//   errorText: { color: "red", marginTop: 3 },
-// });
-
 import React from "react";
-import { Animated, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Animated,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 interface TextInputFieldProps {
   label: string;
@@ -79,25 +41,15 @@ export default function TextInputField({
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = React.useState(false);
 
-  // Fade animation for error message
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  // Scale animation for focus
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
-    if (error && touched) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 100,
-        useNativeDriver: true,
-      }).start();
-    }
+    Animated.timing(fadeAnim, {
+      toValue: error && touched ? 1 : 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
   }, [error, touched]);
 
   const handleFocus = () => {
@@ -105,8 +57,8 @@ export default function TextInputField({
     Animated.spring(scaleAnim, {
       toValue: 1.01,
       useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
+      speed: 40,
+      bounciness: 3,
     }).start();
   };
 
@@ -115,8 +67,8 @@ export default function TextInputField({
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
+      speed: 40,
+      bounciness: 3,
     }).start();
     onBlur?.();
   };
@@ -127,8 +79,6 @@ export default function TextInputField({
     return "#E5E5E5";
   };
 
-  const borderColor = getBorderColor();
-
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -136,11 +86,18 @@ export default function TextInputField({
       <Animated.View
         style={[
           styles.inputWrapper,
-          { borderColor, transform: [{ scale: scaleAnim }] },
+          {
+            borderColor: getBorderColor(),
+            transform: [{ scale: scaleAnim }],
+          },
         ]}
       >
         <TextInput
-          style={[styles.input, multiline && styles.multilineInput]}
+          style={[
+            styles.input,
+            multiline && styles.multilineInput,
+            Platform.OS === "android" && styles.androidAdjust,
+          ]}
           value={value}
           placeholder={placeholder}
           placeholderTextColor="#BDBDBD"
@@ -157,11 +114,11 @@ export default function TextInputField({
         />
       </Animated.View>
 
-      {touched && error ? (
+      {touched && error && (
         <Animated.View style={{ opacity: fadeAnim }}>
           <Text style={styles.errorText}>{error}</Text>
         </Animated.View>
-      ) : null}
+      )}
     </View>
   );
 }
@@ -176,25 +133,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
   },
+
   inputWrapper: {
     backgroundColor: "#F5F5F5",
-    borderWidth: 1.5,
+    borderWidth: 1.4,
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === "android" ? 8 : 14, // 🔥 IMPORTANT
   },
+
   input: {
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 15 : 16, // 🔥 iPhone = true size; Android = scaled
     color: "#333",
+    padding: 0, // Remove Android default padding
   },
+
+  androidAdjust: {
+    paddingVertical: 2,
+    includeFontPadding: false, // removes extra height in Android fonts
+  },
+
   multilineInput: {
-    minHeight: 80,
+    minHeight: 90,
     paddingTop: 8,
   },
+
   errorText: {
     marginTop: 6,
     fontSize: 13,
-    color: "#D9534F", // red
+    color: "#D9534F",
     fontWeight: "500",
   },
 });
