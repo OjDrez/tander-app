@@ -1,24 +1,24 @@
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
-  SafeAreaView,
   StyleSheet,
   useWindowDimensions,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
 import OutlineButton from "@/src/components/buttons/OutlineButton";
+import AppText from "@/src/components/inputs/AppText";
+import FullScreen from "@/src/components/layout/FullScreen";
 import OnboardingDots from "@/src/components/onboarding/OnboardingDots";
 import OnboardingSlide, {
   SlideItem,
 } from "@/src/components/onboarding/OnboardingSlide";
-import AppText from "@/src/components/inputs/AppText";
-import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const SLIDES: SlideItem[] = [
   {
@@ -26,9 +26,7 @@ const SLIDES: SlideItem[] = [
     title: "Meet new people nearby",
     description:
       "Connect with others in your area and start meaningful conversations.",
-    image: {
-      uri: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
-    },
+    image: require("../../assets/images/onboard-1st.png"),
     accent: colors.accentTeal,
   },
   {
@@ -36,9 +34,7 @@ const SLIDES: SlideItem[] = [
     title: "Find meaningful connections",
     description:
       "Discover people who share your interests and values to build lasting bonds.",
-    image: {
-      uri: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
-    },
+    image: require("../../assets/images/onboard2.png"),
     accent: colors.accentBlue,
   },
   {
@@ -46,9 +42,7 @@ const SLIDES: SlideItem[] = [
     title: "Start conversations that matter",
     description:
       "Share stories, hobbies, and plans together in a safe and welcoming space.",
-    image: {
-      uri: "https://images.unsplash.com/photo-1530023367847-a683933f4177?auto=format&fit=crop&w=900&q=80",
-    },
+    image: require("../../assets/images/onboard3.png"),
     accent: colors.primary,
   },
 ];
@@ -94,7 +88,7 @@ export default function OnboardingFlowScreen() {
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerRow}>
-          <AppText size="caption" weight="semibold" color={colors.textMuted}>
+          <AppText size="small" weight="semibold" color={colors.textMuted}>
             {`0${currentIndex + 1}/0${SLIDES.length}`}
           </AppText>
           <OutlineButton
@@ -133,7 +127,9 @@ export default function OnboardingFlowScreen() {
               <OutlineButton
                 title="Back"
                 onPress={() =>
-                  flatListRef.current?.scrollToIndex({ index: currentIndex - 1 })
+                  flatListRef.current?.scrollToIndex({
+                    index: currentIndex - 1,
+                  })
                 }
                 style={styles.secondaryButton}
               />
@@ -142,7 +138,9 @@ export default function OnboardingFlowScreen() {
             )}
 
             <GradientButton
-              title={currentIndex === SLIDES.length - 1 ? "Get Started" : "Next"}
+              title={
+                currentIndex === SLIDES.length - 1 ? "Get Started" : "Next"
+              }
               onPress={handleNext}
               style={styles.primaryButton}
             />
