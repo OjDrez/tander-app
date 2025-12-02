@@ -60,7 +60,9 @@ export default function WelcomeScreen() {
             <GradientButton
               title="Sign Up"
               onPress={() =>
-                NavigationService.navigate("Auth", { screen: "Register" })
+                NavigationService.navigate("Onboarding", {
+                  screen: "AccountIntroScreen",
+                })
               }
               style={styles.signUpButton}
             />

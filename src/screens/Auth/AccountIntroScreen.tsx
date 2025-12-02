@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -11,7 +12,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
 import AppTextInput from "@/src/components/common/AppTextInput";
@@ -137,7 +137,15 @@ export default function AccountIntroScreen() {
 
           <GradientButton
             title="Create Account"
-            onPress={() => NavigationService.replace("WelcomeScreen")}
+            // onPress={() => NavigationService.navigate("Step1BasicInfo")}
+            // onPress={() =>
+            //   NavigationService.replace("Register", {
+            //     screen: "Step1BasicInfo",
+            //   })
+            // }
+            onPress={() =>
+              NavigationService.navigate("Auth", { screen: "Register" })
+            }
             style={{ marginTop: 6 }}
           />
 

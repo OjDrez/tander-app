@@ -71,7 +71,7 @@ export default function SplashScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      NavigationService.replace("AccountIntroScreen");
+      NavigationService.replace("WelcomeScreen");
     });
 
     /* -------------------- Looping gradient animation -------------------- */

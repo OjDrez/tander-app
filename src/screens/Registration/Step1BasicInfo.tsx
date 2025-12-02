@@ -127,11 +127,13 @@ export default function Step1BasicInfo({ navigation }: Props) {
     });
 
     // Then validate
-    const validationErrors = await validateForm();
+    // const validationErrors = await validateForm();
+    // console.log("🔥 validationErrors:", validationErrors);
 
-    if (Object.keys(validationErrors).length === 0) {
-      navigation.navigate("Step2");
-    }
+    // if (Object.keys(validationErrors).length === 0) {
+    //   navigation.navigate("Step2");
+    // }
+    navigation.navigate("Step2");
   };
 
   return (
