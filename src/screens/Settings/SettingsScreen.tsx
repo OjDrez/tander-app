@@ -82,7 +82,9 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.profileCard}
             activeOpacity={0.9}
-            onPress={() => handleNavigate("EditProfileScreen")}
+            onPress={() =>
+              navigation.navigate("ViewProfileDetailsScreen", { userId: "1" })
+            }
           >
             <View style={styles.profileRow}>
               <Image source={{ uri: PROFILE.avatar }} style={styles.profileAvatar} />
