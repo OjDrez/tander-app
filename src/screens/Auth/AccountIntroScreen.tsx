@@ -54,7 +54,6 @@ const registerUser = async (payload: any) => {
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
 
-  // entrance animation for card + icon
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -87,7 +86,7 @@ export default function AccountIntroScreen() {
         }),
       ])
     ).start();
-  }, [fadeAnim, translateY, pulseAnim]);
+  }, []);
 
   return (
     <FullScreen statusBarStyle="dark">
@@ -140,7 +139,11 @@ export default function AccountIntroScreen() {
           </View>
 
           <Formik<FormValues>
-            initialValues={{ identifier: "", password: "", confirmPassword: "" }}
+            initialValues={{
+              identifier: "",
+              password: "",
+              confirmPassword: "",
+            }}
             validationSchema={createAccountSchema}
             onSubmit={async (values, { setSubmitting }) => {
               try {
@@ -180,6 +183,7 @@ export default function AccountIntroScreen() {
                   onBlur={handleBlur("identifier")}
                   error={touched.identifier ? errors.identifier : undefined}
                 />
+
                 <AppTextInput
                   icon="lock-closed-outline"
                   placeholder="Create a password"
@@ -190,6 +194,7 @@ export default function AccountIntroScreen() {
                   onBlur={handleBlur("password")}
                   error={touched.password ? errors.password : undefined}
                 />
+
                 <AppTextInput
                   icon="shield-checkmark-outline"
                   placeholder="Confirm password"
@@ -232,7 +237,9 @@ export default function AccountIntroScreen() {
 
                 <TouchableOpacity
                   onPress={() =>
-                    NavigationService.replace("Auth", { screen: "LoginScreen" })
+                    NavigationService.replace("Auth", {
+                      screen: "LoginScreen",
+                    })
                   }
                   style={styles.footerLink}
                 >
