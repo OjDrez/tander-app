@@ -5,6 +5,7 @@ import HomeScreen from "../screens/Home/HomeScreen";
 import InboxScreen from "../screens/Inbox/InboxScreen";
 import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
+import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import { AppStackParamList } from "./NavigationTypes";
 
@@ -21,6 +22,7 @@ export default function AppNavigator() {
         component={PeopleViewedMeScreen}
       />
       <Stack.Screen name="ProfileViewScreen" component={ProfileViewScreen} />
+      <Stack.Screen name="ViewProfileScreen" component={ViewProfileScreen} />
     </Stack.Navigator>
   );
 }
