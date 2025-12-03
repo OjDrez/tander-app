@@ -1,17 +1,17 @@
-import React, { useMemo, useCallback } from "react";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useCallback, useMemo } from "react";
 import {
   Image,
   ScrollView,
   StyleSheet,
-  View,
   TouchableOpacity,
+  View,
 } from "react-native";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 
-import AppText from "@/src/components/inputs/AppText";
 import GradientButton from "@/src/components/buttons/GradientButton";
+import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
@@ -71,7 +71,11 @@ export default function ProfileViewScreen() {
             style={styles.iconButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
+            <Ionicons
+              name="chevron-back"
+              size={22}
+              color={colors.textPrimary}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -105,7 +109,12 @@ export default function ProfileViewScreen() {
             </View>
             <View style={styles.locationRow}>
               <Ionicons name="location" size={16} color={colors.white} />
-              <AppText size="body" weight="medium" color={colors.white} style={styles.locationText}>
+              <AppText
+                size="body"
+                weight="medium"
+                color={colors.white}
+                style={styles.locationText}
+              >
                 {profile.location}
               </AppText>
             </View>
@@ -135,7 +144,7 @@ export default function ProfileViewScreen() {
           <View style={styles.interestWrap}>
             {profile.interests.map((interest) => (
               <View key={interest} style={styles.interestPill}>
-                <AppText size="caption" weight="semibold" color={colors.primary}>
+                <AppText size="small" weight="semibold" color={colors.primary}>
                   {interest}
                 </AppText>
               </View>
@@ -144,7 +153,11 @@ export default function ProfileViewScreen() {
         </View>
 
         <View style={styles.actionsRow}>
-          <GradientButton title="Chat Now" onPress={handleChatPress} style={styles.button} />
+          <GradientButton
+            title="Chat Now"
+            onPress={handleChatPress}
+            style={styles.button}
+          />
           <TouchableOpacity
             accessibilityRole="button"
             activeOpacity={0.9}
@@ -163,7 +176,11 @@ export default function ProfileViewScreen() {
                   size={20}
                   color={colors.accentBlue}
                 />
-                <AppText size="body" weight="semibold" color={colors.accentBlue}>
+                <AppText
+                  size="body"
+                  weight="semibold"
+                  color={colors.accentBlue}
+                >
                   Video Call
                 </AppText>
               </View>
