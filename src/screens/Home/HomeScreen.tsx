@@ -65,6 +65,10 @@ export default function HomeScreen() {
       navigation.navigate("InboxScreen");
     }
 
+    if (tab === "Matches") {
+      navigation.navigate("MyMatchesScreen");
+    }
+
     if (tab === "Profile") {
       navigation.navigate("ProfileViewScreen", { userId: profile.id });
     }
