@@ -1,10 +1,17 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
+import { RootStackParamList } from "@/src/navigation/NavigationTypes";
 
-export default function ProfileScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "ProfileScreen">;
+
+export default function ProfileScreen({ route }: Props) {
+  const userId = route?.params?.userId;
+
   return (
     <FullScreen statusBarStyle="dark" style={styles.container}>
       <View style={styles.content}>
@@ -12,7 +19,9 @@ export default function ProfileScreen() {
           My Profile
         </AppText>
         <AppText color={colors.textSecondary}>
-          Manage your profile details here.
+          {userId
+            ? `Manage your profile details for user ${userId}.`
+            : "Manage your profile details here."}
         </AppText>
       </View>
     </FullScreen>

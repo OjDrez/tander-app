@@ -11,7 +11,7 @@ export type RootStackParamList = {
   InboxScreen: undefined;
   MyMatchesScreen: undefined;
   ViewMeScreen: undefined;
-  ProfileScreen: undefined;
+  ProfileScreen: { userId?: string } | undefined;
   ProfileViewScreen: { userId: string };
   ChatRoomScreen: { userId: string };
   VideoCallScreen: { userId: string };
