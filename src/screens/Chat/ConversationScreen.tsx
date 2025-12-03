@@ -1,58 +1,81 @@
 import colors from "@/src/config/colors";
 import MessageBubble from "@/src/components/chat/MessageBubble";
+import MessageInputBar from "@/src/components/chat/MessageInputBar";
+import AppText from "@/src/components/inputs/AppText";
 import AppHeader from "@/src/components/navigation/AppHeader";
-import FullScreen from "@/src/components/layout/FullScreen";
+import Screen from "@/src/components/layout/Screen";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import {
   NativeStackNavigationProp,
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const messages = [
-  { id: "1", text: "Kamusta po?", time: "5:58 PM", isOwn: false },
+type ChatMessage = {
+  id: string;
+  text: string;
+  time: string;
+  isOwn: boolean;
+  date: string;
+};
+
+type DateSeparator = {
+  id: string;
+  type: "date";
+  label: string;
+};
+
+type ChatListItem = ChatMessage | DateSeparator;
+
+const initialMessages: ChatMessage[] = [
+  { id: "1", text: "Kamusta po?", time: "5:58 PM", isOwn: false, date: "2024-06-10" },
   {
     id: "2",
     text: "Hello! Ok naman, eto nagluluto ng Adobo Baboy.",
     time: "5:59 PM",
     isOwn: true,
+    date: "2024-06-10",
   },
   {
     id: "3",
     text: "Wow! Gusto ko matikman yan next time magkita tayo!",
     time: "5:59 PM",
     isOwn: false,
+    date: "2024-06-10",
   },
   {
     id: "4",
     text: "Sure, magaya kita tayo sa Rainforest, papakain ko sa iyo yung niluto ko. Tapos lakad tayo sa park!",
     time: "6:00 PM",
     isOwn: true,
+    date: "2024-06-10",
   },
   {
     id: "5",
     text: "Sige, sige, Faye. Kita Kits tayo kapag natapos ko na itong niluluto ko. See you!",
     time: "6:01 PM",
     isOwn: false,
+    date: "2024-06-11",
   },
   {
     id: "6",
     text: "Ok cge! Enjoy mo pagluluto mo, message mo lang ako pag tapos ka na!",
     time: "6:02 PM",
     isOwn: true,
+    date: "2024-06-11",
   },
 ];
 
@@ -61,171 +84,269 @@ export default function ConversationScreen({
 }: NativeStackScreenProps<AppStackParamList, "ConversationScreen">) {
   const { userId } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const insets = useSafeAreaInsets();
+
+  const [messageText, setMessageText] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+
+  const flatListRef = useRef<FlatList<ChatListItem>>(null);
+
+  const formattedMessages = useMemo<ChatListItem[]>(() => {
+    const items: ChatListItem[] = [];
+    let lastDate = "";
+
+    messages.forEach((message) => {
+      if (message.date !== lastDate) {
+        items.push({
+          id: `date-${message.date}`,
+          type: "date",
+          label: formatDateLabel(message.date),
+        });
+        lastDate = message.date;
+      }
+      items.push(message);
+    });
+
+    return items;
+  }, [messages]);
+
+  useEffect(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, [formattedMessages.length]);
 
   const handleVideoCall = () => {
     navigation.navigate("VideoCallScreen", { userId });
   };
 
+  const handleSend = () => {
+    if (!messageText.trim()) return;
+
+    const now = new Date();
+    const newMessage: ChatMessage = {
+      id: `${now.getTime()}`,
+      text: messageText.trim(),
+      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isOwn: true,
+      date: now.toISOString().slice(0, 10),
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+    setMessageText("");
+  };
+
+  const renderItem = ({ item }: { item: ChatListItem }) => {
+    if ((item as DateSeparator).type === "date") {
+      const dateItem = item as DateSeparator;
+      return (
+        <View style={styles.dateSeparator}>
+          <View style={styles.separatorLine} />
+          <AppText size="tiny" weight="medium" color={colors.textSecondary} style={styles.dateText}>
+            {dateItem.label}
+          </AppText>
+          <View style={styles.separatorLine} />
+        </View>
+      );
+    }
+
+    const messageItem = item as ChatMessage;
+    return (
+      <MessageBubble text={messageItem.text} time={messageItem.time} isOwn={messageItem.isOwn} />
+    );
+  };
+
   return (
-    <FullScreen statusBarStyle="dark" style={styles.container}>
+    <Screen backgroundColor={colors.white}>
       <LinearGradient
-        colors={["#FFFFFF", "#F3FBF9"]}
+        colors={colors.gradients.softAqua.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <AppHeader
-          onBackPress={() => navigation.goBack()}
-          centerContent={
-            <View style={styles.headerUserRow}>
-              <View style={styles.avatarPlaceholder} />
-              <View>
-                <Text style={styles.headerName}>Felix</Text>
-                <Text style={styles.headerStatus}>Active now</Text>
-              </View>
-            </View>
-          }
-          rightContent={
-            <TouchableOpacity
-              style={styles.videoButton}
-              onPress={handleVideoCall}
-              activeOpacity={0.92}
-            >
-              <Ionicons name="videocam" size={18} color={colors.white} />
-              <Text style={styles.videoButtonText}>Video Call ❤️</Text>
-            </TouchableOpacity>
-          }
-        />
-
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={12}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={insets.top + 8}
         >
-          <FlatList
-            data={messages}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <MessageBubble text={item.text} time={item.time} isOwn={item.isOwn} />
-            )}
-            showsVerticalScrollIndicator={false}
-          />
-
-          <View style={styles.inputBar}>
-            <TouchableOpacity style={styles.iconButton} activeOpacity={0.85}>
-              <Ionicons name="attach" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <TextInput
-              placeholder="Type a message..."
-              placeholderTextColor={colors.textMuted}
-              style={styles.textInput}
+          <View style={styles.contentWrapper}>
+            <AppHeader
+              onBackPress={() => navigation.goBack()}
+              centerContent={
+                <View style={styles.headerUserRow}>
+                  <Image
+                    source={{
+                      uri: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80",
+                    }}
+                    style={styles.avatar}
+                  />
+                  <View>
+                    <AppText weight="bold" size="body" color={colors.textPrimary}>
+                      Felix
+                    </AppText>
+                    <AppText size="tiny" color={colors.textSecondary}>
+                      Active now
+                    </AppText>
+                  </View>
+                </View>
+              }
+              rightContent={
+                <View style={styles.headerActions}>
+                  <View style={styles.statusDot} />
+                  <AppText size="tiny" color={colors.textSecondary}>
+                    Secure chat
+                  </AppText>
+                  <View style={styles.rightSpacer} />
+                </View>
+              }
             />
-            <TouchableOpacity style={styles.sendButton} activeOpacity={0.9}>
-              <Ionicons name="send" size={18} color={colors.white} />
-            </TouchableOpacity>
+
+            <FlatList
+              ref={flatListRef}
+              data={formattedMessages}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={renderItem}
+              showsVerticalScrollIndicator={false}
+            />
+
+            <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+              <MessageInputBar
+                value={messageText}
+                onChangeText={setMessageText}
+                onSend={handleSend}
+                onAttachmentPress={() => {}}
+              />
+            </View>
+
+            <View style={styles.fabWrapper}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.videoButton}
+                onPress={handleVideoCall}
+                activeOpacity={0.88}
+              >
+                <Ionicons name="videocam" size={18} color={colors.white} />
+                <AppText weight="bold" size="tiny" color={colors.white}>
+                  Video Call
+                </AppText>
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>
-    </FullScreen>
+    </Screen>
   );
 }
 
+function formatDateLabel(dateString: string) {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  const messageDate = new Date(dateString);
+  const isToday =
+    messageDate.getDate() === today.getDate() &&
+    messageDate.getMonth() === today.getMonth() &&
+    messageDate.getFullYear() === today.getFullYear();
+
+  const isYesterday =
+    messageDate.getDate() === yesterday.getDate() &&
+    messageDate.getMonth() === yesterday.getMonth() &&
+    messageDate.getFullYear() === yesterday.getFullYear();
+
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+  return messageDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.white,
-  },
   gradient: {
     flex: 1,
   },
   flex: {
     flex: 1,
   },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    marginTop: 6,
+  },
   headerUserRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  avatarPlaceholder: {
+  avatar: {
     height: 44,
     width: 44,
     borderRadius: 22,
-    backgroundColor: colors.borderMedium,
+    backgroundColor: colors.borderLight,
   },
-  headerName: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.textPrimary,
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    width: 86,
   },
-  headerStatus: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  statusDot: {
+    height: 8,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+  },
+  rightSpacer: {
+    width: 4,
   },
   listContent: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    gap: 4,
+    gap: 10,
+    flexGrow: 1,
+    justifyContent: "flex-end",
   },
-  inputBar: {
+  dateSeparator: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    gap: 10,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderColor: colors.borderMedium,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 8,
-  },
-  iconButton: {
-    height: 42,
-    width: 42,
-    borderRadius: 14,
-    backgroundColor: colors.backgroundLight,
-    alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    marginVertical: 6,
   },
-  textInput: {
+  separatorLine: {
     flex: 1,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: colors.backgroundLight,
-    paddingHorizontal: 16,
-    color: colors.textPrimary,
+    height: 1,
+    backgroundColor: colors.borderMedium,
   },
-  sendButton: {
-    height: 46,
-    width: 46,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+  dateText: {
+    paddingHorizontal: 8,
+  },
+  inputContainer: {
+    backgroundColor: colors.white,
   },
   videoButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 20,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     backgroundColor: colors.accentTeal,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
     shadowColor: colors.shadowLight,
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
-  videoButtonText: {
-    color: colors.white,
-    fontWeight: "700",
-    fontSize: 13,
+  fabWrapper: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    left: 0,
+    pointerEvents: "box-none",
   },
 });
