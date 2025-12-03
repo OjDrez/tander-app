@@ -19,6 +19,7 @@ export type AppStackParamList = {
   MyMatchesScreen: undefined;
   PeopleViewedMeScreen: undefined;
   ProfileViewScreen: { userId: string };
+  ViewProfileScreen: { userId: string };
 };
 
 /**

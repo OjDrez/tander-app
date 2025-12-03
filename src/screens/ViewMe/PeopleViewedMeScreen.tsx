@@ -75,7 +75,7 @@ export default function PeopleViewedMeScreen() {
   );
 
   const handleCardPress = (userId: string) => {
-    navigation.navigate("ProfileViewScreen", { userId });
+    navigation.navigate("ViewProfileScreen", { userId });
   };
 
   const handleTabPress = (tab: MainNavigationTab) => {
