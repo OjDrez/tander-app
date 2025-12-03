@@ -18,6 +18,7 @@ export type AppStackParamList = {
   InboxScreen: undefined;
   InboxEmptyScreen: undefined;
   ConversationScreen: { userId: string };
+  MessageThreadScreen: { userId: string };
   MyMatchesScreen: undefined;
   MatchCelebrationScreen: { user1: string; user2: string };
   PeopleViewedMeScreen: undefined;

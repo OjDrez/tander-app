@@ -1,15 +1,32 @@
 import colors from "@/src/config/colors";
 import FullScreen from "@/src/components/layout/FullScreen";
-import AppHeader from "@/src/components/navigation/AppHeader";
-import InboxRow from "@/src/components/inbox/InboxRow";
+import AppText from "@/src/components/inputs/AppText";
 import PeopleYouMayKnowRow from "@/src/components/inbox/PeopleYouMayKnowRow";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  FlatList,
+  Image,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+type Conversation = {
+  id: string;
+  name: string;
+  message: string;
+  timestamp: string;
+  avatar: string;
+  unreadCount?: number;
+};
 
 const suggestedPeople = [
   {
@@ -42,7 +59,7 @@ const suggestedPeople = [
   },
 ];
 
-const mockConversations = [
+const mockConversations: Conversation[] = [
   {
     id: "felix",
     name: "Felix",
@@ -50,7 +67,7 @@ const mockConversations = [
     timestamp: "2m ago",
     avatar:
       "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80",
-    favorite: true,
+    unreadCount: 2,
   },
   {
     id: "jericho",
@@ -59,7 +76,7 @@ const mockConversations = [
     timestamp: "5m ago",
     avatar:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
-    favorite: false,
+    unreadCount: 0,
   },
   {
     id: "lydia",
@@ -68,150 +85,349 @@ const mockConversations = [
     timestamp: "10m ago",
     avatar:
       "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?auto=format&fit=crop&w=200&q=80",
-    favorite: false,
+    unreadCount: 1,
   },
 ];
 
 export default function InboxScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const [conversations, setConversations] = useState(mockConversations);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [conversations] = useState<Conversation[]>(mockConversations);
+
+  useEffect(() => {
+    if (conversations.length === 0) {
+      navigation.replace("InboxEmptyScreen");
+    }
+  }, [conversations.length, navigation]);
+
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return conversations;
+    }
+
+    return conversations.filter((item) =>
+      item.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    );
+  }, [conversations, searchQuery]);
 
   const handlePressConversation = (userId: string) => {
-    navigation.navigate("ConversationScreen", { userId });
+    navigation.navigate("MessageThreadScreen", { userId });
   };
 
   const handlePressAvatar = (userId: string) => {
     navigation.navigate("DashboardScreen", { userId });
   };
 
-  const toggleFavorite = (userId: string) => {
-    setConversations((prev) =>
-      prev.map((item) =>
-        item.id === userId ? { ...item, favorite: !item.favorite } : item
-      )
+  const renderConversation = ({ item }: { item: Conversation }) => {
+    const hasUnread = (item.unreadCount ?? 0) > 0;
+
+    return (
+      <TouchableOpacity
+        style={[styles.threadCard, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
+        activeOpacity={0.9}
+        onPress={() => handlePressConversation(item.id)}
+      >
+        <TouchableOpacity
+          style={[styles.avatarWrapper, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
+          activeOpacity={0.9}
+          onPress={() => handlePressAvatar(item.id)}
+        >
+          <Image source={{ uri: item.avatar }} style={styles.avatar} />
+        </TouchableOpacity>
+
+        <View style={styles.threadBody}>
+          <View style={styles.threadTopRow}>
+            <AppText size="h4" weight="semibold" numberOfLines={1} style={styles.name}>
+              {item.name}
+            </AppText>
+            <AppText size="tiny" color={colors.textMuted} weight="semibold">
+              {item.timestamp}
+            </AppText>
+          </View>
+
+          <AppText
+            size="small"
+            color={colors.textSecondary}
+            numberOfLines={1}
+            style={styles.preview}
+          >
+            {item.message}
+          </AppText>
+        </View>
+
+        {hasUnread ? (
+          <View style={styles.unreadBadge}>
+            <AppText size="tiny" weight="bold" color={colors.white}>
+              {item.unreadCount}
+            </AppText>
+          </View>
+        ) : (
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        )}
+      </TouchableOpacity>
     );
   };
 
-  const isEmpty = conversations.length === 0;
-
-  useEffect(() => {
-    if (isEmpty) {
-      navigation.replace("InboxEmptyScreen");
-    }
-  }, [isEmpty, navigation]);
-
   return (
-    <FullScreen statusBarStyle="dark" style={styles.container}>
+    <FullScreen statusBarStyle="dark" style={styles.fullScreen}>
       <LinearGradient
         colors={colors.gradients.softAqua.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <AppHeader
-          title="Inbox"
-          rightContent={
-            <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.iconCircle} activeOpacity={0.88}>
-                <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconCircle} activeOpacity={0.88}>
-                <Ionicons name="videocam" size={18} color={colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-          }
-        />
+        <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
+          <FlatList
+            data={filteredConversations}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            renderItem={renderConversation}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={
+              <View style={styles.headerSection}>
+                <View style={styles.titleRow}>
+                  <AppText size="h2" weight="bold" style={styles.title}>
+                    Inbox
+                  </AppText>
+                  <View style={styles.headerActions}>
+                    <TouchableOpacity style={styles.circleButton} activeOpacity={0.88}>
+                      <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.circleButton} activeOpacity={0.88}>
+                      <Ionicons name="videocam" size={18} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <AppText size="small" color={colors.textSecondary} style={styles.subtitle}>
+                  Catch up with your conversations and stay connected.
+                </AppText>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <LinearGradient
-            colors={["#FFF3E4", "#EAF7F5"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.peopleCard}
-          >
-            <PeopleYouMayKnowRow people={suggestedPeople} onSelect={handlePressAvatar} />
-          </LinearGradient>
+                <View style={styles.searchBar}>
+                  <Ionicons name="search" size={18} color={colors.textSecondary} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search conversations"
+                    placeholderTextColor={colors.textMuted}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    selectionColor={colors.primary}
+                  />
+                  <TouchableOpacity style={styles.filterButton} activeOpacity={0.85}>
+                    <Ionicons name="options-outline" size={18} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Messages</Text>
-            <Ionicons name="mail-open" size={18} color={colors.textSecondary} />
-          </View>
+                <LinearGradient
+                  colors={colors.gradients.registration.array}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.suggestionsCard, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
+                >
+                  <PeopleYouMayKnowRow people={suggestedPeople} onSelect={handlePressAvatar} />
+                </LinearGradient>
 
-          <View style={styles.list}>
-            {conversations.map((chat) => (
-              <InboxRow
-                key={chat.id}
-                id={chat.id}
-                name={chat.name}
-                message={chat.message}
-                timestamp={chat.timestamp}
-                avatar={chat.avatar}
-                isFavorite={chat.favorite}
-                onPress={handlePressConversation}
-                onToggleFavorite={toggleFavorite}
-                onPressAvatar={handlePressAvatar}
-              />
-            ))}
-          </View>
-        </ScrollView>
+                <View style={styles.sectionRow}>
+                  <AppText size="small" weight="semibold" color={colors.textPrimary}>
+                    Messages
+                  </AppText>
+                  <View style={styles.countBadge}>
+                    <AppText size="tiny" weight="bold" color={colors.white}>
+                      {conversations.length}
+                    </AppText>
+                  </View>
+                </View>
+              </View>
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <AppText size="h4" weight="bold" color={colors.textPrimary}>
+                  No messages yet
+                </AppText>
+                <AppText
+                  size="small"
+                  color={colors.textSecondary}
+                  style={styles.emptySubtitle}
+                >
+                  Start connecting with people and your conversations will appear here.
+                </AppText>
+              </View>
+            }
+          />
+        </SafeAreaView>
       </LinearGradient>
     </FullScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  fullScreen: {
     backgroundColor: colors.backgroundLight,
   },
   gradient: {
     flex: 1,
   },
-  content: {
-    paddingHorizontal: 18,
-    paddingBottom: 32,
-    gap: 16,
+  safeArea: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 28,
+    paddingTop: 10,
+  },
+  headerSection: {
+    gap: 12,
+    marginBottom: 12,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title: {
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    lineHeight: 20,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  iconCircle: {
-    height: 38,
-    width: 38,
+  circleButton: {
+    height: 40,
+    width: 40,
     borderRadius: 16,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.borderMedium,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadowLight,
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  peopleCard: {
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    height: 48,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.textPrimary,
+    paddingVertical: 0,
+  },
+  filterButton: {
+    height: 36,
+    width: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.backgroundLight,
+  },
+  suggestionsCard: {
     borderRadius: 20,
-    padding: 10,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
-  sectionHeader: {
+  sectionRow: {
+    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 4,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
+  countBadge: {
+    minWidth: 28,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  list: {
+  threadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    minHeight: 76,
     gap: 12,
+  },
+  avatarWrapper: {
+    height: 56,
+    width: 56,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: colors.borderMedium,
+  },
+  avatar: {
+    height: "100%",
+    width: "100%",
+  },
+  threadBody: {
+    flex: 1,
+    gap: 6,
+  },
+  threadTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  name: {
+    flex: 1,
+    marginRight: 8,
+  },
+  preview: {
+    lineHeight: 20,
+  },
+  unreadBadge: {
+    minWidth: 26,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accentTeal,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  separator: {
+    height: 12,
+  },
+  emptyState: {
+    paddingVertical: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  emptySubtitle: {
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
+  iosShadow: {
+    shadowColor: colors.shadowMedium,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  androidShadow: {
+    elevation: 3,
   },
 });
