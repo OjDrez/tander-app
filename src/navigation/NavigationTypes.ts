@@ -16,6 +16,7 @@ export type RootStackParamList = {
 export type AppStackParamList = {
   HomeScreen: undefined;
   InboxScreen: undefined;
+  MyMatchesScreen: undefined;
   ProfileViewScreen: { userId: string };
 };
 
