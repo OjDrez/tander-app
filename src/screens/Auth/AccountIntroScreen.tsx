@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Formik } from "formik";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
 import AppTextInput from "@/src/components/common/AppTextInput";
@@ -19,6 +20,13 @@ import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
+import { createAccountSchema } from "@/src/validation/schemas/createAccount";
+
+type FormValues = {
+  identifier: string;
+  password: string;
+  confirmPassword: string;
+};
 
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
@@ -108,58 +116,99 @@ export default function AccountIntroScreen() {
             </View>
           </View>
 
-          <AppTextInput icon="mail-outline" placeholder="Email or Username" />
-          <AppTextInput
-            icon="lock-closed-outline"
-            placeholder="Create a password"
-            secureTextEntry
-          />
-          <AppTextInput
-            icon="shield-checkmark-outline"
-            placeholder="Confirm password"
-            secureTextEntry
-          />
-
-          <View style={styles.biometricRow}>
-            <View>
-              <Text style={styles.biometricTitle}>Enable Biometric</Text>
-              <Text style={styles.biometricSubtitle}>
-                Use fingerprint or face ID for faster login.
-              </Text>
-            </View>
-            <Switch
-              value={useBiometric}
-              onValueChange={setUseBiometric}
-              trackColor={{ false: colors.borderMedium, true: colors.primary }}
-              thumbColor={useBiometric ? colors.white : colors.backgroundLight}
-            />
-          </View>
-
-          <GradientButton
-            title="Create Account"
-            // onPress={() => NavigationService.navigate("Step1BasicInfo")}
-            // onPress={() =>
-            //   NavigationService.replace("Register", {
-            //     screen: "Step1BasicInfo",
-            //   })
-            // }
-            onPress={() =>
-              NavigationService.navigate("Auth", { screen: "Register" })
-            }
-            style={{ marginTop: 6 }}
-          />
-
-          <TouchableOpacity
-            onPress={() =>
-              NavigationService.replace("Auth", { screen: "LoginScreen" })
-            }
-            style={styles.footerLink}
+          <Formik<FormValues>
+            initialValues={{ identifier: "", password: "", confirmPassword: "" }}
+            validationSchema={createAccountSchema}
+            onSubmit={(values) => {
+              console.log("CREATE_ACCOUNT", { ...values, useBiometric });
+              NavigationService.navigate("Auth", { screen: "Register" });
+            }}
           >
-            <Text style={styles.footerText}>
-              Already have an account?
-              <Text style={styles.footerAction}> Sign In</Text>
-            </Text>
-          </TouchableOpacity>
+            {({
+              handleChange,
+              handleBlur,
+              handleSubmit,
+              values,
+              errors,
+              touched,
+              isValid,
+              dirty,
+            }) => (
+              <>
+                <AppTextInput
+                  icon="mail-outline"
+                  placeholder="Email or Username"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={values.identifier}
+                  onChangeText={handleChange("identifier")}
+                  onBlur={handleBlur("identifier")}
+                  error={touched.identifier ? errors.identifier : undefined}
+                />
+                <AppTextInput
+                  icon="lock-closed-outline"
+                  placeholder="Create a password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  value={values.password}
+                  onChangeText={handleChange("password")}
+                  onBlur={handleBlur("password")}
+                  error={touched.password ? errors.password : undefined}
+                />
+                <AppTextInput
+                  icon="shield-checkmark-outline"
+                  placeholder="Confirm password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  value={values.confirmPassword}
+                  onChangeText={handleChange("confirmPassword")}
+                  onBlur={handleBlur("confirmPassword")}
+                  error={
+                    touched.confirmPassword ? errors.confirmPassword : undefined
+                  }
+                />
+
+                <View style={styles.biometricRow}>
+                  <View>
+                    <Text style={styles.biometricTitle}>Enable Biometric</Text>
+                    <Text style={styles.biometricSubtitle}>
+                      Use fingerprint or face ID for faster login.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={useBiometric}
+                    onValueChange={setUseBiometric}
+                    trackColor={{
+                      false: colors.borderMedium,
+                      true: colors.primary,
+                    }}
+                    thumbColor={
+                      useBiometric ? colors.white : colors.backgroundLight
+                    }
+                  />
+                </View>
+
+                <GradientButton
+                  title="Create Account"
+                  onPress={handleSubmit as () => void}
+                  disabled={!isValid || !dirty}
+                  style={{ marginTop: 6 }}
+                />
+
+                <TouchableOpacity
+                  onPress={() =>
+                    NavigationService.replace("Auth", { screen: "LoginScreen" })
+                  }
+                  style={styles.footerLink}
+                >
+                  <Text style={styles.footerText}>
+                    Already have an account?
+                    <Text style={styles.footerAction}> Sign In</Text>
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Formik>
         </Animated.View>
       </SafeAreaView>
     </FullScreen>
