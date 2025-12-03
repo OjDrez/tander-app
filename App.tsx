@@ -7,11 +7,17 @@ import { NavigationContainer } from "@react-navigation/native";
 import React from "react";
 import { navigationRef } from "./src/navigation/NavigationService";
 import RootNavigator from "./src/navigation/RootNavigator";
+import { AuthProvider } from "./src/auth/AuthProvider";
+import { ToastProvider } from "./src/context/ToastProvider";
 
 export default function App() {
   return (
-    <NavigationContainer ref={navigationRef}>
-      <RootNavigator />
-    </NavigationContainer>
+    <ToastProvider>
+      <AuthProvider>
+        <NavigationContainer ref={navigationRef}>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
