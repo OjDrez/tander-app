@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Formik } from "formik";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Image,
   Platform,
@@ -19,6 +21,42 @@ import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
+import { createAccountSchema } from "@/src/validation/schemas/createAccount";
+
+type FormValues = {
+  identifier: string;
+  password: string;
+  confirmPassword: string;
+};
+
+type RegisterUserPayload = {
+  username: string;
+  email: string;
+  password: string;
+  useBiometric: boolean;
+};
+
+const registerUser = async (payload: RegisterUserPayload) => {
+  try {
+    const response = await fetch("https://54b08d17071a.ngrok-free.app/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Request failed");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("API error:", error);
+    throw error;
+  }
+};
 
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
@@ -108,58 +146,119 @@ export default function AccountIntroScreen() {
             </View>
           </View>
 
-          <AppTextInput icon="mail-outline" placeholder="Email or Username" />
-          <AppTextInput
-            icon="lock-closed-outline"
-            placeholder="Create a password"
-            secureTextEntry
-          />
-          <AppTextInput
-            icon="shield-checkmark-outline"
-            placeholder="Confirm password"
-            secureTextEntry
-          />
+          <Formik<FormValues>
+            initialValues={{ identifier: "", password: "", confirmPassword: "" }}
+            validationSchema={createAccountSchema}
+            onSubmit={async (values, { setSubmitting }) => {
+              try {
+                const trimmedIdentifier = values.identifier.trim();
+                const payload: RegisterUserPayload = {
+                  username: trimmedIdentifier,
+                  email: trimmedIdentifier,
+                  password: values.password,
+                  useBiometric,
+                };
 
-          <View style={styles.biometricRow}>
-            <View>
-              <Text style={styles.biometricTitle}>Enable Biometric</Text>
-              <Text style={styles.biometricSubtitle}>
-                Use fingerprint or face ID for faster login.
-              </Text>
-            </View>
-            <Switch
-              value={useBiometric}
-              onValueChange={setUseBiometric}
-              trackColor={{ false: colors.borderMedium, true: colors.primary }}
-              thumbColor={useBiometric ? colors.white : colors.backgroundLight}
-            />
-          </View>
-
-          <GradientButton
-            title="Create Account"
-            // onPress={() => NavigationService.navigate("Step1BasicInfo")}
-            // onPress={() =>
-            //   NavigationService.replace("Register", {
-            //     screen: "Step1BasicInfo",
-            //   })
-            // }
-            onPress={() =>
-              NavigationService.navigate("Auth", { screen: "Register" })
-            }
-            style={{ marginTop: 6 }}
-          />
-
-          <TouchableOpacity
-            onPress={() =>
-              NavigationService.replace("Auth", { screen: "LoginScreen" })
-            }
-            style={styles.footerLink}
+                await registerUser(payload);
+                NavigationService.navigate("Auth", { screen: "Register" });
+              } catch (error) {
+                Alert.alert(
+                  "Registration Failed",
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to complete registration"
+                );
+              } finally {
+                setSubmitting(false);
+              }
+            }}
           >
-            <Text style={styles.footerText}>
-              Already have an account?
-              <Text style={styles.footerAction}> Sign In</Text>
-            </Text>
-          </TouchableOpacity>
+            {({
+              handleChange,
+              handleBlur,
+              handleSubmit,
+              values,
+              errors,
+              touched,
+              isValid,
+              dirty,
+              isSubmitting,
+            }) => (
+              <>
+                <AppTextInput
+                  icon="mail-outline"
+                  placeholder="Email or Username"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={values.identifier}
+                  onChangeText={handleChange("identifier")}
+                  onBlur={handleBlur("identifier")}
+                  error={touched.identifier ? errors.identifier : undefined}
+                />
+                <AppTextInput
+                  icon="lock-closed-outline"
+                  placeholder="Create a password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  value={values.password}
+                  onChangeText={handleChange("password")}
+                  onBlur={handleBlur("password")}
+                  error={touched.password ? errors.password : undefined}
+                />
+                <AppTextInput
+                  icon="shield-checkmark-outline"
+                  placeholder="Confirm password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  value={values.confirmPassword}
+                  onChangeText={handleChange("confirmPassword")}
+                  onBlur={handleBlur("confirmPassword")}
+                  error={
+                    touched.confirmPassword ? errors.confirmPassword : undefined
+                  }
+                />
+
+                <View style={styles.biometricRow}>
+                  <View>
+                    <Text style={styles.biometricTitle}>Enable Biometric</Text>
+                    <Text style={styles.biometricSubtitle}>
+                      Use fingerprint or face ID for faster login.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={useBiometric}
+                    onValueChange={setUseBiometric}
+                    trackColor={{
+                      false: colors.borderMedium,
+                      true: colors.primary,
+                    }}
+                    thumbColor={
+                      useBiometric ? colors.white : colors.backgroundLight
+                    }
+                  />
+                </View>
+
+                <GradientButton
+                  title="Create Account"
+                  onPress={handleSubmit as () => void}
+                  disabled={!isValid || !dirty || isSubmitting}
+                  style={{ marginTop: 6 }}
+                />
+
+                <TouchableOpacity
+                  onPress={() =>
+                    NavigationService.replace("Auth", { screen: "LoginScreen" })
+                  }
+                  style={styles.footerLink}
+                >
+                  <Text style={styles.footerText}>
+                    Already have an account?
+                    <Text style={styles.footerAction}> Sign In</Text>
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Formik>
         </Animated.View>
       </SafeAreaView>
     </FullScreen>
