@@ -28,6 +28,10 @@ export default function AppNavigator() {
       <Stack.Screen name="InboxEmptyScreen" component={InboxEmptyScreen} />
       <Stack.Screen name="ConversationScreen" component={ConversationScreen} />
       <Stack.Screen
+        name="MessageThreadScreen"
+        component={ConversationScreen}
+      />
+      <Stack.Screen
         name="MatchCelebrationScreen"
         component={MatchCelebrationScreen}
       />
