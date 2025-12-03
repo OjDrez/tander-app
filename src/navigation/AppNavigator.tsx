@@ -3,6 +3,7 @@ import React from "react";
 
 import HomeScreen from "../screens/Home/HomeScreen";
 import InboxScreen from "../screens/Inbox/InboxScreen";
+import MatchCelebrationScreen from "../screens/Matches/MatchCelebrationScreen";
 import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
@@ -16,6 +17,10 @@ export default function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={HomeScreen} />
       <Stack.Screen name="InboxScreen" component={InboxScreen} />
+      <Stack.Screen
+        name="MatchCelebrationScreen"
+        component={MatchCelebrationScreen}
+      />
       <Stack.Screen name="MyMatchesScreen" component={MyMatchesScreen} />
       <Stack.Screen
         name="PeopleViewedMeScreen"
