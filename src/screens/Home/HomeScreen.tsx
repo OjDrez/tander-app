@@ -13,8 +13,11 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 
 const profile = {
+  id: "profile-001",
   name: "Gloria Ramos",
   age: 70,
   location: "Quezon City, Philippines",
@@ -55,11 +58,15 @@ const suggestions = [
 ];
 
 export default function HomeScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
 
   const handleTabPress = (tab: MainNavigationTab) => {
     if (tab === "Inbox") {
-      navigation.navigate("InboxScreen" as never);
+      navigation.navigate("InboxScreen");
+    }
+
+    if (tab === "Profile") {
+      navigation.navigate("ProfileViewScreen", { userId: profile.id });
     }
   };
 
@@ -91,7 +98,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.inboxNavButton}
             activeOpacity={0.9}
-            onPress={() => navigation.navigate("InboxScreen" as never)}
+            onPress={() => navigation.navigate("InboxScreen")}
           >
             <Text style={styles.inboxNavText}>Go to Inbox</Text>
             <Ionicons name="arrow-forward" size={16} color={colors.primary} />

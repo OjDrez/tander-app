@@ -11,6 +11,15 @@ export type RootStackParamList = {
 };
 
 /**
+ * MAIN APP STACK (after onboarding/auth)
+ */
+export type AppStackParamList = {
+  HomeScreen: undefined;
+  InboxScreen: undefined;
+  ProfileViewScreen: { userId: string };
+};
+
+/**
  * REGISTRATION FLOW (3-step signup)
  */
 export type RegistrationStackParamList = {
