@@ -8,17 +8,80 @@ import Step2Upload from "../screens/Registration/Step2Upload";
 import Step3AboutYou from "../screens/Registration/Step3AboutYou";
 
 import RegistrationSchema from "../context/RegistrationSchema";
+import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../context/ToastContext";
+import NavigationService from "./NavigationService";
 
 import { RegistrationStackParamList } from "./NavigationTypes";
 
 const Stack = createNativeStackNavigator<RegistrationStackParamList>();
 
 export default function RegistrationNavigator() {
+  const { completeProfile, phase1Data } = useAuth();
+  const toast = useToast();
+
+  const handleRegistration = async (values: any) => {
+    try {
+      // Check if Phase 1 data exists
+      if (!phase1Data) {
+        toast.showToast({
+          type: 'error',
+          message: 'Please complete account creation first.',
+          duration: 5000,
+          action: {
+            label: 'Go Back',
+            onPress: () => NavigationService.navigate('Auth', { screen: 'AccountIntroScreen' }),
+          },
+        });
+        return;
+      }
+
+      // Use Phase 1 credentials from context
+      const { username, email } = phase1Data;
+
+      // Phase 2: Complete profile with all details
+      await completeProfile(username, {
+        firstName: values.firstName,
+        lastName: values.lastName,
+        middleName: values.middleName || '',
+        nickName: values.nickName,
+        address: values.address || '',
+        phone: values.phone || '',
+        email: email,
+        birthDate: values.birthday,
+        age: parseInt(values.age) || 0,
+        country: values.country,
+        city: values.city,
+        civilStatus: values.civilStatus,
+        hobby: values.hobby || '',
+      });
+
+      toast.showToast({
+        type: 'success',
+        message: 'Registration completed! Please login with your credentials.',
+        duration: 5000,
+        action: {
+          label: 'Login',
+          onPress: () => NavigationService.navigate('Auth', { screen: 'LoginScreen' }),
+        },
+      });
+
+      // Auto-navigate after 2 seconds
+      setTimeout(() => {
+        NavigationService.navigate('Auth', { screen: 'LoginScreen' });
+      }, 2000);
+    } catch (error: any) {
+      toast.error(error.message || 'Registration failed. Please try again.');
+      console.error('Phase 2 registration error:', error);
+    }
+  };
+
   return (
     <Formik
       initialValues={{
         firstName: "",
         lastName: "",
+        middleName: "",
         nickName: "",
         birthday: "",
         age: "",
@@ -26,6 +89,9 @@ export default function RegistrationNavigator() {
         civilStatus: "",
         city: "",
         hobby: "",
+        email: "", // TODO: Add email field to Step 1
+        phone: "",
+        address: "",
         photos: [],
         idPhotos: [],
         bio: "",
@@ -33,9 +99,7 @@ export default function RegistrationNavigator() {
         lookingFor: [],
       }}
       validationSchema={RegistrationSchema}
-      onSubmit={(values) => {
-        console.log("FINAL VALUES:", values);
-      }}
+      onSubmit={handleRegistration}
     >
       {/* ❗ Now ALL screens inside can use useFormikContext() safely */}
       <Stack.Navigator

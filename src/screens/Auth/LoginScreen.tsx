@@ -5,7 +5,7 @@ import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
 import FullScreen from "@/src/components/layout/FullScreen";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
 import AppTextInput from "../../components/common/AppTextInput";
@@ -20,27 +20,37 @@ import NavigationService from "@/src/navigation/NavigationService";
 
 // 🔥 Our new Google login hook
 import { useGoogleLogin } from "@/src/hooks/useGoogleLogin";
+import { useAuth } from "@/src/hooks/useAuth";
+import { useToast } from "@/src/context/ToastContext";
 
 export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // 🎉 Import Google login handler
   const { login: googleLogin } = useGoogleLogin();
+
+  // 🎉 Import auth handler
+  const { login } = useAuth();
+
+  // 🎉 Import toast handler
+  const toast = useToast();
 
   // ⭐ GOOGLE LOGIN HANDLER
   const handleGoogleLogin = async () => {
     try {
       const user = await googleLogin();
       if (!user) {
-        Alert.alert("Google Login Failed", "Please try again.");
+        toast.error("Google login failed. Please try again.");
         return;
       }
 
       console.log("GOOGLE USER:", user);
-
+      toast.success("Successfully signed in with Google!");
       NavigationService.replace("LoginSuccessScreen");
     } catch (err) {
       console.log("Google Login Error:", err);
+      toast.error("Google login failed. Please try again.");
     }
   };
 
@@ -75,9 +85,36 @@ export default function LoginScreen() {
             <Formik
               initialValues={{ username: "", password: "" }}
               validationSchema={loginSchema}
-              onSubmit={(values) => {
-                console.log("LOGIN:", values);
-                NavigationService.replace("LoginSuccessScreen");
+              onSubmit={async (values, { setSubmitting }) => {
+                try {
+                  setIsLoading(true);
+
+                  await login(values);
+                  toast.success("Login successful! Welcome back.");
+                  NavigationService.replace("LoginSuccessScreen");
+                } catch (error: any) {
+                  console.error("Login error:", error);
+
+                  // Check if error is due to incomplete profile
+                  if (error.profileIncomplete) {
+                    toast.showToast({
+                      type: 'warning',
+                      message: "Your profile is incomplete. Please complete your registration to continue.",
+                      duration: 6000,
+                      action: {
+                        label: 'Complete Profile',
+                        onPress: () => NavigationService.navigate("Auth", { screen: "Register" }),
+                      },
+                    });
+                  } else if (error.code === 'INVALID_CREDENTIALS') {
+                    toast.error("Incorrect username or password. Please try again.");
+                  } else {
+                    toast.error(error.message || "An error occurred. Please try again.");
+                  }
+                } finally {
+                  setIsLoading(false);
+                  setSubmitting(false);
+                }
               }}
             >
               {({
@@ -118,9 +155,9 @@ export default function LoginScreen() {
 
                   {/* LOGIN */}
                   <GradientButton
-                    title="Login"
+                    title={isLoading ? "Logging in..." : "Login"}
                     onPress={handleSubmit}
-                    disabled={!values.username || !values.password}
+                    disabled={!values.username || !values.password || isLoading}
                     style={{ marginTop: 5 }}
                   />
 
@@ -137,7 +174,7 @@ export default function LoginScreen() {
                   <SocialButton
                     title="Continue with Apple"
                     icon={require("../../assets/icons/apple.png")}
-                    onPress={() => Alert.alert("Apple login not yet enabled")}
+                    onPress={() => toast.info("Apple login coming soon!")}
                     style={{ marginTop: 10 }}
                   />
 
