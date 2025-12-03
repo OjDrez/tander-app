@@ -10,6 +10,8 @@ import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ViewProfileDetailsScreen from "../screens/Settings/ViewProfileDetailsScreen";
+import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
+import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
 import { AppStackParamList } from "./NavigationTypes";
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -35,6 +37,11 @@ export default function AppNavigator() {
         component={ViewProfileDetailsScreen}
       />
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+      <Stack.Screen
+        name="EditBasicInfoScreen"
+        component={EditBasicInfoScreen}
+      />
+      <Stack.Screen name="EditAboutYouScreen" component={EditAboutYouScreen} />
     </Stack.Navigator>
   );
 }

@@ -113,7 +113,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={styles.listCard}
                 activeOpacity={0.9}
-                onPress={() => handleNavigate("EditProfileScreen")}
+                onPress={() => handleNavigate("EditBasicInfoScreen")}
               >
                 <View style={styles.itemLeft}>
                   <View style={styles.iconBadge}>
