@@ -14,6 +14,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+import { RootStackParamList } from "@/src/navigation/NavigationTypes";
 
 const suggestions = [
   {
@@ -78,7 +81,8 @@ const conversations = [
 ];
 
 export default function InboxScreen() {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -209,9 +213,16 @@ export default function InboxScreen() {
         activeTab="Inbox"
         onTabPress={(tab) => {
           if (tab === "Home") {
-            navigation.navigate("HomeScreen" as never);
+            navigation.navigate("HomeScreen");
+          } else if (tab === "Matches") {
+            navigation.navigate("MyMatchesScreen");
+          } else if (tab === "ViewMe") {
+            navigation.navigate("ViewMeScreen");
+          } else if (tab === "Profile") {
+            navigation.navigate("ProfileScreen");
           }
         }}
+        matchesBadgeCount={20}
       />
     </SafeAreaView>
   );

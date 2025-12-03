@@ -13,6 +13,9 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+import { RootStackParamList } from "@/src/navigation/NavigationTypes";
 
 const profile = {
   name: "Gloria Ramos",
@@ -55,11 +58,18 @@ const suggestions = [
 ];
 
 export default function HomeScreen() {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const handleTabPress = (tab: MainNavigationTab) => {
     if (tab === "Inbox") {
-      navigation.navigate("InboxScreen" as never);
+      navigation.navigate("InboxScreen");
+    } else if (tab === "Matches") {
+      navigation.navigate("MyMatchesScreen");
+    } else if (tab === "ViewMe") {
+      navigation.navigate("ViewMeScreen");
+    } else if (tab === "Profile") {
+      navigation.navigate("ProfileScreen");
     }
   };
 
@@ -193,7 +203,11 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      <MainNavigationBar activeTab="Home" onTabPress={handleTabPress} />
+      <MainNavigationBar
+        activeTab="Home"
+        onTabPress={handleTabPress}
+        matchesBadgeCount={20}
+      />
     </FullScreen>
   );
 }

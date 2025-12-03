@@ -8,6 +8,13 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Auth: undefined;
   HomeScreen: undefined;
+  InboxScreen: undefined;
+  MyMatchesScreen: undefined;
+  ViewMeScreen: undefined;
+  ProfileScreen: undefined;
+  ProfileViewScreen: { userId: string };
+  ChatRoomScreen: { userId: string };
+  VideoCallScreen: { userId: string };
 };
 
 /**

@@ -1,18 +1,25 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
+import { RootStackParamList } from "@/src/navigation/NavigationTypes";
 
-export default function ViewMeScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, "ChatRoomScreen">;
+
+export default function ChatRoomScreen({ route }: Props) {
+  const { userId } = route.params;
+
   return (
     <FullScreen statusBarStyle="dark" style={styles.container}>
       <View style={styles.content}>
         <AppText size="h3" weight="bold" style={styles.title}>
-          View Me
+          Chat Room
         </AppText>
         <AppText color={colors.textSecondary}>
-          Preview how others see your profile.
+          Chat with user {userId}
         </AppText>
       </View>
     </FullScreen>
