@@ -61,7 +61,6 @@ const registerUser = async (payload: RegisterUserPayload) => {
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
 
-  // entrance animation for card + icon
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -94,7 +93,7 @@ export default function AccountIntroScreen() {
         }),
       ])
     ).start();
-  }, [fadeAnim, translateY, pulseAnim]);
+  }, []);
 
   return (
     <FullScreen statusBarStyle="dark">
@@ -128,10 +127,7 @@ export default function AccountIntroScreen() {
         <Animated.View
           style={[
             styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY }],
-            },
+            { opacity: fadeAnim, transform: [{ translateY }] },
           ]}
         >
           <View style={styles.cardHeader}>
@@ -147,19 +143,27 @@ export default function AccountIntroScreen() {
           </View>
 
           <Formik<FormValues>
-            initialValues={{ identifier: "", password: "", confirmPassword: "" }}
+            initialValues={{
+              identifier: "",
+              password: "",
+              confirmPassword: "",
+            }}
             validationSchema={createAccountSchema}
             onSubmit={async (values, { setSubmitting }) => {
               try {
-                const trimmedIdentifier = values.identifier.trim();
+                const trimmed = values.identifier.trim();
+
                 const payload: RegisterUserPayload = {
-                  username: trimmedIdentifier,
-                  email: trimmedIdentifier,
+                  username: trimmed,
+                  email: trimmed,
                   password: values.password,
                   useBiometric,
                 };
 
+                console.log("📤 PAYLOAD SENT TO BACKEND:", payload);
+
                 await registerUser(payload);
+
                 NavigationService.navigate("Auth", { screen: "Register" });
               } catch (error) {
                 Alert.alert(
@@ -195,6 +199,7 @@ export default function AccountIntroScreen() {
                   onBlur={handleBlur("identifier")}
                   error={touched.identifier ? errors.identifier : undefined}
                 />
+
                 <AppTextInput
                   icon="lock-closed-outline"
                   placeholder="Create a password"
@@ -205,6 +210,7 @@ export default function AccountIntroScreen() {
                   onBlur={handleBlur("password")}
                   error={touched.password ? errors.password : undefined}
                 />
+
                 <AppTextInput
                   icon="shield-checkmark-outline"
                   placeholder="Confirm password"
@@ -247,7 +253,9 @@ export default function AccountIntroScreen() {
 
                 <TouchableOpacity
                   onPress={() =>
-                    NavigationService.replace("Auth", { screen: "LoginScreen" })
+                    NavigationService.replace("Auth", {
+                      screen: "LoginScreen",
+                    })
                   }
                   style={styles.footerLink}
                 >
