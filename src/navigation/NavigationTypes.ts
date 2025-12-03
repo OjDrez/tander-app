@@ -21,6 +21,7 @@ export type AppStackParamList = {
   PeopleViewedMeScreen: undefined;
   ProfileViewScreen: { userId: string };
   ViewProfileScreen: { userId: string };
+  ViewProfileDetailsScreen: { userId: string };
   SettingsScreen: undefined;
   EditProfileScreen: undefined;
   PaymentMethodsScreen: undefined;
