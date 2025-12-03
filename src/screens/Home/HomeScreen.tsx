@@ -1,16 +1,19 @@
 import colors from "@/src/config/colors";
 import FullScreen from "@/src/components/layout/FullScreen";
 import MainNavigationBar, { MainNavigationTab } from "@/src/components/navigation/MainNavigationBar";
+import GradientButton from "@/src/components/buttons/GradientButton";
+import AppText from "@/src/components/inputs/AppText";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -76,67 +79,70 @@ export default function HomeScreen() {
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.container}>
-      <View style={styles.content}>
+      <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Row */}
-          <View style={styles.topRow}>
+          <View style={styles.headerRow}>
             <View style={styles.brandRow}>
               <View style={styles.brandIcon}>
                 <Ionicons name="heart" size={18} color={colors.white} />
               </View>
-              <Text style={styles.brandName}>TANDER</Text>
+              <AppText weight="semibold" size="body">
+                TANDER
+              </AppText>
             </View>
 
-            <TouchableOpacity style={styles.videoButton} activeOpacity={0.9}>
-              <Ionicons name="videocam" size={18} color={colors.white} />
-              <Text style={styles.videoButtonText}>Video Call</Text>
+            <TouchableOpacity
+              style={styles.iconButton}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate("InboxScreen")}
+            >
+              <Ionicons name="chatbubbles-outline" size={18} color={colors.accentBlue} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.videoPrompt}>Press me to video call</Text>
+          <View style={styles.greetingBlock}>
+            <AppText weight="semibold" size="h3" style={styles.greetingTitle}>
+              Hello, {profile.name.split(" ")[0]}!
+            </AppText>
+            <AppText color={colors.textSecondary}>
+              Here are new people to discover and ways to keep your profile fresh.
+            </AppText>
+          </View>
 
-          {/* Inbox Navigation */}
-          <TouchableOpacity
-            style={styles.inboxNavButton}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate("InboxScreen")}
-          >
-            <Text style={styles.inboxNavText}>Go to Inbox</Text>
-            <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-          </TouchableOpacity>
-
-          {/* Hero Card */}
           <LinearGradient
-            colors={["#FFF1E0", "#E9F7F5"]}
+            colors={colors.gradients.registration.array}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
           >
             <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>Ready for your next conversation?</Text>
-              <Text style={styles.heroSubtitle}>
+              <AppText weight="semibold" size="h4" style={styles.heroTitle}>
+                Ready for your next conversation?
+              </AppText>
+              <AppText color={colors.textSecondary} style={styles.heroSubtitle}>
                 We found people who share your interests and values.
-              </Text>
+              </AppText>
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
-              <Ionicons name="call" size={16} color={colors.white} />
-              <Text style={styles.primaryButtonText}>Start Video Call</Text>
-            </TouchableOpacity>
+            <GradientButton
+              title="Start Video Call"
+              onPress={() => navigation.navigate("InboxScreen")}
+              style={styles.primaryButton}
+              textStyle={styles.primaryButtonText}
+            />
           </LinearGradient>
 
-          {/* Profile Card */}
           <View style={styles.card}>
             <View style={styles.profileRow}>
               <Image source={{ uri: profile.avatar }} style={styles.avatar} />
               <View style={styles.profileTextGroup}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.name}>
+                  <AppText weight="semibold" size="h4" style={styles.name}>
                     {profile.name}, {profile.age}
-                  </Text>
+                  </AppText>
                   <MaterialCommunityIcons
                     name="shield-check"
                     size={18}
@@ -151,39 +157,59 @@ export default function HomeScreen() {
                     size={14}
                     color={colors.textSecondary}
                   />
-                  <Text style={styles.locationText}>{profile.location}</Text>
+                  <AppText size="caption" color={colors.textSecondary}>
+                    {profile.location}
+                  </AppText>
                 </View>
               </View>
             </View>
 
             <View style={styles.aboutBox}>
-              <Text style={styles.aboutLabel}>About Me</Text>
-              <Text style={styles.aboutText}>{profile.about}</Text>
+              <AppText size="caption" color={colors.textSecondary} weight="semibold">
+                About Me
+              </AppText>
+              <AppText style={styles.aboutText}>{profile.about}</AppText>
             </View>
           </View>
 
-          {/* Complete Profile */}
           <View style={styles.card}>
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>New to our community</Text>
+                <AppText size="caption" color={colors.textSecondary} weight="semibold">
+                  New to our community
+                </AppText>
               </View>
             </View>
 
-            <Text style={styles.cardTitle}>Complete your Profile</Text>
-            <Text style={styles.cardSubtitle}>
+            <AppText weight="semibold" size="h4" style={styles.cardTitle}>
+              Complete your Profile
+            </AppText>
+            <AppText color={colors.textSecondary} style={styles.cardSubtitle}>
               Add your photos and details to get better matches.
-            </Text>
+            </AppText>
 
-            <TouchableOpacity style={styles.outlineButton} activeOpacity={0.9}>
-              <Text style={styles.outlineButtonText}>Complete Profile</Text>
-            </TouchableOpacity>
+            <GradientButton
+              title="Complete Profile"
+              onPress={() => navigation.navigate("ProfileViewScreen", { userId: profile.id })}
+              style={styles.secondaryButton}
+            />
           </View>
 
-          {/* Suggestions Section */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>People You May Know!</Text>
-            <Text style={styles.sectionSubtitle}>Select gender</Text>
+            <View>
+              <AppText weight="semibold" size="h4" style={styles.sectionTitle}>
+                People You May Know!
+              </AppText>
+              <AppText size="caption" color={colors.textSecondary}>
+                Fresh picks curated for you
+              </AppText>
+            </View>
+            <TouchableOpacity style={styles.filterPill} activeOpacity={0.9}>
+              <Ionicons name="options-outline" size={16} color={colors.accentBlue} />
+              <AppText weight="semibold" color={colors.accentBlue} size="caption">
+                Filters
+              </AppText>
+            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -194,15 +220,17 @@ export default function HomeScreen() {
             {suggestions.map((person) => (
               <View key={person.name} style={styles.suggestionCard}>
                 <Image source={{ uri: person.avatar }} style={styles.suggestionAvatar} />
-                <Text style={styles.suggestionName}>{person.name}</Text>
-                <Text style={styles.suggestionMeta}>
+                <AppText weight="semibold" style={styles.suggestionName}>
+                  {person.name}
+                </AppText>
+                <AppText size="caption" color={colors.textSecondary} style={styles.suggestionMeta}>
                   {person.age}, {person.location}
-                </Text>
+                </AppText>
               </View>
             ))}
           </ScrollView>
         </ScrollView>
-      </View>
+      </SafeAreaView>
 
       <MainNavigationBar activeTab="Home" onTabPress={handleTabPress} />
     </FullScreen>
@@ -215,159 +243,134 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundLight,
   },
 
-  content: {
+  safeArea: {
     flex: 1,
   },
 
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 20,
   },
 
-  topRow: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 4,
   },
 
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
 
   brandIcon: {
-    height: 34,
-    width: 34,
-    borderRadius: 17,
+    height: 36,
+    width: 36,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.shadowMedium,
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadowMedium,
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
 
-  brandName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    letterSpacing: 0.5,
-  },
-
-  videoButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    gap: 6,
-    shadowColor: colors.shadowMedium,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-
-  videoButtonText: {
-    color: colors.white,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-
-  videoPrompt: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 14,
-  },
-
-  inboxNavButton: {
-    alignSelf: "flex-end",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: colors.white,
+  iconButton: {
+    height: 40,
+    width: 40,
     borderRadius: 12,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.borderLight,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadowLight,
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 
-  inboxNavText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.primary,
+  greetingBlock: {
+    gap: 6,
+  },
+
+  greetingTitle: {
+    color: colors.textPrimary,
   },
 
   heroCard: {
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 20,
-    marginBottom: 18,
-    shadowColor: colors.shadowMedium,
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadowMedium,
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
 
   heroContent: {
+    gap: 8,
     marginBottom: 12,
   },
 
   heroTitle: {
-    fontSize: 20,
-    fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: 6,
   },
 
   heroSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
     lineHeight: 20,
   },
 
   primaryButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    alignSelf: "flex-start",
+    width: "100%",
   },
 
   primaryButtonText: {
-    color: colors.white,
-    fontWeight: "700",
-    fontSize: 14,
+    letterSpacing: 0.2,
   },
 
   card: {
     backgroundColor: colors.white,
     borderRadius: 22,
     padding: 18,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    gap: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadowLight,
+        shadowOpacity: 0.14,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 
   profileRow: {
@@ -378,24 +381,23 @@ const styles = StyleSheet.create({
 
   profileTextGroup: {
     flex: 1,
+    gap: 6,
   },
 
   avatar: {
-    height: 80,
-    width: 80,
-    borderRadius: 40,
+    height: 78,
+    width: 78,
+    borderRadius: 20,
     backgroundColor: colors.borderMedium,
   },
 
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
 
   name: {
-    fontSize: 18,
-    fontWeight: "700",
     color: colors.textPrimary,
   },
 
@@ -406,136 +408,107 @@ const styles = StyleSheet.create({
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 4,
-  },
-
-  locationText: {
-    fontSize: 13,
-    color: colors.textSecondary,
+    gap: 6,
   },
 
   aboutBox: {
     backgroundColor: colors.backgroundLight,
     borderRadius: 16,
     padding: 12,
-    marginTop: 14,
-  },
-
-  aboutLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: "600",
+    gap: 6,
   },
 
   aboutText: {
-    fontSize: 14,
     color: colors.textPrimary,
     lineHeight: 20,
   },
 
   badgeRow: {
     flexDirection: "row",
-    marginBottom: 10,
   },
 
   badge: {
-    backgroundColor: colors.backgroundLight,
-    paddingHorizontal: 10,
+    backgroundColor: colors.accentMint,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
   },
 
-  badgeText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-
   cardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: 4,
   },
 
   cardSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 12,
+    lineHeight: 20,
   },
 
-  outlineButton: {
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-
-  outlineButtonText: {
-    color: colors.primary,
-    fontWeight: "700",
+  secondaryButton: {
+    width: "100%",
   },
 
   sectionHeader: {
-    marginBottom: 10,
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
   },
 
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
     color: colors.textPrimary,
   },
 
-  sectionSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.borderMedium,
   },
 
   suggestionsRow: {
-    gap: 12,
-    paddingRight: 6,
+    gap: 14,
+    paddingRight: 8,
   },
 
   suggestionCard: {
-    width: 140,
+    width: 150,
     backgroundColor: colors.white,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 12,
     alignItems: "center",
     borderWidth: 1,
     borderColor: colors.borderLight,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    gap: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.shadowLight,
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 
   suggestionAvatar: {
-    height: 70,
-    width: 70,
-    borderRadius: 35,
-    marginBottom: 10,
+    height: 84,
+    width: 84,
+    borderRadius: 14,
     backgroundColor: colors.borderMedium,
   },
 
   suggestionName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.textPrimary,
     textAlign: "center",
+    color: colors.textPrimary,
   },
 
   suggestionMeta: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
     textAlign: "center",
   },
 });
