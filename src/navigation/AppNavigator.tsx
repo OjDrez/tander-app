@@ -8,6 +8,7 @@ import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
+import SettingsScreen from "../screens/Settings/SettingsScreen";
 import { AppStackParamList } from "./NavigationTypes";
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -28,6 +29,7 @@ export default function AppNavigator() {
       />
       <Stack.Screen name="ProfileViewScreen" component={ProfileViewScreen} />
       <Stack.Screen name="ViewProfileScreen" component={ViewProfileScreen} />
+      <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
     </Stack.Navigator>
   );
 }
