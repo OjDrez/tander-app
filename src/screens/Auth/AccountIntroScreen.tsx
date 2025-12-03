@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Formik } from "formik";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Image,
   Platform,
@@ -12,7 +14,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Formik } from "formik";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
 import AppTextInput from "@/src/components/common/AppTextInput";
@@ -28,10 +29,31 @@ type FormValues = {
   confirmPassword: string;
 };
 
+const registerUser = async (payload: any) => {
+  try {
+    const response = await fetch("https://54b08d17071a.ngrok-free.app/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Request failed");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("API error:", error);
+    throw error;
+  }
+};
+
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
 
-  // entrance animation for card + icon
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -64,7 +86,7 @@ export default function AccountIntroScreen() {
         }),
       ])
     ).start();
-  }, [fadeAnim, translateY, pulseAnim]);
+  }, []);
 
   return (
     <FullScreen statusBarStyle="dark">
@@ -117,11 +139,26 @@ export default function AccountIntroScreen() {
           </View>
 
           <Formik<FormValues>
-            initialValues={{ identifier: "", password: "", confirmPassword: "" }}
+            initialValues={{
+              identifier: "",
+              password: "",
+              confirmPassword: "",
+            }}
             validationSchema={createAccountSchema}
-            onSubmit={(values) => {
-              console.log("CREATE_ACCOUNT", { ...values, useBiometric });
-              NavigationService.navigate("Auth", { screen: "Register" });
+            onSubmit={async (values, { setSubmitting }) => {
+              try {
+                await registerUser({ ...values, useBiometric });
+                NavigationService.navigate("Auth", { screen: "Register" });
+              } catch (error) {
+                Alert.alert(
+                  "Registration Failed",
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to complete registration"
+                );
+              } finally {
+                setSubmitting(false);
+              }
             }}
           >
             {({
@@ -133,6 +170,7 @@ export default function AccountIntroScreen() {
               touched,
               isValid,
               dirty,
+              isSubmitting,
             }) => (
               <>
                 <AppTextInput
@@ -145,6 +183,7 @@ export default function AccountIntroScreen() {
                   onBlur={handleBlur("identifier")}
                   error={touched.identifier ? errors.identifier : undefined}
                 />
+
                 <AppTextInput
                   icon="lock-closed-outline"
                   placeholder="Create a password"
@@ -155,6 +194,7 @@ export default function AccountIntroScreen() {
                   onBlur={handleBlur("password")}
                   error={touched.password ? errors.password : undefined}
                 />
+
                 <AppTextInput
                   icon="shield-checkmark-outline"
                   placeholder="Confirm password"
@@ -191,13 +231,15 @@ export default function AccountIntroScreen() {
                 <GradientButton
                   title="Create Account"
                   onPress={handleSubmit as () => void}
-                  disabled={!isValid || !dirty}
+                  disabled={!isValid || !dirty || isSubmitting}
                   style={{ marginTop: 6 }}
                 />
 
                 <TouchableOpacity
                   onPress={() =>
-                    NavigationService.replace("Auth", { screen: "LoginScreen" })
+                    NavigationService.replace("Auth", {
+                      screen: "LoginScreen",
+                    })
                   }
                   style={styles.footerLink}
                 >
