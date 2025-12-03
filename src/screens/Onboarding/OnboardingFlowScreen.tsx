@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -8,7 +9,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
@@ -106,7 +106,7 @@ export default function OnboardingFlowScreen() {
     });
 
     return (
-      <View style={[styles.slide, { width }]}> 
+      <View style={[styles.slide, { width }]}>
         <Animated.View
           style={[
             styles.imageCard,
@@ -117,7 +117,11 @@ export default function OnboardingFlowScreen() {
           ]}
         >
           <View style={styles.imageWrapper}>
-            <Image source={item.image} style={styles.image} resizeMode="cover" />
+            <Image
+              source={item.image}
+              style={styles.image}
+              resizeMode="cover"
+            />
           </View>
         </Animated.View>
 
@@ -184,7 +188,9 @@ export default function OnboardingFlowScreen() {
 
           <View style={styles.ctaWrapper}>
             <GradientButton
-              title={currentIndex === SLIDES.length - 1 ? "Get Started" : "Next"}
+              title={
+                currentIndex === SLIDES.length - 1 ? "Get Started" : "Next"
+              }
               onPress={handleNext}
               style={styles.primaryButton}
             />
@@ -219,7 +225,7 @@ const styles = StyleSheet.create({
   skipButton: {
     width: 96,
     borderColor: colors.borderMedium,
-    backgroundColor: colors.white,
+    backgroundColor: colors.primaryDark,
   },
   listContent: {
     paddingBottom: 10,
