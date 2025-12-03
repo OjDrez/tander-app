@@ -38,13 +38,16 @@ type RegisterUserPayload = {
 
 const registerUser = async (payload: RegisterUserPayload) => {
   try {
-    const response = await fetch("https://54b08d17071a.ngrok-free.app/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await fetch(
+      "https://15b388cffe49.ngrok-free.app/user/register",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
