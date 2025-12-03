@@ -29,7 +29,14 @@ type FormValues = {
   confirmPassword: string;
 };
 
-const registerUser = async (payload: any) => {
+type RegisterUserPayload = {
+  username: string;
+  email: string;
+  password: string;
+  useBiometric: boolean;
+};
+
+const registerUser = async (payload: RegisterUserPayload) => {
   try {
     const response = await fetch("https://54b08d17071a.ngrok-free.app/", {
       method: "POST",
@@ -120,10 +127,7 @@ export default function AccountIntroScreen() {
         <Animated.View
           style={[
             styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY }],
-            },
+            { opacity: fadeAnim, transform: [{ translateY }] },
           ]}
         >
           <View style={styles.cardHeader}>
@@ -147,7 +151,19 @@ export default function AccountIntroScreen() {
             validationSchema={createAccountSchema}
             onSubmit={async (values, { setSubmitting }) => {
               try {
-                await registerUser({ ...values, useBiometric });
+                const trimmed = values.identifier.trim();
+
+                const payload: RegisterUserPayload = {
+                  username: trimmed,
+                  email: trimmed,
+                  password: values.password,
+                  useBiometric,
+                };
+
+                console.log("📤 PAYLOAD SENT TO BACKEND:", payload);
+
+                await registerUser(payload);
+
                 NavigationService.navigate("Auth", { screen: "Register" });
               } catch (error) {
                 Alert.alert(
