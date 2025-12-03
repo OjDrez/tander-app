@@ -1,4 +1,5 @@
 import colors from "@/src/config/colors";
+import MainNavigationBar from "@/src/components/navigation/MainNavigationBar";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
@@ -81,145 +82,137 @@ export default function InboxScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            style={styles.headerButton}
-            activeOpacity={0.85}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.primary} />
-          </TouchableOpacity>
+      <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.headerButton}
+              activeOpacity={0.85}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.primary} />
+            </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Inbox</Text>
+            <Text style={styles.headerTitle}>Inbox</Text>
 
-          <TouchableOpacity
-            accessibilityRole="button"
-            style={[styles.headerButton, styles.headerButtonRight]}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate("HomeScreen" as never)}
-          >
-            <Ionicons name="home" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <LinearGradient
-          colors={colors.gradients.softAqua.array}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.suggestionsCard}
-        >
-          <View style={styles.suggestionsHeader}>
-            <Text style={styles.sectionTitle}>People You May Know!</Text>
-            <Ionicons name="heart" size={18} color={colors.primary} />
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={[styles.headerButton, styles.headerButtonRight]}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate("HomeScreen" as never)}
+            >
+              <Ionicons name="home" size={20} color={colors.primary} />
+            </TouchableOpacity>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.suggestionRow}
+          <LinearGradient
+            colors={colors.gradients.softAqua.array}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.suggestionsCard}
           >
-            {suggestions.map((person) => (
-              <View key={person.name} style={styles.suggestionItem}>
-                <View>
-                  <Image source={{ uri: person.avatar }} style={styles.suggestionAvatar} />
-                  <View style={styles.heartBadge}>
-                    <MaterialCommunityIcons
-                      name="heart"
-                      size={12}
-                      color={colors.white}
+            <View style={styles.suggestionsHeader}>
+              <Text style={styles.sectionTitle}>People You May Know!</Text>
+              <Ionicons name="heart" size={18} color={colors.primary} />
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestionRow}
+            >
+              {suggestions.map((person) => (
+                <View key={person.name} style={styles.suggestionItem}>
+                  <View>
+                    <Image source={{ uri: person.avatar }} style={styles.suggestionAvatar} />
+                    <View style={styles.heartBadge}>
+                      <MaterialCommunityIcons
+                        name="heart"
+                        size={12}
+                        color={colors.white}
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.suggestionName}>{person.name}</Text>
+                  <Text style={styles.suggestionAge}>{person.age}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </LinearGradient>
+
+          <View style={styles.messageSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Messages</Text>
+              <Ionicons name="mail-open" size={18} color={colors.textSecondary} />
+            </View>
+
+            {conversations.map((chat) => (
+              <View key={chat.name} style={styles.messageCard}>
+                <View style={styles.messageHeader}>
+                  <View style={styles.messageAvatarWrapper}>
+                    <Image source={{ uri: chat.avatar }} style={styles.messageAvatar} />
+                    <View
+                      style={[styles.statusDot, chat.status === "active" ? styles.statusActive : styles.statusIdle]}
                     />
                   </View>
+                  <View style={styles.messageMeta}>
+                    <Text style={styles.messageName}>{chat.name}</Text>
+                    <Text style={styles.messagePreview}>{chat.message}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.callButton} activeOpacity={0.9}>
+                    <MaterialCommunityIcons
+                      name="phone"
+                      size={18}
+                      color={colors.white}
+                    />
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.suggestionName}>{person.name}</Text>
-                <Text style={styles.suggestionAge}>{person.age}</Text>
+
+                <View style={styles.messageFooter}>
+                  <View style={styles.voiceBadge}>
+                    <Ionicons name="mic" size={12} color={colors.textSecondary} />
+                    <Text style={styles.voiceText}>Voice Message</Text>
+                  </View>
+                  <TouchableOpacity activeOpacity={0.8}>
+                    <Ionicons
+                      name={chat.favorite ? "heart" : "heart-outline"}
+                      size={18}
+                      color={chat.favorite ? colors.primary : colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
-          </ScrollView>
-        </LinearGradient>
-
-        <View style={styles.messageSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Messages</Text>
-            <Ionicons name="mail-open" size={18} color={colors.textSecondary} />
           </View>
+        </ScrollView>
 
-          {conversations.map((chat) => (
-            <View key={chat.name} style={styles.messageCard}>
-              <View style={styles.messageHeader}>
-                <View style={styles.messageAvatarWrapper}>
-                  <Image source={{ uri: chat.avatar }} style={styles.messageAvatar} />
-                  <View
-                    style={[styles.statusDot, chat.status === "active" ? styles.statusActive : styles.statusIdle]}
-                  />
-                </View>
-                <View style={styles.messageMeta}>
-                  <Text style={styles.messageName}>{chat.name}</Text>
-                  <Text style={styles.messagePreview}>{chat.message}</Text>
-                </View>
-                <TouchableOpacity style={styles.callButton} activeOpacity={0.9}>
-                  <MaterialCommunityIcons
-                    name="phone"
-                    size={18}
-                    color={colors.white}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.messageFooter}>
-                <View style={styles.voiceBadge}>
-                  <Ionicons name="mic" size={12} color={colors.textSecondary} />
-                  <Text style={styles.voiceText}>Voice Message</Text>
-                </View>
-                <TouchableOpacity activeOpacity={0.8}>
-                  <Ionicons
-                    name={chat.favorite ? "heart" : "heart-outline"}
-                    size={18}
-                    color={chat.favorite ? colors.primary : colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+        <View style={styles.inputBar}>
+          <TouchableOpacity style={styles.quickIcon} activeOpacity={0.85}>
+            <Ionicons name="image" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickIcon} activeOpacity={0.85}>
+            <Ionicons name="mic" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TextInput
+            placeholder="Type a message..."
+            placeholderTextColor={colors.textMuted}
+            style={styles.textInput}
+          />
+          <TouchableOpacity style={styles.sendButton} activeOpacity={0.9}>
+            <Ionicons name="heart" size={16} color={colors.white} />
+          </TouchableOpacity>
         </View>
-      </ScrollView>
-
-      <View style={styles.inputBar}>
-        <TouchableOpacity style={styles.quickIcon} activeOpacity={0.85}>
-          <Ionicons name="image" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickIcon} activeOpacity={0.85}>
-          <Ionicons name="mic" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <TextInput
-          placeholder="Type a message..."
-          placeholderTextColor={colors.textMuted}
-          style={styles.textInput}
-        />
-        <TouchableOpacity style={styles.sendButton} activeOpacity={0.9}>
-          <Ionicons name="heart" size={16} color={colors.white} />
-        </TouchableOpacity>
       </View>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.85}>
-          <Ionicons name="home" size={20} color={colors.primary} />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navItemActive]} activeOpacity={0.85}>
-          <Ionicons name="chatbox-ellipses" size={20} color={colors.primary} />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Inbox</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.85}>
-          <Ionicons name="people" size={20} color={colors.textSecondary} />
-          <Text style={styles.navLabel}>Matches</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.85}>
-          <Ionicons name="person" size={20} color={colors.textSecondary} />
-          <Text style={styles.navLabel}>My Profile</Text>
-        </TouchableOpacity>
-      </View>
+      <MainNavigationBar
+        activeTab="Inbox"
+        onTabPress={(tab) => {
+          if (tab === "Home") {
+            navigation.navigate("HomeScreen" as never);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -228,6 +221,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundLight,
+  },
+  content: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 18,
@@ -444,30 +440,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-  },
-  bottomNav: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-evenly",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderColor: colors.borderMedium,
-  },
-  navItem: {
-    alignItems: "center",
-    gap: 4,
-  },
-  navItemActive: {
-    transform: [{ translateY: -2 }],
-  },
-  navLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: "700",
   },
 });

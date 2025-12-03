@@ -1,4 +1,6 @@
 import colors from "@/src/config/colors";
+import FullScreen from "@/src/components/layout/FullScreen";
+import MainNavigationBar, { MainNavigationTab } from "@/src/components/navigation/MainNavigationBar";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
@@ -9,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
@@ -56,134 +57,144 @@ const suggestions = [
 export default function HomeScreen() {
   const navigation = useNavigation();
 
+  const handleTabPress = (tab: MainNavigationTab) => {
+    if (tab === "Inbox") {
+      navigation.navigate("InboxScreen" as never);
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Top Row */}
-        <View style={styles.topRow}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandIcon}>
-              <Ionicons name="heart" size={18} color={colors.white} />
-            </View>
-            <Text style={styles.brandName}>TANDER</Text>
-          </View>
-
-          <TouchableOpacity style={styles.videoButton} activeOpacity={0.9}>
-            <Ionicons name="videocam" size={18} color={colors.white} />
-            <Text style={styles.videoButtonText}>Video Call</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.videoPrompt}>Press me to video call</Text>
-
-        {/* Inbox Navigation */}
-        <TouchableOpacity
-          style={styles.inboxNavButton}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate("InboxScreen" as never)}
-        >
-          <Text style={styles.inboxNavText}>Go to Inbox</Text>
-          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-        </TouchableOpacity>
-
-        {/* Hero Card */}
-        <LinearGradient
-          colors={["#FFF1E0", "#E9F7F5"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Ready for your next conversation?</Text>
-            <Text style={styles.heroSubtitle}>
-              We found people who share your interests and values.
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
-            <Ionicons name="call" size={16} color={colors.white} />
-            <Text style={styles.primaryButtonText}>Start Video Call</Text>
-          </TouchableOpacity>
-        </LinearGradient>
-
-        {/* Profile Card */}
-        <View style={styles.card}>
-          <View style={styles.profileRow}>
-            <Image source={{ uri: profile.avatar }} style={styles.avatar} />
-            <View style={styles.profileTextGroup}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>
-                  {profile.name}, {profile.age}
-                </Text>
-                <MaterialCommunityIcons
-                  name="shield-check"
-                  size={18}
-                  color={colors.accentTeal}
-                  style={styles.verifiedIcon}
-                />
-              </View>
-
-              <View style={styles.locationRow}>
-                <Ionicons
-                  name="location-outline"
-                  size={14}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.locationText}>{profile.location}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.aboutBox}>
-            <Text style={styles.aboutLabel}>About Me</Text>
-            <Text style={styles.aboutText}>{profile.about}</Text>
-          </View>
-        </View>
-
-        {/* Complete Profile */}
-        <View style={styles.card}>
-          <View style={styles.badgeRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>New to our community</Text>
-            </View>
-          </View>
-
-          <Text style={styles.cardTitle}>Complete your Profile</Text>
-          <Text style={styles.cardSubtitle}>
-            Add your photos and details to get better matches.
-          </Text>
-
-          <TouchableOpacity style={styles.outlineButton} activeOpacity={0.9}>
-            <Text style={styles.outlineButtonText}>Complete Profile</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Suggestions Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>People You May Know!</Text>
-          <Text style={styles.sectionSubtitle}>Select gender</Text>
-        </View>
-
+    <FullScreen statusBarStyle="dark" style={styles.container}>
+      <View style={styles.content}>
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestionsRow}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          {suggestions.map((person) => (
-            <View key={person.name} style={styles.suggestionCard}>
-              <Image source={{ uri: person.avatar }} style={styles.suggestionAvatar} />
-              <Text style={styles.suggestionName}>{person.name}</Text>
-              <Text style={styles.suggestionMeta}>
-                {person.age}, {person.location}
+          {/* Top Row */}
+          <View style={styles.topRow}>
+            <View style={styles.brandRow}>
+              <View style={styles.brandIcon}>
+                <Ionicons name="heart" size={18} color={colors.white} />
+              </View>
+              <Text style={styles.brandName}>TANDER</Text>
+            </View>
+
+            <TouchableOpacity style={styles.videoButton} activeOpacity={0.9}>
+              <Ionicons name="videocam" size={18} color={colors.white} />
+              <Text style={styles.videoButtonText}>Video Call</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.videoPrompt}>Press me to video call</Text>
+
+          {/* Inbox Navigation */}
+          <TouchableOpacity
+            style={styles.inboxNavButton}
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate("InboxScreen" as never)}
+          >
+            <Text style={styles.inboxNavText}>Go to Inbox</Text>
+            <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+          </TouchableOpacity>
+
+          {/* Hero Card */}
+          <LinearGradient
+            colors={["#FFF1E0", "#E9F7F5"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroContent}>
+              <Text style={styles.heroTitle}>Ready for your next conversation?</Text>
+              <Text style={styles.heroSubtitle}>
+                We found people who share your interests and values.
               </Text>
             </View>
-          ))}
+
+            <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
+              <Ionicons name="call" size={16} color={colors.white} />
+              <Text style={styles.primaryButtonText}>Start Video Call</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+
+          {/* Profile Card */}
+          <View style={styles.card}>
+            <View style={styles.profileRow}>
+              <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+              <View style={styles.profileTextGroup}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>
+                    {profile.name}, {profile.age}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="shield-check"
+                    size={18}
+                    color={colors.accentTeal}
+                    style={styles.verifiedIcon}
+                  />
+                </View>
+
+                <View style={styles.locationRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={14}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.locationText}>{profile.location}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.aboutBox}>
+              <Text style={styles.aboutLabel}>About Me</Text>
+              <Text style={styles.aboutText}>{profile.about}</Text>
+            </View>
+          </View>
+
+          {/* Complete Profile */}
+          <View style={styles.card}>
+            <View style={styles.badgeRow}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>New to our community</Text>
+              </View>
+            </View>
+
+            <Text style={styles.cardTitle}>Complete your Profile</Text>
+            <Text style={styles.cardSubtitle}>
+              Add your photos and details to get better matches.
+            </Text>
+
+            <TouchableOpacity style={styles.outlineButton} activeOpacity={0.9}>
+              <Text style={styles.outlineButtonText}>Complete Profile</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Suggestions Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>People You May Know!</Text>
+            <Text style={styles.sectionSubtitle}>Select gender</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsRow}
+          >
+            {suggestions.map((person) => (
+              <View key={person.name} style={styles.suggestionCard}>
+                <Image source={{ uri: person.avatar }} style={styles.suggestionAvatar} />
+                <Text style={styles.suggestionName}>{person.name}</Text>
+                <Text style={styles.suggestionMeta}>
+                  {person.age}, {person.location}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
         </ScrollView>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+
+      <MainNavigationBar activeTab="Home" onTabPress={handleTabPress} />
+    </FullScreen>
   );
 }
 
@@ -193,10 +204,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundLight,
   },
 
+  content: {
+    flex: 1,
+  },
+
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 28,
+    paddingBottom: 20,
   },
 
   topRow: {
