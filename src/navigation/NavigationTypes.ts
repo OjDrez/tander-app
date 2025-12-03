@@ -16,12 +16,15 @@ export type RootStackParamList = {
 export type AppStackParamList = {
   HomeScreen: undefined;
   InboxScreen: undefined;
+  InboxEmptyScreen: undefined;
+  ConversationScreen: { userId: string };
   MyMatchesScreen: undefined;
   MatchCelebrationScreen: { user1: string; user2: string };
   PeopleViewedMeScreen: undefined;
   ProfileViewScreen: { userId: string };
   ViewProfileScreen: { userId: string };
   ViewProfileDetailsScreen: { userId: string };
+  DashboardScreen: { userId: string };
   SettingsScreen: undefined;
   EditProfileScreen: undefined;
   EditBasicInfoScreen: undefined;
@@ -30,6 +33,7 @@ export type AppStackParamList = {
   PrivacyScreen: undefined;
   ChangePasswordScreen: undefined;
   HelpCenterScreen: undefined;
+  VideoCallScreen: { userId: string };
 };
 
 /**
