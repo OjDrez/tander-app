@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo } from "react";
 import {
@@ -14,16 +15,18 @@ import GradientButton from "@/src/components/buttons/GradientButton";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
-import NavigationService from "@/src/navigation/NavigationService";
+import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 
 // Route params for this screen
-type ProfileViewRouteProp = RouteProp<
-  { ProfileViewScreen: { userId: string } },
+type ProfileViewRouteProp = RouteProp<AppStackParamList, "ProfileViewScreen">;
+
+type ProfileViewNav = NativeStackNavigationProp<
+  AppStackParamList,
   "ProfileViewScreen"
 >;
 
 export default function ProfileViewScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<ProfileViewNav>();
   const route = useRoute<ProfileViewRouteProp>();
   const { userId } = route.params;
 
@@ -51,12 +54,12 @@ export default function ProfileViewScreen() {
   );
 
   const handleChatPress = useCallback(() => {
-    NavigationService.navigate("ChatRoomScreen", { userId: profile.id });
-  }, [profile.id]);
+    navigation.navigate("ConversationScreen", { userId: profile.id });
+  }, [navigation, profile.id]);
 
   const handleVideoPress = useCallback(() => {
-    NavigationService.navigate("VideoCallScreen", { userId: profile.id });
-  }, [profile.id]);
+    navigation.navigate("VideoCallScreen", { userId: profile.id });
+  }, [navigation, profile.id]);
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>

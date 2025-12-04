@@ -20,6 +20,7 @@ export type AppStackParamList = {
   ConversationScreen: { userId: string };
   MessageThreadScreen: { userId: string };
   MyMatchesScreen: undefined;
+  MatchesScreen: undefined;
   MatchCelebrationScreen: { user1: string; user2: string };
   PeopleViewedMeScreen: undefined;
   ProfileViewScreen: { userId: string };
@@ -28,6 +29,7 @@ export type AppStackParamList = {
   DashboardScreen: { userId: string };
   SettingsScreen: undefined;
   EditProfileScreen: undefined;
+  EditBioScreen: undefined;
   EditBasicInfoScreen: undefined;
   EditAboutYouScreen: undefined;
   PaymentMethodsScreen: undefined;

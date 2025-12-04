@@ -1,11 +1,13 @@
 import React, { useMemo, useCallback } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import AppHeaderWithLogo from "@/src/components/common/AppHeaderWithLogo";
 import colors from "@/src/config/colors";
-import NavigationService from "@/src/navigation/NavigationService";
+import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 
 import MatchCard, { MatchItem } from "./MatchCard";
 
@@ -53,20 +55,21 @@ const MOCK_MATCHES: MatchItem[] = [
 ];
 
 export default function MyMatchesScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const data = useMemo(() => MOCK_MATCHES, []);
 
   const handleCardPress = useCallback((userId: string) => {
-    NavigationService.navigate("ProfileViewScreen", { userId });
-  }, []);
+    navigation.navigate("ProfileViewScreen", { userId });
+  }, [navigation]);
 
   const handleActionPress = useCallback((item: MatchItem) => {
     if (item.action === "chat") {
-      NavigationService.navigate("ChatRoomScreen", { userId: item.id });
-      return;
+      navigation.navigate("ConversationScreen", { userId: item.id });
+    } else {
+      navigation.navigate("VideoCallScreen", { userId: item.id });
     }
-
-    NavigationService.navigate("VideoCallScreen", { userId: item.id });
-  }, []);
+  }, [navigation]);
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.container}>
