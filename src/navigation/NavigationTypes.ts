@@ -11,39 +11,13 @@ export type RootStackParamList = {
 };
 
 /**
- * MAIN APP STACK (after onboarding/auth)
- */
-export type AppStackParamList = {
-  HomeScreen: undefined;
-  InboxScreen: undefined;
-  InboxEmptyScreen: undefined;
-  ConversationScreen: { userId: string };
-  MessageThreadScreen: { userId: string };
-  MyMatchesScreen: undefined;
-  MatchCelebrationScreen: { user1: string; user2: string };
-  PeopleViewedMeScreen: undefined;
-  ProfileViewScreen: { userId: string };
-  ViewProfileScreen: { userId: string };
-  ViewProfileDetailsScreen: { userId: string };
-  DashboardScreen: { userId: string };
-  SettingsScreen: undefined;
-  EditProfileScreen: undefined;
-  EditBasicInfoScreen: undefined;
-  EditAboutYouScreen: undefined;
-  PaymentMethodsScreen: undefined;
-  PrivacyScreen: undefined;
-  ChangePasswordScreen: undefined;
-  HelpCenterScreen: undefined;
-  VideoCallScreen: { userId: string };
-};
-
-/**
- * REGISTRATION FLOW (3-step signup)
+ * REGISTRATION FLOW (4-step signup)
  */
 export type RegistrationStackParamList = {
   Step1: undefined;
   Step2: undefined;
   Step3: undefined;
+  Step4: undefined;
   RegistrationComplete: undefined;
 };
 
@@ -63,6 +37,11 @@ export type Step2Nav = NativeStackNavigationProp<
 export type Step3Nav = NativeStackNavigationProp<
   RegistrationStackParamList,
   "Step3"
+>;
+
+export type Step4Nav = NativeStackNavigationProp<
+  RegistrationStackParamList,
+  "Step4"
 >;
 
 export type RegistrationCompleteNav = NativeStackNavigationProp<
