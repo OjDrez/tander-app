@@ -4,9 +4,8 @@ import React from "react";
 
 import RegistrationComplete from "../screens/Registration/RegistrationComplete";
 import Step1BasicInfo from "../screens/Registration/Step1BasicInfo";
-import Step2IdVerification from "../screens/Registration/Step2IdVerification";
-import Step3Upload from "../screens/Registration/Step3Upload";
-import Step4AboutYou from "../screens/Registration/Step4AboutYou";
+import Step2Upload from "../screens/Registration/Step2Upload";
+import Step3AboutYou from "../screens/Registration/Step3AboutYou";
 
 import RegistrationSchema from "../context/RegistrationSchema";
 import { useAuth } from "../hooks/useAuth";
@@ -21,21 +20,10 @@ export default function RegistrationNavigator() {
   const { completeProfile, phase1Data } = useAuth();
   const toast = useToast();
 
-  // Helper function to convert MM/DD/YYYY to ISO format (yyyy-MM-dd)
-  const convertToISODate = (dateString: string): string => {
-    if (!dateString) return '';
-    const [month, day, year] = dateString.split('/');
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  };
-
   const handleRegistration = async (values: any) => {
     try {
-      console.log('🟡 [RegistrationNavigator] Starting Phase 2 registration...');
-      console.log('🟡 [RegistrationNavigator] Form values:', values);
-
       // Check if Phase 1 data exists
       if (!phase1Data) {
-        console.error('🔴 [RegistrationNavigator] No phase1Data found!');
         toast.showToast({
           type: 'error',
           message: 'Please complete account creation first.',
@@ -50,14 +38,9 @@ export default function RegistrationNavigator() {
 
       // Use Phase 1 credentials from context
       const { username, email } = phase1Data;
-      console.log('🟡 [RegistrationNavigator] Phase1Data:', { username, email });
-
-      // Convert date format for backend
-      const isoDate = convertToISODate(values.birthday);
-      console.log('🟡 [RegistrationNavigator] Date conversion:', { original: values.birthday, iso: isoDate });
 
       // Phase 2: Complete profile with all details
-      const profileData = {
+      await completeProfile(username, {
         firstName: values.firstName,
         lastName: values.lastName,
         middleName: values.middleName || '',
@@ -65,21 +48,13 @@ export default function RegistrationNavigator() {
         address: values.address || '',
         phone: values.phone || '',
         email: email,
-        birthDate: isoDate,
+        birthDate: values.birthday,
         age: parseInt(values.age) || 0,
         country: values.country,
         city: values.city,
         civilStatus: values.civilStatus,
         hobby: values.hobby || '',
-      };
-
-      console.log('🟡 [RegistrationNavigator] Calling completeProfile with:', profileData);
-      console.log('🟡 [RegistrationNavigator] markAsComplete=true (final registration)');
-
-      // Final registration - mark profile as complete (markAsComplete=true)
-      await completeProfile(username, profileData, true);
-
-      console.log('✅ [RegistrationNavigator] Profile completed successfully!');
+      });
 
       toast.showToast({
         type: 'success',
@@ -96,9 +71,8 @@ export default function RegistrationNavigator() {
         NavigationService.navigate('Auth', { screen: 'LoginScreen' });
       }, 2000);
     } catch (error: any) {
-      console.error('🔴 [RegistrationNavigator] Phase 2 registration error:', error);
-      console.error('🔴 [RegistrationNavigator] Error message:', error.message);
       toast.error(error.message || 'Registration failed. Please try again.');
+      console.error('Phase 2 registration error:', error);
     }
   };
 
@@ -115,7 +89,7 @@ export default function RegistrationNavigator() {
         civilStatus: "",
         city: "",
         hobby: "",
-        email: phase1Data?.email || "", // Pre-filled from Phase 1 registration
+        email: "", // TODO: Add email field to Step 1
         phone: "",
         address: "",
         photos: [],
@@ -146,7 +120,7 @@ export default function RegistrationNavigator() {
         />
         <Stack.Screen
           name="Step2"
-          component={Step2IdVerification}
+          component={Step2Upload}
           options={{
             animation: "slide_from_right",
             animationDuration: 350,
@@ -154,15 +128,7 @@ export default function RegistrationNavigator() {
         />
         <Stack.Screen
           name="Step3"
-          component={Step3Upload}
-          options={{
-            animation: "slide_from_right",
-            animationDuration: 350,
-          }}
-        />
-        <Stack.Screen
-          name="Step4"
-          component={Step4AboutYou}
+          component={Step3AboutYou}
           options={{
             animation: "slide_from_right",
             animationDuration: 350,
