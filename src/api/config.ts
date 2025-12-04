@@ -1,22 +1,20 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Platform-specific API URL configuration
 // - iOS Simulator: http://localhost:8080
 // - Android Emulator: http://10.0.2.2:8080
 // - Physical Device: Replace with your computer's IP address (e.g., http://192.168.1.100:8080)
-// IMPORTANT: No trailing slash! (axios adds it automatically)
 const getApiBaseUrl = () => {
   if (__DEV__) {
     if (Platform.OS === 'android') {
-      // Update this with your current tunnel URL (NO trailing slash)
-      return 'https://breakfast-fit-justify-cemetery.trycloudflare.com'; // ✅ NO trailing slash
+      return 'https://15b388cffe49.ngrok-free.app'; // Android emulator
     }
-    return 'https://breakfast-fit-justify-cemetery.trycloudflare.com'; // ✅ NO trailing slash
+    return 'https://15b388cffe49.ngrok-free.app'; // iOS simulator or web
   }
-  // Production URL - update this for production deployment (NO trailing slash)
-  return 'https://breakfast-fit-justify-cemetery.trycloudflare.com';
+  // Production URL - update this for production deployment
+  return 'https://15b388cffe49.ngrok-free.app';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -32,13 +30,8 @@ const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    // Required for ngrok/cloudflare tunnels to work properly
-    'ngrok-skip-browser-warning': 'true', // Skip ngrok browser warning
-    'User-Agent': 'TanderMobileApp/1.0', // Identify as mobile app
   },
-  timeout: 30000, // Increased timeout for tunnel latency (30 seconds)
-  maxRedirects: 5, // Follow redirects from tunnels
-  // ✅ Let axios handle errors naturally (401, 403 = errors, not success)
+  timeout: 10000,
 });
 
 apiClient.interceptors.request.use(

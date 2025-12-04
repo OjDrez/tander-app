@@ -22,7 +22,6 @@ interface TextInputFieldProps {
   maxLength?: number;
   multiline?: boolean;
   numberOfLines?: number;
-  editable?: boolean;
 }
 
 export default function TextInputField({
@@ -39,7 +38,6 @@ export default function TextInputField({
   maxLength,
   multiline = false,
   numberOfLines = 1,
-  editable = true,
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = React.useState(false);
 
@@ -92,7 +90,6 @@ export default function TextInputField({
             borderColor: getBorderColor(),
             transform: [{ scale: scaleAnim }],
           },
-          !editable && styles.disabledWrapper,
         ]}
       >
         <TextInput
@@ -100,7 +97,6 @@ export default function TextInputField({
             styles.input,
             multiline && styles.multilineInput,
             Platform.OS === "android" && styles.androidAdjust,
-            !editable && styles.disabledInput,
           ]}
           value={value}
           placeholder={placeholder}
@@ -115,7 +111,6 @@ export default function TextInputField({
           multiline={multiline}
           numberOfLines={numberOfLines}
           textAlignVertical={multiline ? "top" : "center"}
-          editable={editable}
         />
       </Animated.View>
 
@@ -168,14 +163,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#D9534F",
     fontWeight: "500",
-  },
-
-  disabledWrapper: {
-    backgroundColor: "#ECECEC",
-    opacity: 0.7,
-  },
-
-  disabledInput: {
-    color: "#888",
   },
 });
