@@ -1,17 +1,17 @@
-import colors from "@/src/config/colors";
 import MessageBubble from "@/src/components/chat/MessageBubble";
 import MessageInputBar from "@/src/components/chat/MessageInputBar";
 import AppText from "@/src/components/inputs/AppText";
-import AppHeader from "@/src/components/navigation/AppHeader";
 import Screen from "@/src/components/layout/Screen";
+import AppHeader from "@/src/components/navigation/AppHeader";
+import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import {
   NativeStackNavigationProp,
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
@@ -41,7 +41,13 @@ type DateSeparator = {
 type ChatListItem = ChatMessage | DateSeparator;
 
 const initialMessages: ChatMessage[] = [
-  { id: "1", text: "Kamusta po?", time: "5:58 PM", isOwn: false, date: "2024-06-10" },
+  {
+    id: "1",
+    text: "Kamusta po?",
+    time: "5:58 PM",
+    isOwn: false,
+    date: "2024-06-10",
+  },
   {
     id: "2",
     text: "Hello! Ok naman, eto nagluluto ng Adobo Baboy.",
@@ -83,7 +89,8 @@ export default function ConversationScreen({
   route,
 }: NativeStackScreenProps<AppStackParamList, "ConversationScreen">) {
   const { userId } = route.params;
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
 
   const [messageText, setMessageText] = useState("");
@@ -140,7 +147,7 @@ export default function ConversationScreen({
       return (
         <View style={styles.dateSeparator}>
           <View style={styles.separatorLine} />
-          <AppText size="tiny" weight="medium" color={colors.textSecondary} style={styles.dateText}>
+          <AppText size="tiny" weight="medium" color={colors.textSecondary}>
             {dateItem.label}
           </AppText>
           <View style={styles.separatorLine} />
@@ -148,10 +155,8 @@ export default function ConversationScreen({
       );
     }
 
-    const messageItem = item as ChatMessage;
-    return (
-      <MessageBubble text={messageItem.text} time={messageItem.time} isOwn={messageItem.isOwn} />
-    );
+    const msg = item as ChatMessage;
+    return <MessageBubble text={msg.text} time={msg.time} isOwn={msg.isOwn} />;
   };
 
   return (
@@ -179,7 +184,11 @@ export default function ConversationScreen({
                     style={styles.avatar}
                   />
                   <View>
-                    <AppText weight="bold" size="body" color={colors.textPrimary}>
+                    <AppText
+                      weight="bold"
+                      size="body"
+                      color={colors.textPrimary}
+                    >
                       Felix
                     </AppText>
                     <AppText size="tiny" color={colors.textSecondary}>
@@ -192,9 +201,15 @@ export default function ConversationScreen({
                 <View style={styles.headerActions}>
                   <View style={styles.statusDot} />
                   <AppText size="tiny" color={colors.textSecondary}>
-                    Secure chat
+                    Video Call
                   </AppText>
-                  <View style={styles.rightSpacer} />
+
+                  <TouchableOpacity
+                    style={styles.videoButton}
+                    onPress={handleVideoCall}
+                  >
+                    <Ionicons name="videocam" size={16} color={colors.white} />
+                  </TouchableOpacity>
                 </View>
               }
             />
@@ -208,27 +223,17 @@ export default function ConversationScreen({
               showsVerticalScrollIndicator={false}
             />
 
-            <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+            <View
+              style={[
+                styles.inputContainer,
+                { paddingBottom: Math.max(insets.bottom, 10) },
+              ]}
+            >
               <MessageInputBar
                 value={messageText}
                 onChangeText={setMessageText}
                 onSend={handleSend}
-                onAttachmentPress={() => {}}
               />
-            </View>
-
-            <View style={styles.fabWrapper}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                style={styles.videoButton}
-                onPress={handleVideoCall}
-                activeOpacity={0.88}
-              >
-                <Ionicons name="videocam" size={18} color={colors.white} />
-                <AppText weight="bold" size="tiny" color={colors.white}>
-                  Video Call
-                </AppText>
-              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -242,29 +247,32 @@ function formatDateLabel(dateString: string) {
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
 
-  const messageDate = new Date(dateString);
-  const isToday =
-    messageDate.getDate() === today.getDate() &&
-    messageDate.getMonth() === today.getMonth() &&
-    messageDate.getFullYear() === today.getFullYear();
+  const dateObj = new Date(dateString);
 
-  const isYesterday =
-    messageDate.getDate() === yesterday.getDate() &&
-    messageDate.getMonth() === yesterday.getMonth() &&
-    messageDate.getFullYear() === yesterday.getFullYear();
+  if (
+    dateObj.getDate() === today.getDate() &&
+    dateObj.getMonth() === today.getMonth() &&
+    dateObj.getFullYear() === today.getFullYear()
+  )
+    return "Today";
 
-  if (isToday) return "Today";
-  if (isYesterday) return "Yesterday";
-  return messageDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (
+    dateObj.getDate() === yesterday.getDate() &&
+    dateObj.getMonth() === yesterday.getMonth() &&
+    dateObj.getFullYear() === yesterday.getFullYear()
+  )
+    return "Yesterday";
+
+  return dateObj.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  gradient: { flex: 1 },
+  flex: { flex: 1 },
+
   contentWrapper: {
     flex: 1,
     backgroundColor: colors.white,
@@ -273,33 +281,41 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginTop: 6,
   },
+
   headerUserRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
+
   avatar: {
     height: 44,
     width: 44,
     borderRadius: 22,
     backgroundColor: colors.borderLight,
   },
+
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 6,
-    width: 86,
+    gap: 8,
+    paddingRight: 6,
   },
+
   statusDot: {
     height: 8,
     width: 8,
     borderRadius: 4,
     backgroundColor: colors.success,
   },
-  rightSpacer: {
-    width: 4,
+
+  videoButton: {
+    backgroundColor: colors.accentTeal,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 18,
   },
+
   listContent: {
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -307,6 +323,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "flex-end",
   },
+
   dateSeparator: {
     flexDirection: "row",
     alignItems: "center",
@@ -314,39 +331,14 @@ const styles = StyleSheet.create({
     gap: 8,
     marginVertical: 6,
   },
+
   separatorLine: {
     flex: 1,
     height: 1,
     backgroundColor: colors.borderMedium,
   },
-  dateText: {
-    paddingHorizontal: 8,
-  },
+
   inputContainer: {
     backgroundColor: colors.white,
-  },
-  videoButton: {
-    position: "absolute",
-    right: 16,
-    bottom: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.accentTeal,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  fabWrapper: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    left: 0,
-    pointerEvents: "box-none",
   },
 });
