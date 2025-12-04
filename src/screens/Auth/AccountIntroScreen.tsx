@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Formik } from "formik";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Image,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -20,39 +20,50 @@ import AppTextInput from "@/src/components/common/AppTextInput";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
-import { useToast } from "@/src/context/ToastContext";
-import { useAuth } from "@/src/hooks/useAuth";
 import NavigationService from "@/src/navigation/NavigationService";
-import { Formik } from "formik";
-import * as Yup from "yup";
+import { createAccountSchema } from "@/src/validation/schemas/createAccount";
 
-const accountIntroSchema = Yup.object().shape({
-  username: Yup.string()
-    .min(3, "Username must be at least 3 characters")
-    .max(20, "Username must be at most 20 characters")
-    .matches(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores")
-    .required("Username is required"),
-  email: Yup.string()
-    .email("Please enter a valid email")
-    .notRequired(), // Email is optional
-  password: Yup.string()
-    .min(8, "Password must be at least 8 characters")
-    .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .matches(/[a-z]/, "Password must contain at least one lowercase letter")
-    .matches(/[0-9]/, "Password must contain at least one number")
-    .required("Password is required"),
-  confirmPassword: Yup.string()
-    .oneOf([Yup.ref("password")], "Passwords must match")
-    .required("Please confirm your password"),
-});
+type FormValues = {
+  identifier: string;
+  password: string;
+  confirmPassword: string;
+};
+
+type RegisterUserPayload = {
+  username: string;
+  email: string;
+  password: string;
+  useBiometric: boolean;
+};
+
+const registerUser = async (payload: RegisterUserPayload) => {
+  try {
+    const response = await fetch(
+      "https://15b388cffe49.ngrok-free.app/user/register",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Request failed");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("API error:", error);
+    throw error;
+  }
+};
 
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const { register, setPhase1Data } = useAuth();
-  const toast = useToast();
 
-  // entrance animation for card + icon
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -85,7 +96,7 @@ export default function AccountIntroScreen() {
         }),
       ])
     ).start();
-  }, [fadeAnim, translateY, pulseAnim]);
+  }, []);
 
   return (
     <FullScreen statusBarStyle="dark">
@@ -97,45 +108,31 @@ export default function AccountIntroScreen() {
       />
 
       <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-        >
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.header}>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <View style={styles.avatarCircle}>
-                  <Image
-                    source={require("../../assets/icons/tander-logo.png")}
-                    style={styles.avatar}
-                    resizeMode="contain"
-                  />
-                </View>
-              </Animated.View>
-
-              <AppText weight="semibold" style={styles.title}>
-                Create Account
-              </AppText>
-              <AppText style={styles.subtitle}>
-                Set up your profile to start connecting with the community.
-              </AppText>
+        <View style={styles.header}>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <View style={styles.avatarCircle}>
+              <Image
+                source={require("../../assets/icons/tander-logo.png")}
+                style={styles.avatar}
+                resizeMode="contain"
+              />
             </View>
+          </Animated.View>
 
-            <Animated.View
-              style={[
-                styles.card,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY }],
-                },
-              ]}
-            >
+          <AppText weight="semibold" style={styles.title}>
+            Create Account
+          </AppText>
+          <AppText style={styles.subtitle}>
+            Set up your profile to start connecting with the community.
+          </AppText>
+        </View>
+
+        <Animated.View
+          style={[
+            styles.card,
+            { opacity: fadeAnim, transform: [{ translateY }] },
+          ]}
+        >
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
               <Ionicons name="person-add" size={22} color={colors.accentBlue} />
@@ -148,111 +145,86 @@ export default function AccountIntroScreen() {
             </View>
           </View>
 
-          <Formik
-            initialValues={{ username: "", email: "", password: "", confirmPassword: "" }}
-            validationSchema={accountIntroSchema}
+          <Formik<FormValues>
+            initialValues={{
+              identifier: "",
+              password: "",
+              confirmPassword: "",
+            }}
+            validationSchema={createAccountSchema}
             onSubmit={async (values, { setSubmitting }) => {
-              console.log('🟡 [AccountIntroScreen] Form submitted!');
-              console.log('🟡 [AccountIntroScreen] Form values:', {
-                username: values.username,
-                email: values.email || '(not provided)',
-                password: '***hidden***'
-              });
-
               try {
-                setIsLoading(true);
+                const trimmed = values.identifier.trim();
 
-                // Phase 1: Create basic account
-                console.log('🟡 [AccountIntroScreen] Calling register() with:', {
-                  username: values.username,
-                  email: values.email || '',
-                  password: '***hidden***'
-                });
-
-                await register({
-                  username: values.username,
-                  email: values.email || '',
+                const payload: RegisterUserPayload = {
+                  username: trimmed,
+                  email: trimmed,
                   password: values.password,
-                });
+                  useBiometric,
+                };
 
-                console.log('🟡 [AccountIntroScreen] register() completed successfully!');
+                console.log("📤 PAYLOAD SENT TO BACKEND:", payload);
 
-                // Store Phase 1 data for Phase 2
-                setPhase1Data({
-                  username: values.username,
-                  email: values.email || '',
-                  password: values.password,
-                });
+                await registerUser(payload);
 
-                console.log('🟡 [AccountIntroScreen] Phase1Data stored in context');
-
-                toast.showToast({
-                  type: 'success',
-                  message: "Account created! Please complete your profile to continue.",
-                  duration: 5000,
-                });
-
-                // Auto-navigate after 2 seconds
-                setTimeout(() => {
-                  NavigationService.navigate("Auth", { screen: "Register" });
-                }, 2000);
-              } catch (error: any) {
-                console.error('🔴 [AccountIntroScreen] Error caught:', error);
-                console.error('🔴 [AccountIntroScreen] Error message:', error.message);
-                console.error('🔴 [AccountIntroScreen] Error stack:', error.stack);
-
-                toast.error(error.message || "Registration failed. Please try again.");
+                NavigationService.navigate("Auth", { screen: "Register" });
+              } catch (error) {
+                Alert.alert(
+                  "Registration Failed",
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to complete registration"
+                );
               } finally {
-                setIsLoading(false);
                 setSubmitting(false);
               }
             }}
           >
             {({
               handleChange,
-              handleSubmit,
               handleBlur,
+              handleSubmit,
               values,
               errors,
               touched,
+              isValid,
+              dirty,
+              isSubmitting,
             }) => (
               <>
                 <AppTextInput
-                  icon="person-outline"
-                  placeholder="Username"
-                  autoCapitalize="none"
-                  value={values.username}
-                  onChangeText={handleChange("username")}
-                  onBlur={handleBlur("username")}
-                  error={touched.username ? errors.username : null}
-                />
-                <AppTextInput
                   icon="mail-outline"
-                  placeholder="Email (optional)"
+                  placeholder="Email or Username"
                   autoCapitalize="none"
-                  keyboardType="email-address"
-                  value={values.email}
-                  onChangeText={handleChange("email")}
-                  onBlur={handleBlur("email")}
-                  error={touched.email ? errors.email : null}
+                  autoCorrect={false}
+                  value={values.identifier}
+                  onChangeText={handleChange("identifier")}
+                  onBlur={handleBlur("identifier")}
+                  error={touched.identifier ? errors.identifier : undefined}
                 />
+
                 <AppTextInput
                   icon="lock-closed-outline"
                   placeholder="Create a password"
                   secureTextEntry
+                  autoCapitalize="none"
                   value={values.password}
                   onChangeText={handleChange("password")}
                   onBlur={handleBlur("password")}
-                  error={touched.password ? errors.password : null}
+                  error={touched.password ? errors.password : undefined}
                 />
+
                 <AppTextInput
                   icon="shield-checkmark-outline"
                   placeholder="Confirm password"
                   secureTextEntry
+                  autoCapitalize="none"
                   value={values.confirmPassword}
                   onChangeText={handleChange("confirmPassword")}
                   onBlur={handleBlur("confirmPassword")}
-                  error={touched.confirmPassword ? errors.confirmPassword : null}
+                  error={
+                    touched.confirmPassword ? errors.confirmPassword : undefined
+                  }
                 />
 
                 <View style={styles.biometricRow}>
@@ -265,21 +237,28 @@ export default function AccountIntroScreen() {
                   <Switch
                     value={useBiometric}
                     onValueChange={setUseBiometric}
-                    trackColor={{ false: colors.borderMedium, true: colors.primary }}
-                    thumbColor={useBiometric ? colors.white : colors.backgroundLight}
+                    trackColor={{
+                      false: colors.borderMedium,
+                      true: colors.primary,
+                    }}
+                    thumbColor={
+                      useBiometric ? colors.white : colors.backgroundLight
+                    }
                   />
                 </View>
 
                 <GradientButton
-                  title={isLoading ? "Creating Account..." : "Create Account"}
-                  onPress={handleSubmit}
-                  disabled={isLoading}
+                  title="Create Account"
+                  onPress={handleSubmit as () => void}
+                  disabled={!isValid || !dirty || isSubmitting}
                   style={{ marginTop: 6 }}
                 />
 
                 <TouchableOpacity
                   onPress={() =>
-                    NavigationService.replace("Auth", { screen: "LoginScreen" })
+                    NavigationService.replace("Auth", {
+                      screen: "LoginScreen",
+                    })
                   }
                   style={styles.footerLink}
                 >
@@ -292,8 +271,6 @@ export default function AccountIntroScreen() {
             )}
           </Formik>
         </Animated.View>
-          </ScrollView>
-        </KeyboardAvoidingView>
       </SafeAreaView>
     </FullScreen>
   );
@@ -302,27 +279,18 @@ export default function AccountIntroScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: Platform.OS === "ios" ? 12 : 16,
     paddingBottom: Platform.OS === "ios" ? 22 : 20,
   },
   header: {
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 18,
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: colors.backgroundLight,
     alignItems: "center",
     justifyContent: "center",
@@ -333,40 +301,39 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   avatar: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
   },
   title: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 28,
+    lineHeight: 34,
     color: colors.textPrimary,
-    marginTop: 10,
+    marginTop: 12,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.textSecondary,
     textAlign: "center",
-    marginTop: 4,
+    marginTop: 6,
   },
   card: {
+    flex: 1,
     backgroundColor: colors.white,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    borderRadius: 24,
+    padding: 18,
     shadowColor: colors.shadowMedium,
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 5,
-    marginBottom: 16,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    columnGap: 10,
+    marginBottom: 14,
+    columnGap: 12,
   },
   iconCircle: {
     width: 42,
@@ -390,12 +357,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     backgroundColor: colors.backgroundLight,
     marginTop: 4,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   biometricTitle: {
     fontSize: 16,

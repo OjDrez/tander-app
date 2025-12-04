@@ -40,13 +40,6 @@ export interface ProfileIncompleteError {
   username: string;
 }
 
-export interface IdVerificationError {
-  message: string;
-  idVerified: boolean;
-  idVerificationStatus: string;
-  username: string;
-}
-
 export const authApi = {
   register: async (data: RegisterRequest): Promise<string> => {
     try {
@@ -83,25 +76,15 @@ export const authApi = {
         token: token || '',
       };
     } catch (error: any) {
-      // Handle 403 errors (profile incomplete OR id verification incomplete)
+      // Handle profile incomplete error (403 with profileCompleted: false)
       if (error.response?.status === 403 && error.response?.data) {
         const errorData = error.response.data;
-
-        // Check for profile incomplete error
         if (errorData.profileCompleted === false) {
+          // Create custom error with profile incomplete info
           const profileError: any = new Error(errorData.message);
           profileError.profileIncomplete = true;
           profileError.username = errorData.username;
           throw profileError;
-        }
-
-        // Check for ID verification incomplete error
-        if (errorData.idVerified === false) {
-          const idError: any = new Error(errorData.message);
-          idError.idVerificationIncomplete = true;
-          idError.username = errorData.username;
-          idError.idVerificationStatus = errorData.idVerificationStatus;
-          throw idError;
         }
       }
 
@@ -116,60 +99,12 @@ export const authApi = {
     }
   },
 
-  completeProfile: async (username: string, data: CompleteProfileRequest, markAsComplete: boolean = true): Promise<string> => {
+  completeProfile: async (username: string, data: CompleteProfileRequest): Promise<string> => {
     try {
-      console.log(`🟡 [authApi.completeProfile] Calling with markAsComplete=${markAsComplete}`);
-      const response = await apiClient.post(`/user/complete-profile?username=${username}&markAsComplete=${markAsComplete}`, data);
-      console.log('✅ [authApi.completeProfile] Success:', response.data);
+      const response = await apiClient.post(`/user/complete-profile?username=${username}`, data);
       return response.data;
     } catch (error: any) {
-      console.error('🔴 [authApi.completeProfile] Error:', error.response?.data);
       throw new Error(error.response?.data?.message || 'Profile completion failed');
-    }
-  },
-
-  verifyId: async (username: string, idPhotoFrontUri: string, recaptchaToken?: string): Promise<string> => {
-    try {
-      console.log(`🟡 [authApi.verifyId] Verifying ID for username: ${username}`);
-      console.log(`🟡 [authApi.verifyId] Front photo URI: ${idPhotoFrontUri}`);
-      console.log(`🟡 [authApi.verifyId] reCAPTCHA token: ${recaptchaToken ? 'present' : 'missing'}`);
-
-      // Create FormData for multipart upload
-      const formData = new FormData();
-      formData.append('username', username);
-
-      // Add front photo only (back is no longer required)
-      formData.append('idPhotoFront', {
-        uri: idPhotoFrontUri,
-        type: 'image/jpeg',
-        name: 'id-front.jpg',
-      } as any);
-
-      // Add reCAPTCHA token if provided
-      if (recaptchaToken) {
-        formData.append('recaptchaToken', recaptchaToken);
-        console.log('🟡 [authApi.verifyId] Including reCAPTCHA token in request');
-      } else {
-        console.warn('⚠️ [authApi.verifyId] No reCAPTCHA token provided');
-      }
-
-      console.log('🟡 [authApi.verifyId] Sending multipart form data...');
-
-      const response = await apiClient.post('/user/verify-id', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      console.log('✅ [authApi.verifyId] Success:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('🔴 [authApi.verifyId] Error:', error.response?.data);
-      // Backend returns error message as plain string in response.data, not as {message: "..."}
-      const errorMessage = typeof error.response?.data === 'string'
-        ? error.response.data
-        : error.response?.data?.message || error.message || 'ID verification failed';
-      throw new Error(errorMessage);
     }
   },
 

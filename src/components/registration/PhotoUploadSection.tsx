@@ -2,17 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React from "react";
 import {
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import colors from "../../config/colors";
-import IDCardCameraOverlay from "../camera/IDCardCameraOverlay";
 
 interface PhotoUploadSectionProps {
   title: string;
@@ -32,34 +30,8 @@ export default function PhotoUploadSection({
   columns = 3,
 }: PhotoUploadSectionProps) {
   const [loadingIndex, setLoadingIndex] = React.useState<number | null>(null);
-  const [showCameraOverlay, setShowCameraOverlay] = React.useState(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = React.useState<number>(0);
 
-  // Take photo with camera (SENIOR-FRIENDLY with ID Card Overlay)
-  const takePhoto = async (index: number) => {
-    try {
-      setCurrentPhotoIndex(index);
-      setShowCameraOverlay(true);
-    } catch (error) {
-      console.error("Error opening camera:", error);
-      Alert.alert("Camera Error", "Failed to open camera. Please try again.");
-    }
-  };
-
-  // Handle photo captured from camera overlay
-  const handlePhotoCaptured = (photoUri: string) => {
-    setShowCameraOverlay(false);
-    const newPhotos = [...photos];
-    newPhotos[currentPhotoIndex] = photoUri;
-    onPhotosChange(newPhotos);
-  };
-
-  // Handle camera overlay cancel
-  const handleCameraCancel = () => {
-    setShowCameraOverlay(false);
-  };
-
-  // Choose from gallery (backup option)
+  // Request permissions and pick image
   const pickImage = async (index: number) => {
     try {
       setLoadingIndex(index);
@@ -71,19 +43,19 @@ export default function PhotoUploadSection({
         if (status !== "granted") {
           Alert.alert(
             "Permission Denied",
-            "Sorry, we need photo library permissions to upload photos."
+            "Sorry, we need camera roll permissions to upload photos."
           );
           setLoadingIndex(null);
           return;
         }
       }
 
-      // Launch image picker with free cropping
+      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
-        // No aspect ratio constraint - allows free cropping
-        quality: 1, // High quality for OCR
+        aspect: [1, 1],
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -97,29 +69,6 @@ export default function PhotoUploadSection({
     } finally {
       setLoadingIndex(null);
     }
-  };
-
-  // Show options for camera or gallery (SENIOR-FRIENDLY)
-  const showPhotoOptions = (index: number) => {
-    Alert.alert(
-      "Add ID Photo",
-      "Choose how you want to add your ID photo:",
-      [
-        {
-          text: "📸 Use Camera (Recommended)",
-          onPress: () => takePhoto(index),
-        },
-        {
-          text: "🖼️ Choose from Photos",
-          onPress: () => pickImage(index),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ],
-      { cancelable: true }
-    );
   };
 
   // Remove image
@@ -154,7 +103,7 @@ export default function PhotoUploadSection({
             isFirstSlot && styles.firstUploadBox,
             hasPhoto && styles.uploadBoxWithPhoto,
           ]}
-          onPress={() => showPhotoOptions(i)}
+          onPress={() => pickImage(i)}
           onLongPress={() => hasPhoto && removeImage(i)}
         >
           {isLoading ? (
@@ -172,12 +121,12 @@ export default function PhotoUploadSection({
           ) : (
             <View style={styles.emptySlotContent}>
               <Ionicons
-                name={isFirstSlot ? "camera" : "add"}
-                size={isFirstSlot ? 36 : 28}
+                name={isFirstSlot ? "cloud-upload-outline" : "add"}
+                size={isFirstSlot ? 32 : 28}
                 color={isFirstSlot ? colors.primary : colors.textMuted}
               />
               {isFirstSlot && (
-                <Text style={styles.firstSlotText}>Scan ID</Text>
+                <Text style={styles.firstSlotText}>Add Photo</Text>
               )}
             </View>
           )}
@@ -204,24 +153,11 @@ export default function PhotoUploadSection({
       <View style={[styles.grid, { gap: 12 }]}>{renderSlots()}</View>
 
       <Text style={styles.helperText}>{helperText}</Text>
-
       {uploadedCount > 0 && (
         <Text style={styles.removeHintText}>
           💡 Tip: Long press on a photo to remove it
         </Text>
       )}
-
-      {/* ID Card Camera Overlay Modal */}
-      <Modal
-        visible={showCameraOverlay}
-        animationType="slide"
-        onRequestClose={handleCameraCancel}
-      >
-        <IDCardCameraOverlay
-          onCapture={handlePhotoCaptured}
-          onCancel={handleCameraCancel}
-        />
-      </Modal>
     </View>
   );
 }
@@ -348,33 +284,5 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 8,
     fontStyle: "italic",
-  },
-
-  // Senior-Friendly Tips Styles
-  tipsContainer: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: "#FFF9F0",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFE4C4",
-  },
-
-  tipsTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-
-  tipsList: {
-    gap: 8,
-  },
-
-  tipItem: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    paddingLeft: 8,
   },
 });
