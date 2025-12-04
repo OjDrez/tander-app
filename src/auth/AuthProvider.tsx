@@ -65,11 +65,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const completeProfile = async (username: string, data: CompleteProfileRequest) => {
+  const completeProfile = async (username: string, data: CompleteProfileRequest, markAsComplete: boolean = true) => {
     try {
-      await authApi.completeProfile(username, data);
+      console.log(`🟡 [AuthProvider.completeProfile] markAsComplete=${markAsComplete}`);
+      await authApi.completeProfile(username, data, markAsComplete);
+      console.log('✅ [AuthProvider.completeProfile] Success');
     } catch (error) {
-      console.error('Complete profile error:', error);
+      console.error('🔴 [AuthProvider.completeProfile] Error:', error);
+      throw error;
+    }
+  };
+
+  const verifyId = async (username: string, idPhotoFrontUri: string, recaptchaToken?: string) => {
+    try {
+      console.log('🟡 [AuthProvider.verifyId] Verifying ID for:', username);
+      console.log('🟡 [AuthProvider.verifyId] Front URI:', idPhotoFrontUri);
+      console.log('🟡 [AuthProvider.verifyId] reCAPTCHA token:', recaptchaToken ? 'present' : 'missing');
+      await authApi.verifyId(username, idPhotoFrontUri, recaptchaToken);
+      console.log('✅ [AuthProvider.verifyId] Success');
+    } catch (error) {
+      console.error('🔴 [AuthProvider.verifyId] Error:', error);
       throw error;
     }
   };
@@ -95,6 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         login,
         register,
         completeProfile,
+        verifyId,
         logout,
         checkAuth,
         setPhase1Data,
