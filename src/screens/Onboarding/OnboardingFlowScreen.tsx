@@ -1,24 +1,31 @@
-import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
+  Image,
+  ImageSourcePropType,
   StyleSheet,
   useWindowDimensions,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
 import OutlineButton from "@/src/components/buttons/OutlineButton";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import OnboardingDots from "@/src/components/onboarding/OnboardingDots";
-import OnboardingSlide, {
-  SlideItem,
-} from "@/src/components/onboarding/OnboardingSlide";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
-import { SafeAreaView } from "react-native-safe-area-context";
+
+type SlideItem = {
+  id: string;
+  title: string;
+  description: string;
+  image: ImageSourcePropType;
+  accent: string;
+};
 
 const SLIDES: SlideItem[] = [
   {
@@ -79,13 +86,71 @@ export default function OnboardingFlowScreen() {
     }
   };
 
-  return (
-    <FullScreen statusBarStyle="dark">
-      <LinearGradient
-        colors={[colors.gradients.registration.start, colors.white]}
-        style={StyleSheet.absoluteFill}
-      />
+  const renderItem = ({ item, index }: { item: SlideItem; index: number }) => {
+    const inputRange = [
+      (index - 1) * width,
+      index * width,
+      (index + 1) * width,
+    ];
 
+    const scale = scrollX.interpolate({
+      inputRange,
+      outputRange: [0.94, 1, 0.94],
+      extrapolate: "clamp",
+    });
+
+    const translateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [12, 0, 12],
+      extrapolate: "clamp",
+    });
+
+    return (
+      <View style={[styles.slide, { width }]}>
+        <Animated.View
+          style={[
+            styles.imageCard,
+            {
+              transform: [{ scale }, { translateY }],
+              shadowColor: item.accent,
+            },
+          ]}
+        >
+          <View style={styles.imageWrapper}>
+            <Image
+              source={item.image}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          </View>
+        </Animated.View>
+
+        <View style={styles.textBlock}>
+          <AppText
+            size="small"
+            weight="semibold"
+            color={item.accent}
+            style={styles.stepBadge}
+          >
+            Step {index + 1}
+          </AppText>
+          <AppText weight="semibold" size="h3" style={styles.title}>
+            {item.title}
+          </AppText>
+          <AppText
+            size="small"
+            color={colors.textSecondary}
+            style={styles.description}
+          >
+            {item.description}
+          </AppText>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <FullScreen statusBarStyle="dark" style={styles.screenBackground}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerRow}>
           <AppText size="small" weight="semibold" color={colors.textMuted}>
@@ -111,38 +176,29 @@ export default function OnboardingFlowScreen() {
           )}
           onViewableItemsChanged={viewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
-          renderItem={({ item, index }) => (
-            <OnboardingSlide item={item} index={index} scrollX={scrollX} />
-          )}
+          renderItem={renderItem}
           ref={flatListRef}
           getItemLayout={getItemLayout}
           scrollEventThrottle={16}
+          contentContainerStyle={styles.listContent}
         />
 
         <View style={styles.footer}>
           <OnboardingDots data={SLIDES} scrollX={scrollX} pageWidth={width} />
 
-          <View style={styles.actionsRow}>
-            {currentIndex > 0 ? (
-              <OutlineButton
-                title="Back"
-                onPress={() =>
-                  flatListRef.current?.scrollToIndex({
-                    index: currentIndex - 1,
-                  })
-                }
-                style={styles.secondaryButton}
-              />
-            ) : (
-              <View style={{ flex: 1 }} />
-            )}
-
+          <View style={styles.ctaWrapper}>
             <GradientButton
               title={
                 currentIndex === SLIDES.length - 1 ? "Get Started" : "Next"
               }
               onPress={handleNext}
               style={styles.primaryButton}
+            />
+            <Ionicons
+              name="arrow-forward"
+              size={22}
+              color={colors.white}
+              style={styles.ctaIcon}
             />
           </View>
         </View>
@@ -152,6 +208,9 @@ export default function OnboardingFlowScreen() {
 }
 
 const styles = StyleSheet.create({
+  screenBackground: {
+    backgroundColor: colors.white,
+  },
   safeArea: {
     flex: 1,
     paddingVertical: 12,
@@ -161,28 +220,75 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   skipButton: {
     width: 96,
     borderColor: colors.borderMedium,
-    backgroundColor: "rgba(255,255,255,0.5)",
+    backgroundColor: colors.primaryDark,
+  },
+  listContent: {
+    paddingBottom: 10,
+  },
+  slide: {
+    alignItems: "center",
+  },
+  imageCard: {
+    width: "88%",
+    borderRadius: 28,
+    backgroundColor: colors.white,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  imageWrapper: {
+    borderRadius: 28,
+    overflow: "hidden",
+  },
+  image: {
+    width: "100%",
+    height: 320,
+  },
+  textBlock: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+    marginTop: 24,
+  },
+  stepBadge: {
+    backgroundColor: colors.accentMint,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    alignSelf: "center",
+    marginBottom: 14,
+  },
+  title: {
+    textAlign: "center",
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  description: {
+    textAlign: "center",
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
   footer: {
     paddingHorizontal: 24,
-    paddingBottom: 20,
-    gap: 14,
+    paddingBottom: 24,
+    gap: 18,
   },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  secondaryButton: {
-    flex: 1,
-    borderColor: colors.borderMedium,
+  ctaWrapper: {
+    position: "relative",
+    justifyContent: "center",
   },
   primaryButton: {
-    flex: 2,
+    width: "100%",
+  },
+  ctaIcon: {
+    position: "absolute",
+    right: 22,
+    top: "50%",
+    marginTop: -11,
   },
 });

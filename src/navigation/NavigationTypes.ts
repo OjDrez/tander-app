@@ -11,6 +11,33 @@ export type RootStackParamList = {
 };
 
 /**
+ * MAIN APP STACK (after onboarding/auth)
+ */
+export type AppStackParamList = {
+  HomeScreen: undefined;
+  InboxScreen: undefined;
+  InboxEmptyScreen: undefined;
+  ConversationScreen: { userId: string };
+  MessageThreadScreen: { userId: string };
+  MyMatchesScreen: undefined;
+  MatchCelebrationScreen: { user1: string; user2: string };
+  PeopleViewedMeScreen: undefined;
+  ProfileViewScreen: { userId: string };
+  ViewProfileScreen: { userId: string };
+  ViewProfileDetailsScreen: { userId: string };
+  DashboardScreen: { userId: string };
+  SettingsScreen: undefined;
+  EditProfileScreen: undefined;
+  EditBasicInfoScreen: undefined;
+  EditAboutYouScreen: undefined;
+  PaymentMethodsScreen: undefined;
+  PrivacyScreen: undefined;
+  ChangePasswordScreen: undefined;
+  HelpCenterScreen: undefined;
+  VideoCallScreen: { userId: string };
+};
+
+/**
  * REGISTRATION FLOW (4-step signup)
  */
 export type RegistrationStackParamList = {
