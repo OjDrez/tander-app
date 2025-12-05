@@ -1,8 +1,14 @@
-import colors from "@/src/config/colors";
-import FullScreen from "@/src/components/layout/FullScreen";
-import MainNavigationBar, { MainNavigationTab } from "@/src/components/navigation/MainNavigationBar";
 import GradientButton from "@/src/components/buttons/GradientButton";
 import AppText from "@/src/components/inputs/AppText";
+import FullScreen from "@/src/components/layout/FullScreen";
+import MainNavigationBar, {
+  MainNavigationTab,
+} from "@/src/components/navigation/MainNavigationBar";
+import colors from "@/src/config/colors";
+import { AppStackParamList } from "@/src/navigation/NavigationTypes";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
@@ -14,10 +20,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 
 const profile = {
   id: "profile-001",
@@ -26,7 +28,8 @@ const profile = {
   location: "Quezon City, Philippines",
   about: "I enjoy gardening, reading and playing with my grandchildren.",
   avatar:
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=300&q=80",
+    // "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=300&q=80",
+    require("../../assets/images/SampleProfile.png"),
 };
 
 const suggestions = [
@@ -61,7 +64,8 @@ const suggestions = [
 ];
 
 export default function HomeScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<AppStackParamList>>();
 
   const handleTabPress = (tab: MainNavigationTab) => {
     if (tab === "Inbox") {
@@ -99,7 +103,11 @@ export default function HomeScreen() {
               activeOpacity={0.85}
               onPress={() => navigation.navigate("InboxScreen")}
             >
-              <Ionicons name="chatbubbles-outline" size={18} color={colors.accentBlue} />
+              <Ionicons
+                name="chatbubbles-outline"
+                size={18}
+                color={colors.accentBlue}
+              />
             </TouchableOpacity>
           </View>
 
@@ -108,7 +116,8 @@ export default function HomeScreen() {
               Hello, {profile.name.split(" ")[0]}!
             </AppText>
             <AppText color={colors.textSecondary}>
-              Here are new people to discover and ways to keep your profile fresh.
+              Here are new people to discover and ways to keep your profile
+              fresh.
             </AppText>
           </View>
 
@@ -137,7 +146,15 @@ export default function HomeScreen() {
 
           <View style={styles.card}>
             <View style={styles.profileRow}>
-              <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+              {/* <Image source={{ uri: profile.avatar }} style={styles.avatar} /> */}
+              <Image
+                source={
+                  typeof profile.avatar === "string"
+                    ? { uri: profile.avatar }
+                    : profile.avatar
+                }
+                style={styles.avatar}
+              />
               <View style={styles.profileTextGroup}>
                 <View style={styles.nameRow}>
                   <AppText weight="semibold" size="h4" style={styles.name}>
@@ -165,7 +182,11 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.aboutBox}>
-              <AppText size="caption" color={colors.textSecondary} weight="semibold">
+              <AppText
+                size="small"
+                color={colors.textSecondary}
+                weight="semibold"
+              >
                 About Me
               </AppText>
               <AppText style={styles.aboutText}>{profile.about}</AppText>
@@ -175,7 +196,11 @@ export default function HomeScreen() {
           <View style={styles.card}>
             <View style={styles.badgeRow}>
               <View style={styles.badge}>
-                <AppText size="caption" color={colors.textSecondary} weight="semibold">
+                <AppText
+                  size="small"
+                  color={colors.textSecondary}
+                  weight="semibold"
+                >
                   New to our community
                 </AppText>
               </View>
@@ -190,7 +215,9 @@ export default function HomeScreen() {
 
             <GradientButton
               title="Complete Profile"
-              onPress={() => navigation.navigate("ProfileViewScreen", { userId: profile.id })}
+              onPress={() =>
+                navigation.navigate("ProfileViewScreen", { userId: profile.id })
+              }
               style={styles.secondaryButton}
             />
           </View>
@@ -205,8 +232,16 @@ export default function HomeScreen() {
               </AppText>
             </View>
             <TouchableOpacity style={styles.filterPill} activeOpacity={0.9}>
-              <Ionicons name="options-outline" size={16} color={colors.accentBlue} />
-              <AppText weight="semibold" color={colors.accentBlue} size="caption">
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color={colors.accentBlue}
+              />
+              <AppText
+                weight="semibold"
+                color={colors.accentBlue}
+                size="caption"
+              >
                 Filters
               </AppText>
             </TouchableOpacity>
@@ -219,11 +254,18 @@ export default function HomeScreen() {
           >
             {suggestions.map((person) => (
               <View key={person.name} style={styles.suggestionCard}>
-                <Image source={{ uri: person.avatar }} style={styles.suggestionAvatar} />
+                <Image
+                  source={{ uri: person.avatar }}
+                  style={styles.suggestionAvatar}
+                />
                 <AppText weight="semibold" style={styles.suggestionName}>
                   {person.name}
                 </AppText>
-                <AppText size="caption" color={colors.textSecondary} style={styles.suggestionMeta}>
+                <AppText
+                  size="caption"
+                  color={colors.textSecondary}
+                  style={styles.suggestionMeta}
+                >
                   {person.age}, {person.location}
                 </AppText>
               </View>
