@@ -4,12 +4,13 @@ import React from "react";
 
 import RegistrationComplete from "../screens/Registration/RegistrationComplete";
 import Step1BasicInfo from "../screens/Registration/Step1BasicInfo";
-import Step2Upload from "../screens/Registration/Step2Upload";
-import Step3AboutYou from "../screens/Registration/Step3AboutYou";
+import Step2IdVerification from "../screens/Registration/Step2IdVerification";
+import Step3Upload from "../screens/Registration/Step3Upload";
+import Step4AboutYou from "../screens/Registration/Step4AboutYou";
 
 import RegistrationSchema from "../context/RegistrationSchema";
-import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../hooks/useAuth";
 import NavigationService from "./NavigationService";
 
 import { RegistrationStackParamList } from "./NavigationTypes";
@@ -17,27 +18,26 @@ import { RegistrationStackParamList } from "./NavigationTypes";
 const Stack = createNativeStackNavigator<RegistrationStackParamList>();
 
 export default function RegistrationNavigator() {
-  const { completeProfile, phase1Data } = useAuth();
+  const { completeProfile, phase1Data, registrationFlow } = useAuth();
   const toast = useToast();
 
   const handleRegistration = async (values: any) => {
     try {
       // Check if Phase 1 data exists
-      if (!phase1Data) {
+      const username = phase1Data?.username || registrationFlow?.username;
+
+      if (!username) {
         toast.showToast({
           type: 'error',
-          message: 'Please complete account creation first.',
+          message: 'Session expired. Please start registration again.',
           duration: 5000,
           action: {
-            label: 'Go Back',
+            label: 'Start Over',
             onPress: () => NavigationService.navigate('Auth', { screen: 'AccountIntroScreen' }),
           },
         });
         return;
       }
-
-      // Use Phase 1 credentials from context
-      const { username, email } = phase1Data;
 
       // Phase 2: Complete profile with all details
       await completeProfile(username, {
@@ -47,7 +47,7 @@ export default function RegistrationNavigator() {
         nickName: values.nickName,
         address: values.address || '',
         phone: values.phone || '',
-        email: email,
+        email: phase1Data?.email || values.email,
         birthDate: values.birthday,
         age: parseInt(values.age) || 0,
         country: values.country,
@@ -66,19 +66,21 @@ export default function RegistrationNavigator() {
         },
       });
 
-      // Auto-navigate after 2 seconds
-      setTimeout(() => {
-        NavigationService.navigate('Auth', { screen: 'LoginScreen' });
-      }, 2000);
+      // Navigate to completion screen
+      NavigationService.navigate('Auth', {
+        screen: 'Register',
+        params: { screen: 'RegistrationComplete' }
+      });
     } catch (error: any) {
       toast.error(error.message || 'Registration failed. Please try again.');
-      console.error('Phase 2 registration error:', error);
+      console.error('Registration error:', error);
     }
   };
 
   return (
     <Formik
       initialValues={{
+        // Step 1 - Basic Info
         firstName: "",
         lastName: "",
         middleName: "",
@@ -89,19 +91,25 @@ export default function RegistrationNavigator() {
         civilStatus: "",
         city: "",
         hobby: "",
-        email: "", // TODO: Add email field to Step 1
+        email: "",
         phone: "",
         address: "",
+        // Step 2 - ID Verification
+        idPhotoFront: "",
+        idPhotoBack: "",
+        // Step 3 - Photos
         photos: [],
-        idPhotos: [],
+        profilePhoto: "",
+        // Step 4 - About You
         bio: "",
         interests: [],
         lookingFor: [],
       }}
       validationSchema={RegistrationSchema}
       onSubmit={handleRegistration}
+      validateOnChange={true}
+      validateOnBlur={true}
     >
-      {/* ❗ Now ALL screens inside can use useFormikContext() safely */}
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -120,7 +128,7 @@ export default function RegistrationNavigator() {
         />
         <Stack.Screen
           name="Step2"
-          component={Step2Upload}
+          component={Step2IdVerification}
           options={{
             animation: "slide_from_right",
             animationDuration: 350,
@@ -128,7 +136,15 @@ export default function RegistrationNavigator() {
         />
         <Stack.Screen
           name="Step3"
-          component={Step3AboutYou}
+          component={Step3Upload}
+          options={{
+            animation: "slide_from_right",
+            animationDuration: 350,
+          }}
+        />
+        <Stack.Screen
+          name="Step4"
+          component={Step4AboutYou}
           options={{
             animation: "slide_from_right",
             animationDuration: 350,

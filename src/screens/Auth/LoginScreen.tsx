@@ -19,9 +19,9 @@ import UniversalBiometricButton from "@/src/components/buttons/UniversalBiometri
 import NavigationService from "@/src/navigation/NavigationService";
 
 // 🔥 Our new Google login hook
-import { useGoogleLogin } from "@/src/hooks/useGoogleLogin";
-import { useAuth } from "@/src/hooks/useAuth";
 import { useToast } from "@/src/context/ToastContext";
+import { useAuth } from "@/src/hooks/useAuth";
+import { useGoogleLogin } from "@/src/hooks/useGoogleLogin";
 
 export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
@@ -91,22 +91,66 @@ export default function LoginScreen() {
 
                   await login(values);
                   toast.success("Login successful! Welcome back.");
-                  NavigationService.replace("LoginSuccessScreen");
+                  NavigationService.replace("HomeScreen");
                 } catch (error: any) {
                   console.error("Login error:", error);
 
-                  // Check if error is due to incomplete profile
+                  // Check if error is due to incomplete profile (profile_completed = false)
                   if (error.profileIncomplete) {
                     toast.showToast({
                       type: 'warning',
-                      message: "Your profile is incomplete. Please complete your registration to continue.",
+                      message: "Please complete your profile to continue.",
                       duration: 6000,
                       action: {
                         label: 'Complete Profile',
-                        onPress: () => NavigationService.navigate("Auth", { screen: "Register" }),
+                        onPress: () => NavigationService.navigate("Auth", {
+                          screen: "Register",
+                          params: { screen: "Step1" }
+                        }),
                       },
                     });
-                  } else if (error.code === 'INVALID_CREDENTIALS') {
+
+                    // Auto-redirect to Step1 after a short delay
+                    setTimeout(() => {
+                      NavigationService.navigate("Auth", {
+                        screen: "Register",
+                        params: { screen: "Step1" }
+                      });
+                    }, 1500);
+                  }
+                  // Check if error is due to ID verification incomplete (id_verified = false)
+                  else if (error.idVerificationIncomplete) {
+                    const status = error.idVerificationStatus || 'PENDING';
+                    let message = "Please complete ID verification to continue.";
+
+                    if (status === 'REJECTED') {
+                      message = "Your ID verification was rejected. You must be 60+ years old to use Tander.";
+                    } else if (status === 'FAILED') {
+                      message = "ID verification failed. Please try again with a clearer photo.";
+                    }
+
+                    toast.showToast({
+                      type: 'warning',
+                      message,
+                      duration: 6000,
+                      action: {
+                        label: 'Verify ID',
+                        onPress: () => NavigationService.navigate("Auth", {
+                          screen: "Register",
+                          params: { screen: "Step2" }
+                        }),
+                      },
+                    });
+
+                    // Auto-redirect to Step2 (ID Verification) after a short delay
+                    setTimeout(() => {
+                      NavigationService.navigate("Auth", {
+                        screen: "Register",
+                        params: { screen: "Step2" }
+                      });
+                    }, 1500);
+                  }
+                  else if (error.code === 'INVALID_CREDENTIALS') {
                     toast.error("Incorrect username or password. Please try again.");
                   } else {
                     toast.error(error.message || "An error occurred. Please try again.");
@@ -193,8 +237,8 @@ export default function LoginScreen() {
                       label="Don't have an account?"
                       actionText="Sign Up"
                       onPress={() =>
-                        NavigationService.navigate("Auth", {
-                          screen: "Register",
+                        NavigationService.navigate("Onboarding", {
+                          screen: "AccountIntroScreen",
                         })
                       }
                     />

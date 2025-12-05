@@ -3,10 +3,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Formik } from "formik";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   Platform,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -22,47 +22,20 @@ import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
 import { createAccountSchema } from "@/src/validation/schemas/createAccount";
+import { useAuth } from "@/src/hooks/useAuth";
+import { useToast } from "@/src/context/ToastContext";
 
 type FormValues = {
-  identifier: string;
+  username: string;
+  email: string;
   password: string;
   confirmPassword: string;
 };
 
-type RegisterUserPayload = {
-  username: string;
-  email: string;
-  password: string;
-  useBiometric: boolean;
-};
-
-const registerUser = async (payload: RegisterUserPayload) => {
-  try {
-    const response = await fetch(
-      "https://15b388cffe49.ngrok-free.app/user/register",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || "Request failed");
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("API error:", error);
-    throw error;
-  }
-};
-
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
+  const { register, setPhase1Data } = useAuth();
+  const toast = useToast();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
@@ -101,158 +74,230 @@ export default function AccountIntroScreen() {
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={colors.gradients.softAqua.array}
+        colors={["#C8E6E2", "#FFE2C1"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
 
-      <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
-        <View style={styles.header}>
-          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-            <View style={styles.avatarCircle}>
-              <Image
-                source={require("../../assets/icons/tander-logo.png")}
-                style={styles.avatar}
-                resizeMode="contain"
-              />
-            </View>
-          </Animated.View>
-
-          <AppText weight="semibold" style={styles.title}>
-            Create Account
-          </AppText>
-          <AppText style={styles.subtitle}>
-            Set up your profile to start connecting with the community.
-          </AppText>
-        </View>
-
-        <Animated.View
-          style={[
-            styles.card,
-            { opacity: fadeAnim, transform: [{ translateY }] },
-          ]}
-        >
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="person-add" size={22} color={colors.accentBlue} />
-            </View>
-            <View>
-              <Text style={styles.cardTitle}>Sign up to get started</Text>
-              <Text style={styles.cardSubtitle}>
-                We keep your information private and secure.
-              </Text>
-            </View>
+      {/* Sticky Header */}
+      <SafeAreaView edges={["top"]} style={styles.headerView}>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <View style={styles.avatarCircle}>
+            <Image
+              source={require("../../assets/icons/tander-logo.png")}
+              style={styles.avatar}
+              resizeMode="contain"
+            />
           </View>
+        </Animated.View>
 
-          <Formik<FormValues>
-            initialValues={{
-              identifier: "",
-              password: "",
-              confirmPassword: "",
-            }}
-            validationSchema={createAccountSchema}
-            onSubmit={async (values, { setSubmitting }) => {
-              try {
-                const trimmed = values.identifier.trim();
+        <AppText weight="semibold" style={styles.title}>
+          Create Account
+        </AppText>
+        <AppText style={styles.subtitle}>
+          Set up your profile to start connecting with the community.
+        </AppText>
+      </SafeAreaView>
 
-                const payload: RegisterUserPayload = {
-                  username: trimmed,
-                  email: trimmed,
-                  password: values.password,
-                  useBiometric,
-                };
+      {/* Scrollable Content */}
+      <View style={styles.wrapper}>
+        <Formik<FormValues>
+          initialValues={{
+            username: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+          }}
+          validationSchema={createAccountSchema}
+          onSubmit={async (values, { setSubmitting }) => {
+            try {
+              const username = values.username.trim();
+              const email = values.email.trim() || `${username}@tander.app`;
 
-                console.log("📤 PAYLOAD SENT TO BACKEND:", payload);
+              const payload = {
+                username,
+                email,
+                password: values.password,
+              };
 
-                await registerUser(payload);
+              console.log("📤 Registering user:", payload);
 
-                NavigationService.navigate("Auth", { screen: "Register" });
-              } catch (error) {
-                Alert.alert(
-                  "Registration Failed",
-                  error instanceof Error
-                    ? error.message
-                    : "Unable to complete registration"
-                );
-              } finally {
-                setSubmitting(false);
+              await register(payload);
+
+              // Store phase1 data for use in profile completion
+              setPhase1Data({
+                username: payload.username,
+                email: payload.email,
+                password: values.password,
+              });
+
+              toast.success(
+                "Account created successfully! Please complete your profile.",
+                4000
+              );
+
+              // Navigate to registration flow
+              NavigationService.navigate("Auth", { screen: "Register" });
+            } catch (error: any) {
+              console.error("Registration error:", error);
+
+              // Show appropriate error toast
+              const errorMessage = error.message || "Unable to complete registration";
+
+              if (errorMessage.toLowerCase().includes("username")) {
+                toast.error("This username is already taken. Please choose another.");
+              } else if (errorMessage.toLowerCase().includes("email")) {
+                toast.error("This email is already registered. Try logging in instead.");
+              } else if (errorMessage.toLowerCase().includes("network") || errorMessage.toLowerCase().includes("timeout")) {
+                toast.error("Network error. Please check your connection and try again.");
+              } else {
+                toast.error(errorMessage);
               }
-            }}
-          >
-            {({
-              handleChange,
-              handleBlur,
-              handleSubmit,
-              values,
-              errors,
-              touched,
-              isValid,
-              dirty,
-              isSubmitting,
-            }) => (
-              <>
-                <AppTextInput
-                  icon="mail-outline"
-                  placeholder="Email or Username"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={values.identifier}
-                  onChangeText={handleChange("identifier")}
-                  onBlur={handleBlur("identifier")}
-                  error={touched.identifier ? errors.identifier : undefined}
-                />
-
-                <AppTextInput
-                  icon="lock-closed-outline"
-                  placeholder="Create a password"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  value={values.password}
-                  onChangeText={handleChange("password")}
-                  onBlur={handleBlur("password")}
-                  error={touched.password ? errors.password : undefined}
-                />
-
-                <AppTextInput
-                  icon="shield-checkmark-outline"
-                  placeholder="Confirm password"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  value={values.confirmPassword}
-                  onChangeText={handleChange("confirmPassword")}
-                  onBlur={handleBlur("confirmPassword")}
-                  error={
-                    touched.confirmPassword ? errors.confirmPassword : undefined
-                  }
-                />
-
-                <View style={styles.biometricRow}>
-                  <View>
-                    <Text style={styles.biometricTitle}>Enable Biometric</Text>
-                    <Text style={styles.biometricSubtitle}>
-                      Use fingerprint or face ID for faster login.
-                    </Text>
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+        >
+          {({
+            handleChange,
+            handleBlur,
+            handleSubmit,
+            values,
+            errors,
+            touched,
+            isValid,
+            dirty,
+            isSubmitting,
+          }) => (
+            <>
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Form Card */}
+                <Animated.View
+                  style={[
+                    styles.card,
+                    { opacity: fadeAnim, transform: [{ translateY }] },
+                  ]}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={styles.iconCircle}>
+                      <Ionicons name="person-add" size={20} color={colors.accentBlue} />
+                    </View>
+                    <View style={styles.cardHeaderText}>
+                      <Text style={styles.cardTitle}>Sign up to get started</Text>
+                      <Text style={styles.cardSubtitle}>
+                        We keep your information private and secure.
+                      </Text>
+                    </View>
                   </View>
-                  <Switch
-                    value={useBiometric}
-                    onValueChange={setUseBiometric}
-                    trackColor={{
-                      false: colors.borderMedium,
-                      true: colors.primary,
-                    }}
-                    thumbColor={
-                      useBiometric ? colors.white : colors.backgroundLight
+
+                  <AppTextInput
+                    icon="person-outline"
+                    placeholder="Username *"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={values.username}
+                    onChangeText={handleChange("username")}
+                    onBlur={handleBlur("username")}
+                    error={touched.username ? errors.username : undefined}
+                  />
+
+                  <AppTextInput
+                    icon="mail-outline"
+                    placeholder="Email (optional)"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    value={values.email}
+                    onChangeText={handleChange("email")}
+                    onBlur={handleBlur("email")}
+                    error={touched.email ? errors.email : undefined}
+                  />
+
+                  <AppTextInput
+                    icon="lock-closed-outline"
+                    placeholder="Create a password *"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    value={values.password}
+                    onChangeText={handleChange("password")}
+                    onBlur={handleBlur("password")}
+                    error={touched.password ? errors.password : undefined}
+                  />
+
+                  <AppTextInput
+                    icon="shield-checkmark-outline"
+                    placeholder="Confirm password *"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    value={values.confirmPassword}
+                    onChangeText={handleChange("confirmPassword")}
+                    onBlur={handleBlur("confirmPassword")}
+                    error={
+                      touched.confirmPassword ? errors.confirmPassword : undefined
                     }
                   />
-                </View>
 
-                <GradientButton
-                  title="Create Account"
+                  <View style={styles.biometricRow}>
+                    <View style={styles.biometricTextContainer}>
+                      <Text style={styles.biometricTitle}>Enable Biometric</Text>
+                      <Text style={styles.biometricSubtitle}>
+                        Use fingerprint or face ID for faster login.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={useBiometric}
+                      onValueChange={setUseBiometric}
+                      trackColor={{
+                        false: colors.borderMedium,
+                        true: colors.primary,
+                      }}
+                      thumbColor={
+                        useBiometric ? colors.white : colors.backgroundLight
+                      }
+                    />
+                  </View>
+                </Animated.View>
+
+                {/* Spacer for bottom navigation */}
+                <View style={{ height: 20 }} />
+              </ScrollView>
+
+              {/* Sticky Footer */}
+              <Animated.View
+                style={[
+                  styles.bottomNav,
+                  { opacity: fadeAnim, transform: [{ translateY }] },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    (!isValid || !dirty || isSubmitting) && styles.submitButtonDisabled,
+                  ]}
                   onPress={handleSubmit as () => void}
                   disabled={!isValid || !dirty || isSubmitting}
-                  style={{ marginTop: 6 }}
-                />
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.submitText,
+                      (!isValid || !dirty || isSubmitting) && styles.submitTextDisabled,
+                    ]}
+                  >
+                    {isSubmitting ? "Creating Account..." : "Create Account"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={isValid && dirty && !isSubmitting ? colors.white : "#9CA3AF"}
+                  />
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() =>
@@ -267,30 +312,29 @@ export default function AccountIntroScreen() {
                     <Text style={styles.footerAction}> Sign In</Text>
                   </Text>
                 </TouchableOpacity>
-              </>
-            )}
-          </Formik>
-        </Animated.View>
-      </SafeAreaView>
+              </Animated.View>
+            </>
+          )}
+        </Formik>
+      </View>
     </FullScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  wrapper: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 12 : 16,
-    paddingBottom: Platform.OS === "ios" ? 22 : 20,
   },
-  header: {
+  headerView: {
     alignItems: "center",
-    marginBottom: 18,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 8 : 12,
+    paddingBottom: 16,
   },
   avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.backgroundLight,
     alignItems: "center",
     justifyContent: "center",
@@ -301,55 +345,65 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   avatar: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
   },
   title: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 24,
+    lineHeight: 30,
     color: colors.textPrimary,
-    marginTop: 12,
+    marginTop: 10,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.textSecondary,
     textAlign: "center",
-    marginTop: 6,
+    marginTop: 4,
+    paddingHorizontal: 20,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
   },
   card: {
-    flex: 1,
     backgroundColor: colors.white,
-    borderRadius: 24,
-    padding: 18,
+    borderRadius: 20,
+    padding: 20,
     shadowColor: colors.shadowMedium,
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 14,
-    columnGap: 12,
+    marginBottom: 16,
+    gap: 12,
+  },
+  cardHeaderText: {
+    flex: 1,
   },
   iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.accentMint,
     alignItems: "center",
     justifyContent: "center",
   },
   cardTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   cardSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -357,22 +411,70 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     backgroundColor: colors.backgroundLight,
-    marginTop: 4,
-    marginBottom: 12,
+    marginTop: 8,
+  },
+  biometricTextContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   biometricTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: colors.textPrimary,
   },
   biometricSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 3,
+    marginTop: 2,
+  },
+  bottomNav: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: Platform.OS === "ios" ? 30 : 16,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    shadowColor: colors.shadowMedium,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: -2 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButton: {
+    flexDirection: "row",
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonDisabled: {
+    backgroundColor: "#E5E7EB",
+    shadowOpacity: 0.05,
+    elevation: 0,
+  },
+  submitText: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  submitTextDisabled: {
+    color: "#9CA3AF",
   },
   footerLink: {
     marginTop: 14,
