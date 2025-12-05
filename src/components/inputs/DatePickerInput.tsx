@@ -13,7 +13,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 interface DatePickerInputProps {
   label: string;
   value: string;
-  onChangeText: (date: string) => void;
+  onChangeText: (date: string) => void | Promise<void>;
   onBlur?: () => void;
   error?: string;
   touched?: boolean;
@@ -30,9 +30,34 @@ export default function DatePickerInput({
   placeholder = "mm/dd/yyyy",
 }: DatePickerInputProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const [tempDate, setTempDate] = useState<Date>(
-    value ? new Date(value) : new Date()
-  );
+
+  // For senior citizens app, default to a date that makes sense (around 65 years ago)
+  const getInitialDate = () => {
+    if (value) {
+      // Parse MM/DD/YYYY format
+      const parts = value.split("/");
+      if (parts.length === 3) {
+        const month = parseInt(parts[0], 10) - 1;
+        const day = parseInt(parts[1], 10);
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+    }
+    // Default to 65 years ago for senior citizens
+    const defaultDate = new Date();
+    defaultDate.setFullYear(defaultDate.getFullYear() - 65);
+    return defaultDate;
+  };
+
+  const [tempDate, setTempDate] = useState<Date>(getInitialDate());
+
+  // Minimum date: 120 years ago (oldest possible person)
+  const minDate = new Date();
+  minDate.setFullYear(minDate.getFullYear() - 120);
+
+  // Maximum date: 60 years ago (must be at least 60 years old)
+  const maxDate = new Date();
+  maxDate.setFullYear(maxDate.getFullYear() - 60);
 
   // Fade animation for error message
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -55,7 +80,7 @@ export default function DatePickerInput({
 
   const borderColor = touched && error ? "#D9534F" : "#E5E5E5";
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleDateChange = async (event: any, selectedDate?: Date) => {
     if (Platform.OS === "android") {
       setShowPicker(false);
     }
@@ -64,17 +89,15 @@ export default function DatePickerInput({
       setTempDate(selectedDate);
       if (Platform.OS === "android") {
         const formattedDate = formatDate(selectedDate);
-        onChangeText(formattedDate);
-        onBlur?.();
+        await onChangeText(formattedDate);
       }
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const formattedDate = formatDate(tempDate);
-    onChangeText(formattedDate);
+    await onChangeText(formattedDate);
     setShowPicker(false);
-    onBlur?.();
   };
 
   const formatDate = (date: Date): string => {
@@ -137,7 +160,8 @@ export default function DatePickerInput({
                 mode="date"
                 display="spinner"
                 onChange={handleDateChange}
-                maximumDate={new Date()}
+                minimumDate={minDate}
+                maximumDate={maxDate}
                 textColor="#000"
               />
             </View>
@@ -152,7 +176,8 @@ export default function DatePickerInput({
           mode="date"
           display="default"
           onChange={handleDateChange}
-          maximumDate={new Date()}
+          minimumDate={minDate}
+          maximumDate={maxDate}
         />
       )}
     </View>

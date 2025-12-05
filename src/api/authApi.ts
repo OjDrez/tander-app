@@ -40,6 +40,25 @@ export interface ProfileIncompleteError {
   username: string;
 }
 
+export interface IdVerificationIncompleteError {
+  message: string;
+  idVerified: boolean;
+  idVerificationStatus: string;
+  username: string;
+}
+
+export interface VerifyIdRequest {
+  username: string;
+  idPhotoFront: FormData;
+  idPhotoBack?: FormData;
+  verificationToken?: string;
+}
+
+export interface VerifyIdResponse {
+  status: 'success' | 'error';
+  message: string;
+}
+
 export const authApi = {
   register: async (data: RegisterRequest): Promise<string> => {
     try {
@@ -79,12 +98,22 @@ export const authApi = {
       // Handle profile incomplete error (403 with profileCompleted: false)
       if (error.response?.status === 403 && error.response?.data) {
         const errorData = error.response.data;
+
+        // Check if profile is incomplete
         if (errorData.profileCompleted === false) {
-          // Create custom error with profile incomplete info
           const profileError: any = new Error(errorData.message);
           profileError.profileIncomplete = true;
           profileError.username = errorData.username;
           throw profileError;
+        }
+
+        // Check if ID verification is incomplete
+        if (errorData.idVerified === false) {
+          const idError: any = new Error(errorData.message);
+          idError.idVerificationIncomplete = true;
+          idError.idVerificationStatus = errorData.idVerificationStatus || 'PENDING';
+          idError.username = errorData.username;
+          throw idError;
         }
       }
 
@@ -99,12 +128,45 @@ export const authApi = {
     }
   },
 
-  completeProfile: async (username: string, data: CompleteProfileRequest): Promise<string> => {
+  completeProfile: async (username: string, data: CompleteProfileRequest): Promise<{ message: string; verificationToken?: string }> => {
     try {
       const response = await apiClient.post(`/user/complete-profile?username=${username}`, data);
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Profile completion failed');
+    }
+  },
+
+  verifyId: async (
+    username: string,
+    idPhotoFront: { uri: string; type: string; name: string },
+    idPhotoBack?: { uri: string; type: string; name: string },
+    verificationToken?: string
+  ): Promise<VerifyIdResponse> => {
+    try {
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('idPhotoFront', idPhotoFront as any);
+
+      if (idPhotoBack) {
+        formData.append('idPhotoBack', idPhotoBack as any);
+      }
+
+      if (verificationToken) {
+        formData.append('verificationToken', verificationToken);
+      }
+
+      const response = await apiClient.post('/user/verify-id', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // 60 second timeout for file upload
+      });
+
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'ID verification failed';
+      throw new Error(errorMessage);
     }
   },
 

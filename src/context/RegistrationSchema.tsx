@@ -17,9 +17,9 @@ const isValidDate = (dateString: string): boolean => {
   );
 };
 
-// Helper to validate minimum age (18+)
-const isMinimumAge = (dateString: string, minAge: number = 18): boolean => {
-  if (!isValidDate(dateString)) return false;
+// Helper to calculate age from date string
+const calculateAgeFromDate = (dateString: string): number | null => {
+  if (!isValidDate(dateString)) return null;
 
   const [month, day, year] = dateString.split("/").map(Number);
   const birthDate = new Date(year, month - 1, day);
@@ -32,7 +32,19 @@ const isMinimumAge = (dateString: string, minAge: number = 18): boolean => {
     age--;
   }
 
-  return age >= minAge;
+  return age >= 0 ? age : null;
+};
+
+// Helper to validate minimum age (60+ for Tander senior citizens app)
+const isMinimumAge = (dateString: string, minAge: number = 60): boolean => {
+  const age = calculateAgeFromDate(dateString);
+  return age !== null && age >= minAge;
+};
+
+// Helper to validate maximum age (120 years - oldest possible person)
+const isMaximumAge = (dateString: string, maxAge: number = 120): boolean => {
+  const age = calculateAgeFromDate(dateString);
+  return age !== null && age <= maxAge;
 };
 
 export default Yup.object().shape({
@@ -41,31 +53,56 @@ export default Yup.object().shape({
     .required("First name is required")
     .min(2, "First name must be at least 2 characters")
     .max(50, "First name must be less than 50 characters")
-    .matches(/^[a-zA-Z\s-']+$/, "First name can only contain letters"),
+    .matches(/^[a-zA-Z\s\-']+$/, "First name can only contain letters, spaces, hyphens, and apostrophes"),
 
   lastName: Yup.string()
     .required("Last name is required")
     .min(2, "Last name must be at least 2 characters")
     .max(50, "Last name must be less than 50 characters")
-    .matches(/^[a-zA-Z\s-']+$/, "Last name can only contain letters"),
+    .matches(/^[a-zA-Z\s\-']+$/, "Last name can only contain letters, spaces, hyphens, and apostrophes"),
+
+  middleName: Yup.string()
+    .max(50, "Middle name must be less than 50 characters")
+    .matches(/^[a-zA-Z\s\-']*$/, "Middle name can only contain letters, spaces, hyphens, and apostrophes"),
 
   nickName: Yup.string()
     .required("Nickname is required")
     .min(2, "Nickname must be at least 2 characters")
     .max(20, "Nickname must be less than 20 characters")
-    .matches(/^[a-zA-Z0-9_]+$/, "Nickname can only contain letters, numbers, and underscores"),
+    .matches(/^[a-zA-Z0-9_\s]+$/, "Nickname can only contain letters, numbers, underscores, and spaces"),
+
+  email: Yup.string()
+    .required("Email is required")
+    .email("Please enter a valid email address"),
+
+  phone: Yup.string()
+    .matches(/^[\d\s\-+()]*$/, "Please enter a valid phone number"),
+
+  address: Yup.string()
+    .max(200, "Address must be less than 200 characters"),
 
   birthday: Yup.string()
     .required("Birthday is required")
     .test("valid-date", "Please enter a valid date (MM/DD/YYYY)", isValidDate)
-    .test("minimum-age", "You must be at least 18 years old", (value) =>
-      value ? isMinimumAge(value, 18) : false
+    .test("minimum-age", "You must be at least 60 years old to join Tander", (value) =>
+      value ? isMinimumAge(value, 60) : false
+    )
+    .test("maximum-age", "Please enter a valid birth date", (value) =>
+      value ? isMaximumAge(value, 120) : false
     ),
 
-  age: Yup.number()
+  age: Yup.string()
     .required("Age is required")
-    .min(18, "You must be at least 18 years old")
-    .max(100, "Please enter a valid age"),
+    .test("valid-age", "You must be at least 60 years old", (value) => {
+      if (!value) return false;
+      const age = parseInt(value, 10);
+      return !isNaN(age) && age >= 60;
+    })
+    .test("max-age", "Please enter a valid age", (value) => {
+      if (!value) return false;
+      const age = parseInt(value, 10);
+      return !isNaN(age) && age <= 120;
+    }),
 
   country: Yup.string().required("Country is required"),
 
@@ -73,13 +110,19 @@ export default Yup.object().shape({
 
   city: Yup.string().required("City/Province is required"),
 
-  hobby: Yup.string().required("Hobby is required"),
+  hobby: Yup.string().required("Please select a hobby"),
 
-  // Step 2: Photos & ID
-  photos: Yup.array().min(2, "At least 2 photos"),
-  idFront: Yup.string().required("Front ID required"),
+  // Step 2: ID Verification (optional - verified separately)
+  idPhotoFront: Yup.string(),
+  idPhotoBack: Yup.string(),
 
-  // Step 3: Bio & Interests
-  bio: Yup.string().min(10, "Please write a short bio"),
-  interests: Yup.array().min(1, "Select at least 1 interest"),
+  // Step 3: Photos (optional)
+  photos: Yup.array(),
+  profilePhoto: Yup.string(),
+
+  // Step 4: About You (optional)
+  bio: Yup.string()
+    .max(500, "Bio must be less than 500 characters"),
+  interests: Yup.array(),
+  lookingFor: Yup.array(),
 });
