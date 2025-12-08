@@ -13,7 +13,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
-import MainNavigationBar from "@/src/components/navigation/MainNavigationBar";
+import MainNavigationBar, {
+  MainNavigationTab,
+} from "@/src/components/navigation/MainNavigationBar";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -35,6 +37,25 @@ export default function SettingsScreen() {
 
   const handleNavigate = (screen: keyof AppStackParamList) => {
     navigation.navigate(screen as never);
+  };
+
+  const handleTabPress = (tab: MainNavigationTab) => {
+    if (tab === "Home") {
+      navigation.navigate("HomeScreen");
+      return;
+    }
+
+    if (tab === "Inbox") {
+      navigation.navigate("InboxScreen");
+      return;
+    }
+
+    if (tab === "Matches") {
+      navigation.navigate("MyMatchesScreen");
+      return;
+    }
+
+    navigation.navigate("ProfileViewScreen", { userId: PROFILE.id });
   };
 
   const handleLogout = () => {
@@ -278,7 +299,7 @@ export default function SettingsScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <MainNavigationBar activeTab="Profile" />
+      <MainNavigationBar activeTab="Profile" onTabPress={handleTabPress} />
     </FullScreen>
   );
 }
