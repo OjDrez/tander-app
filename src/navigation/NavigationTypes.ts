@@ -34,7 +34,7 @@ export type AppStackParamList = {
   PrivacyScreen: undefined;
   ChangePasswordScreen: undefined;
   HelpCenterScreen: undefined;
-  VideoCallScreen: { userId: string };
+  VideoCallScreen: { userId: string; roomId?: string; callerId?: string };
 };
 
 /**

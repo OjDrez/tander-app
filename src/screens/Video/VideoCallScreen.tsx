@@ -1,16 +1,26 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  RTCIceCandidate,
+  RTCPeerConnection,
+  RTCSessionDescription,
+} from "react-native-webrtc";
 
 import GradientButton from "@/src/components/buttons/GradientButton";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
+import {
+  ensureSocketConnection,
+  registerSocketListener,
+  socket,
+} from "@/src/services/socket";
 
 type ControlButtonProps = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -20,15 +30,186 @@ type ControlButtonProps = {
   danger?: boolean;
 };
 
+type IncomingCallPayload = {
+  callerId: string;
+  roomId: string;
+};
+
+type CallResponsePayload = {
+  roomId: string;
+  acceptedBy: string;
+};
+
+type OfferPayload = {
+  roomId: string;
+  offer: RTCSessionDescriptionInit;
+  callerId: string;
+};
+
+type AnswerPayload = {
+  roomId: string;
+  answer: RTCSessionDescriptionInit;
+};
+
+type IceCandidatePayload = {
+  roomId: string;
+  candidate: RTCIceCandidateInit;
+};
+
 export default function VideoCallScreen({
   route,
 }: NativeStackScreenProps<AppStackParamList, "VideoCallScreen">) {
-  const { userId } = route.params;
+  const { userId, roomId: initialRoomId, callerId } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
 
-  const [isMuted, setIsMuted] = React.useState(false);
-  const [isCameraOn, setIsCameraOn] = React.useState(true);
-  const [isSpeakerOn, setIsSpeakerOn] = React.useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [callStatus, setCallStatus] = useState("Ringing...");
+  const [roomId, setRoomId] = useState(initialRoomId);
+
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const localUserId = callerId ?? "current-user";
+
+  const createPeerConnection = useCallback(() => {
+    const connection = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    connection.onicecandidate = (event) => {
+      if (event.candidate && roomId) {
+        socket.emit("iceCandidate", {
+          roomId,
+          candidate: event.candidate,
+          senderId: localUserId,
+        });
+      }
+    };
+
+    connection.onconnectionstatechange = () => {
+      if (connection.connectionState === "connected") {
+        setCallStatus("Connected");
+      }
+    };
+
+    peerConnectionRef.current = connection;
+    return connection;
+  }, [localUserId, roomId]);
+
+  const handleIncomingCall = useCallback(
+    (payload: IncomingCallPayload) => {
+      setRoomId(payload.roomId);
+      setCallStatus("Incoming call");
+
+      if (payload.callerId !== userId) {
+        navigation.navigate("VideoCallScreen", {
+          userId: payload.callerId,
+          roomId: payload.roomId,
+          callerId: payload.callerId,
+        });
+      }
+    },
+    [navigation, userId]
+  );
+
+  const handleOffer = useCallback(
+    async (payload: OfferPayload) => {
+      if (roomId && payload.roomId !== roomId) return;
+
+      setRoomId(payload.roomId);
+
+      const connection = peerConnectionRef.current ?? createPeerConnection();
+      await connection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      const answer = await connection.createAnswer();
+      await connection.setLocalDescription(answer);
+
+      socket.emit("answer", {
+        roomId: payload.roomId,
+        answer,
+        responderId: localUserId,
+      });
+
+      setCallStatus("Answering...");
+    },
+    [createPeerConnection, localUserId, roomId]
+  );
+
+  const handleAnswer = useCallback(
+    async (payload: AnswerPayload) => {
+      if (payload.roomId !== roomId) return;
+
+      const connection = peerConnectionRef.current ?? createPeerConnection();
+      await connection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+      setCallStatus("Connected");
+    },
+    [createPeerConnection, roomId]
+  );
+
+  const handleIceCandidate = useCallback(
+    async (payload: IceCandidatePayload) => {
+      if (payload.roomId !== roomId || !payload.candidate) return;
+
+      const connection = peerConnectionRef.current ?? createPeerConnection();
+      await connection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+    },
+    [createPeerConnection, roomId]
+  );
+
+  useEffect(() => {
+    ensureSocketConnection();
+
+    const cleanupIncomingCall = registerSocketListener<IncomingCallPayload>(
+      "incomingCall",
+      handleIncomingCall
+    );
+
+    const cleanupCallAccepted = registerSocketListener<CallResponsePayload>(
+      "callAccepted",
+      (payload) => {
+        if (payload.roomId !== roomId) return;
+        setCallStatus("Call connected");
+        peerConnectionRef.current ?? createPeerConnection();
+      }
+    );
+
+    const cleanupCallRejected = registerSocketListener<CallResponsePayload>(
+      "callRejected",
+      (payload) => {
+        if (payload.roomId !== roomId) return;
+        setCallStatus("Call declined");
+        navigation.goBack();
+      }
+    );
+
+    const cleanupOffer = registerSocketListener<OfferPayload>("offer", handleOffer);
+    const cleanupAnswer = registerSocketListener<AnswerPayload>(
+      "answer",
+      handleAnswer
+    );
+    const cleanupIceCandidate = registerSocketListener<IceCandidatePayload>(
+      "iceCandidate",
+      handleIceCandidate
+    );
+
+    return () => {
+      cleanupIncomingCall();
+      cleanupCallAccepted();
+      cleanupCallRejected();
+      cleanupOffer();
+      cleanupAnswer();
+      cleanupIceCandidate();
+      peerConnectionRef.current?.close();
+      peerConnectionRef.current = null;
+    };
+  }, [
+    createPeerConnection,
+    handleAnswer,
+    handleIceCandidate,
+    handleIncomingCall,
+    handleOffer,
+    navigation,
+    roomId,
+  ]);
 
   return (
     <FullScreen statusBarStyle="light" style={styles.screen}>
@@ -59,7 +240,7 @@ export default function VideoCallScreen({
               {userId}
             </AppText>
             <AppText size="small" weight="medium" color={colors.white} style={styles.callStatus}>
-              Ringing...
+              {callStatus}
             </AppText>
           </View>
         </SafeAreaView>
