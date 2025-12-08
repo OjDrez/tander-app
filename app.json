@@ -4,31 +4,30 @@
     "slug": "TanderApp",
     "version": "1.0.0",
     "orientation": "portrait",
-
     "icon": "./src/assets/icon.png",
-
     "scheme": "tanderapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.TanderApp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.TanderApp"
     },
-
     "web": {
       "output": "static",
       "favicon": "./src/assets/icon.png"
     },
-
     "plugins": [
       [
         "expo-splash-screen",
@@ -37,14 +36,20 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
-          "dark": { "backgroundColor": "#000000" }
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "31806c49-df01-475b-9fc1-fe6eb7b72cdb"
+      }
     }
   }
 }
