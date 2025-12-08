@@ -23,6 +23,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  ensureSocketConnection,
+  registerSocketListener,
+  socket,
+} from "@/src/services/socket";
 
 type ChatMessage = {
   id: string;
@@ -39,6 +44,26 @@ type DateSeparator = {
 };
 
 type ChatListItem = ChatMessage | DateSeparator;
+
+type SocketChatMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  text: string;
+  timestamp: string;
+};
+
+type TypingPayload = {
+  conversationId: string;
+  userId: string;
+  isTyping: boolean;
+};
+
+type ReadReceiptPayload = {
+  conversationId: string;
+  messageId: string;
+  readerId: string;
+};
 
 const initialMessages: ChatMessage[] = [
   {
@@ -95,8 +120,11 @@ export default function ConversationScreen({
 
   const [messageText, setMessageText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [, setIsTyping] = useState(false);
 
   const flatListRef = useRef<FlatList<ChatListItem>>(null);
+  const conversationId = userId;
+  const currentUserId = "current-user";
 
   const formattedMessages = useMemo<ChatListItem[]>(() => {
     const items: ChatListItem[] = [];
@@ -121,6 +149,78 @@ export default function ConversationScreen({
     flatListRef.current?.scrollToEnd({ animated: true });
   }, [formattedMessages.length]);
 
+  useEffect(() => {
+    ensureSocketConnection();
+
+    socket.emit("joinRoom", { conversationId, userId: currentUserId });
+
+    const cleanupMessageReceived = registerSocketListener<SocketChatMessage>(
+      "messageReceived",
+      (payload) => {
+        if (payload.conversationId !== conversationId) return;
+
+        const receivedMessage: ChatMessage = {
+          id: payload.id,
+          text: payload.text,
+          time: new Date(payload.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          isOwn: payload.senderId === currentUserId,
+          date: new Date(payload.timestamp).toISOString().slice(0, 10),
+        };
+
+        setMessages((prev) => [...prev, receivedMessage]);
+      }
+    );
+
+    const cleanupTypingListener = registerSocketListener<TypingPayload>(
+      "typing",
+      (payload) => {
+        if (payload.conversationId !== conversationId) return;
+        setIsTyping(payload.isTyping);
+      }
+    );
+
+    const cleanupReadReceipt = registerSocketListener<ReadReceiptPayload>(
+      "readReceipt",
+      (payload) => {
+        if (payload.conversationId !== conversationId) return;
+        // Placeholder: integrate read receipt UI when available
+        console.log("Read receipt received", payload);
+      }
+    );
+
+    return () => {
+      cleanupMessageReceived();
+      cleanupTypingListener();
+      cleanupReadReceipt();
+      socket.emit("leaveRoom", { conversationId, userId: currentUserId });
+    };
+  }, [conversationId, currentUserId]);
+
+  const sendMessage = (text: string) => {
+    if (!text.trim()) return;
+
+    const now = new Date();
+    const newMessage: ChatMessage = {
+      id: `${now.getTime()}`,
+      text: text.trim(),
+      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isOwn: true,
+      date: now.toISOString().slice(0, 10),
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+
+    socket.emit("sendMessage", {
+      conversationId,
+      text: text.trim(),
+      senderId: currentUserId,
+      timestamp: now.toISOString(),
+    });
+  };
+
   const handleVideoCall = () => {
     navigation.navigate("VideoCallScreen", { userId });
   };
@@ -128,16 +228,7 @@ export default function ConversationScreen({
   const handleSend = () => {
     if (!messageText.trim()) return;
 
-    const now = new Date();
-    const newMessage: ChatMessage = {
-      id: `${now.getTime()}`,
-      text: messageText.trim(),
-      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      isOwn: true,
-      date: now.toISOString().slice(0, 10),
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
+    sendMessage(messageText);
     setMessageText("");
   };
 

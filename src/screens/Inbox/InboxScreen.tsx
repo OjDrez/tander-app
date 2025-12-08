@@ -3,6 +3,7 @@ import FullScreen from "@/src/components/layout/FullScreen";
 import AppText from "@/src/components/inputs/AppText";
 import PeopleYouMayKnowRow from "@/src/components/inbox/PeopleYouMayKnowRow";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
+import { ensureSocketConnection, registerSocketListener } from "@/src/services/socket";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -26,6 +27,21 @@ type Conversation = {
   timestamp: string;
   avatar: string;
   unreadCount?: number;
+};
+
+type NewMessagePreviewPayload = {
+  conversationId: string;
+  senderId: string;
+  text: string;
+  timestamp: string;
+  unreadCount?: number;
+  name?: string;
+  avatar?: string;
+};
+
+type IncomingCallPayload = {
+  callerId: string;
+  roomId: string;
 };
 
 const suggestedPeople = [
@@ -92,13 +108,62 @@ const mockConversations: Conversation[] = [
 export default function InboxScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [searchQuery, setSearchQuery] = useState("");
-  const [conversations] = useState<Conversation[]>(mockConversations);
+  const [conversations, setConversations] = useState<Conversation[]>(
+    mockConversations
+  );
 
   useEffect(() => {
     if (conversations.length === 0) {
       navigation.replace("InboxEmptyScreen");
     }
   }, [conversations.length, navigation]);
+
+  useEffect(() => {
+    ensureSocketConnection();
+
+    const cleanupPreviewListener = registerSocketListener<NewMessagePreviewPayload>(
+      "newMessagePreview",
+      (payload) => {
+        setConversations((prev) => {
+          const existingIndex = prev.findIndex(
+            (item) => item.id === payload.conversationId
+          );
+
+          const updatedConversation: Conversation = {
+            id: payload.conversationId,
+            name: payload.name ?? prev[existingIndex]?.name ?? "", // fallback to existing name
+            avatar: payload.avatar ?? prev[existingIndex]?.avatar ?? "",
+            message: payload.text,
+            timestamp: payload.timestamp,
+            unreadCount: payload.unreadCount ?? prev[existingIndex]?.unreadCount ?? 0,
+          };
+
+          if (existingIndex !== -1) {
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...prev[existingIndex],
+              ...updatedConversation,
+            };
+            return updated;
+          }
+
+          return [updatedConversation, ...prev];
+        });
+      }
+    );
+
+    const cleanupIncomingCall = registerSocketListener<IncomingCallPayload>(
+      "incomingCall",
+      ({ callerId, roomId }) => {
+        navigation.navigate("VideoCallScreen", { callerId, roomId, userId: callerId });
+      }
+    );
+
+    return () => {
+      cleanupPreviewListener();
+      cleanupIncomingCall();
+    };
+  }, [navigation]);
 
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -111,7 +176,7 @@ export default function InboxScreen() {
   }, [conversations, searchQuery]);
 
   const handlePressConversation = (userId: string) => {
-    navigation.navigate("MessageThreadScreen", { userId });
+    navigation.navigate("ConversationScreen", { userId });
   };
 
   const handlePressAvatar = (userId: string) => {
