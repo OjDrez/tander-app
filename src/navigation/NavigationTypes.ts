@@ -8,6 +8,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Auth: undefined;
   HomeScreen: undefined;
+  Settings: undefined;
 };
 
 /**
@@ -22,6 +23,7 @@ export type AppStackParamList = {
   MyMatchesScreen: undefined;
   MatchCelebrationScreen: { user1: string; user2: string };
   PeopleViewedMeScreen: undefined;
+  MyProfileScreen: undefined;
   ProfileViewScreen: { userId: string };
   ViewProfileScreen: { userId: string };
   ViewProfileDetailsScreen: { userId: string };
