@@ -5,6 +5,7 @@ import DashboardScreen from "../screens/Profile/DashboardScreen";
 import ChangePasswordScreen from "../screens/Settings/ChangePasswordScreen";
 import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
 import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
+import HelpCenterScreen from "../screens/Settings/HelpCenterScreen";
 import PaymentMethodsScreen from "../screens/Settings/PaymentMethodsScreen";
 import PrivacyScreen from "../screens/Settings/PrivacyScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
@@ -19,6 +20,7 @@ type SettingStackParamList = {
   PaymentMethodsScreen: undefined;
   PrivacyScreen: undefined;
   ChangePasswordScreen: undefined;
+  HelpCenterScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingStackParamList>();
@@ -50,6 +52,11 @@ export default function SettingNavigator() {
       <Stack.Screen
         name="ChangePasswordScreen"
         component={ChangePasswordScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="HelpCenterScreen"
+        component={HelpCenterScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
