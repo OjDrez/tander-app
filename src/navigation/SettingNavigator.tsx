@@ -2,9 +2,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 
 import DashboardScreen from "../screens/Profile/DashboardScreen";
+import ChangePasswordScreen from "../screens/Settings/ChangePasswordScreen";
 import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
 import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
-import ChangePasswordScreen from "../screens/Settings/ChangePasswordScreen";
 import PaymentMethodsScreen from "../screens/Settings/PaymentMethodsScreen";
 import PrivacyScreen from "../screens/Settings/PrivacyScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
@@ -43,13 +43,13 @@ export default function SettingNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="ChangePasswordScreen"
-        component={ChangePasswordScreen}
+        name="PrivacyScreen"
+        component={PrivacyScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="PrivacyScreen"
-        component={PrivacyScreen}
+        name="ChangePasswordScreen"
+        component={ChangePasswordScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
