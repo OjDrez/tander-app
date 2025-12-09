@@ -12,6 +12,7 @@ import MyProfileScreen from "../screens/Profile/MyProfileScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
 import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
+import PaymentMethodsScreen from "../screens/Settings/PaymentMethodsScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ViewProfileDetailsScreen from "../screens/Settings/ViewProfileDetailsScreen";
 import VideoCallScreen from "../screens/Video/VideoCallScreen";
@@ -50,6 +51,10 @@ export default function AppNavigator() {
       <Stack.Screen
         name="EditBasicInfoScreen"
         component={EditBasicInfoScreen}
+      />
+      <Stack.Screen
+        name="PaymentMethodsScreen"
+        component={PaymentMethodsScreen}
       />
       <Stack.Screen name="EditAboutYouScreen" component={EditAboutYouScreen} />
       <Stack.Screen name="VideoCallScreen" component={VideoCallScreen} />
