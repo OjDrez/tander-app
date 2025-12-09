@@ -13,7 +13,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
-import MainNavigationBar from "@/src/components/navigation/MainNavigationBar";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -87,7 +86,10 @@ export default function SettingsScreen() {
             }
           >
             <View style={styles.profileRow}>
-              <Image source={{ uri: PROFILE.avatar }} style={styles.profileAvatar} />
+              <Image
+                source={{ uri: PROFILE.avatar }}
+                style={styles.profileAvatar}
+              />
               <View style={styles.profileInfo}>
                 <AppText size="h4" weight="bold" color={colors.textPrimary}>
                   {PROFILE.name}
@@ -165,7 +167,11 @@ export default function SettingsScreen() {
               <View style={styles.listCard}>
                 <View style={styles.itemLeft}>
                   <View style={styles.iconBadge}>
-                    <Ionicons name="notifications" size={18} color={colors.accentBlue} />
+                    <Ionicons
+                      name="notifications"
+                      size={18}
+                      color={colors.accentBlue}
+                    />
                   </View>
                   <AppText weight="semibold" color={colors.textPrimary}>
                     Notifications
@@ -174,7 +180,10 @@ export default function SettingsScreen() {
                 <Switch
                   value={notificationsEnabled}
                   onValueChange={setNotificationsEnabled}
-                  trackColor={{ false: colors.borderMedium, true: colors.primary }}
+                  trackColor={{
+                    false: colors.borderMedium,
+                    true: colors.primary,
+                  }}
                   thumbColor={colors.white}
                 />
               </View>
@@ -242,7 +251,11 @@ export default function SettingsScreen() {
               >
                 <View style={styles.itemLeft}>
                   <View style={styles.iconBadge}>
-                    <Ionicons name="help-circle-outline" size={20} color={colors.accentBlue} />
+                    <Ionicons
+                      name="help-circle-outline"
+                      size={20}
+                      color={colors.accentBlue}
+                    />
                   </View>
                   <AppText weight="semibold" color={colors.textPrimary}>
                     Help Center
@@ -278,7 +291,7 @@ export default function SettingsScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <MainNavigationBar activeTab="Profile" />
+      {/* <MainNavigationBar activeTab="Profile" /> */}
     </FullScreen>
   );
 }

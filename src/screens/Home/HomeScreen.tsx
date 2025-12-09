@@ -1,9 +1,7 @@
 import GradientButton from "@/src/components/buttons/GradientButton";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
-import MainNavigationBar, {
-  MainNavigationTab,
-} from "@/src/components/navigation/MainNavigationBar";
+import { MainNavigationTab } from "@/src/components/navigation/MainNavigationBar";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -310,15 +308,6 @@ export default function HomeScreen() {
             </ScrollView>
           </ScrollView>
         </SafeAreaView>
-
-        {/* 👇 FIXED: Navigation Bar Always Visible */}
-        <MainNavigationBar
-          activeTab="Home"
-          onTabPress={handleTabPress}
-          style={{
-            marginBottom: Platform.OS === "android" ? insets.bottom - 40 : 0,
-          }}
-        />
       </LinearGradient>
     </FullScreen>
   );
