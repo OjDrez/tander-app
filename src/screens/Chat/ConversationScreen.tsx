@@ -5,6 +5,10 @@ import Screen from "@/src/components/layout/Screen";
 import AppHeader from "@/src/components/navigation/AppHeader";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
+import { useChat } from "@/src/hooks/useChat";
+import { useSocketConnection } from "@/src/hooks/useSocket";
+import { getConversationMessages, formatMessageTime, formatMessageDate, getDateLabel } from "@/src/api/chatApi";
+import { ChatListItem, DateSeparator, MessageDisplay } from "@/src/types/chat";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -12,8 +16,9 @@ import {
   NativeStackScreenProps,
 } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -23,213 +28,193 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  ensureSocketConnection,
-  registerSocketListener,
-  socket,
-} from "@/src/services/socket";
-
-type ChatMessage = {
-  id: string;
-  text: string;
-  time: string;
-  isOwn: boolean;
-  date: string;
-};
-
-type DateSeparator = {
-  id: string;
-  type: "date";
-  label: string;
-};
-
-type ChatListItem = ChatMessage | DateSeparator;
-
-type SocketChatMessage = {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  text: string;
-  timestamp: string;
-};
-
-type TypingPayload = {
-  conversationId: string;
-  userId: string;
-  isTyping: boolean;
-};
-
-type ReadReceiptPayload = {
-  conversationId: string;
-  messageId: string;
-  readerId: string;
-};
-
-const initialMessages: ChatMessage[] = [
-  {
-    id: "1",
-    text: "Kamusta po?",
-    time: "5:58 PM",
-    isOwn: false,
-    date: "2024-06-10",
-  },
-  {
-    id: "2",
-    text: "Hello! Ok naman, eto nagluluto ng Adobo Baboy.",
-    time: "5:59 PM",
-    isOwn: true,
-    date: "2024-06-10",
-  },
-  {
-    id: "3",
-    text: "Wow! Gusto ko matikman yan next time magkita tayo!",
-    time: "5:59 PM",
-    isOwn: false,
-    date: "2024-06-10",
-  },
-  {
-    id: "4",
-    text: "Sure, magaya kita tayo sa Rainforest, papakain ko sa iyo yung niluto ko. Tapos lakad tayo sa park!",
-    time: "6:00 PM",
-    isOwn: true,
-    date: "2024-06-10",
-  },
-  {
-    id: "5",
-    text: "Sige, sige, Faye. Kita Kits tayo kapag natapos ko na itong niluluto ko. See you!",
-    time: "6:01 PM",
-    isOwn: false,
-    date: "2024-06-11",
-  },
-  {
-    id: "6",
-    text: "Ok cge! Enjoy mo pagluluto mo, message mo lang ako pag tapos ka na!",
-    time: "6:02 PM",
-    isOwn: true,
-    date: "2024-06-11",
-  },
-];
 
 export default function ConversationScreen({
   route,
 }: NativeStackScreenProps<AppStackParamList, "ConversationScreen">) {
-  const { userId } = route.params;
-  const navigation =
-    useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { conversationId, otherUserId, otherUserName, avatarUrl, roomId: providedRoomId } = route.params;
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { onlineUsers } = useSocketConnection();
 
   const [messageText, setMessageText] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [, setIsTyping] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [initialMessages, setInitialMessages] = useState<MessageDisplay[]>([]);
 
   const flatListRef = useRef<FlatList<ChatListItem>>(null);
-  const conversationId = userId;
-  const currentUserId = "current-user";
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const formattedMessages = useMemo<ChatListItem[]>(() => {
+  const isOnline = onlineUsers.has(otherUserId);
+
+  // Load message history from API
+  const loadMessageHistory = useCallback(async () => {
+    try {
+      setIsLoadingHistory(true);
+      const messages = await getConversationMessages(conversationId);
+
+      // Get current user ID from the first message comparison or default to checking isOwn
+      const history: MessageDisplay[] = messages.map((msg) => ({
+        id: msg.id.toString(),
+        text: msg.content,
+        time: formatMessageTime(msg.sentAt),
+        isOwn: msg.senderId !== otherUserId,
+        date: formatMessageDate(msg.sentAt),
+        status: msg.status === 'READ' ? 'read' : msg.status === 'DELIVERED' ? 'delivered' : 'sent',
+        senderId: msg.senderId,
+      }));
+
+      setInitialMessages(history);
+    } catch (err) {
+      console.error("[ConversationScreen] Failed to load messages:", err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [conversationId, otherUserId]);
+
+  useEffect(() => {
+    loadMessageHistory();
+  }, [loadMessageHistory]);
+
+  // Use chat hook for real-time messaging
+  const {
+    messages,
+    formattedMessages,
+    isTyping,
+    typingUsername,
+    sendMessage,
+    setTyping,
+    markAsRead,
+    error,
+    roomId,
+  } = useChat({
+    conversationId,
+    otherUserId,
+    initialMessages,
+    providedRoomId, // Pass room ID from backend
+    onNewMessage: () => {
+      // Scroll to bottom on new message
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    },
+  });
+
+  // Merge initial messages with real-time messages
+  const allMessages = useMemo(() => {
+    // Combine and deduplicate by ID
+    const messageMap = new Map<string, MessageDisplay>();
+
+    initialMessages.forEach((msg) => {
+      messageMap.set(msg.id, msg);
+    });
+
+    messages.forEach((msg) => {
+      messageMap.set(msg.id, msg);
+    });
+
+    return Array.from(messageMap.values()).sort(
+      (a, b) => new Date(a.date + ' ' + a.time).getTime() - new Date(b.date + ' ' + b.time).getTime()
+    );
+  }, [initialMessages, messages]);
+
+  // Format messages with date separators
+  const displayMessages = useMemo<ChatListItem[]>(() => {
     const items: ChatListItem[] = [];
     let lastDate = "";
 
-    messages.forEach((message) => {
+    allMessages.forEach((message) => {
       if (message.date !== lastDate) {
         items.push({
           id: `date-${message.date}`,
           type: "date",
-          label: formatDateLabel(message.date),
-        });
+          label: getDateLabel(message.date),
+        } as DateSeparator);
         lastDate = message.date;
       }
       items.push(message);
     });
 
     return items;
-  }, [messages]);
+  }, [allMessages]);
 
+  // Scroll to end when messages change
   useEffect(() => {
-    flatListRef.current?.scrollToEnd({ animated: true });
-  }, [formattedMessages.length]);
+    if (displayMessages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: false });
+      }, 100);
+    }
+  }, [displayMessages.length]);
 
+  // Mark messages as read when viewing
   useEffect(() => {
-    ensureSocketConnection();
+    if (!isLoadingHistory && allMessages.length > 0) {
+      markAsRead();
+    }
+  }, [isLoadingHistory, markAsRead]);
 
-    socket.emit("joinRoom", { conversationId, userId: currentUserId });
-
-    const cleanupMessageReceived = registerSocketListener<SocketChatMessage>(
-      "messageReceived",
-      (payload) => {
-        if (payload.conversationId !== conversationId) return;
-
-        const receivedMessage: ChatMessage = {
-          id: payload.id,
-          text: payload.text,
-          time: new Date(payload.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-          isOwn: payload.senderId === currentUserId,
-          date: new Date(payload.timestamp).toISOString().slice(0, 10),
-        };
-
-        setMessages((prev) => [...prev, receivedMessage]);
-      }
-    );
-
-    const cleanupTypingListener = registerSocketListener<TypingPayload>(
-      "typing",
-      (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        setIsTyping(payload.isTyping);
-      }
-    );
-
-    const cleanupReadReceipt = registerSocketListener<ReadReceiptPayload>(
-      "readReceipt",
-      (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        // Placeholder: integrate read receipt UI when available
-        console.log("Read receipt received", payload);
-      }
-    );
-
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
     return () => {
-      cleanupMessageReceived();
-      cleanupTypingListener();
-      cleanupReadReceipt();
-      socket.emit("leaveRoom", { conversationId, userId: currentUserId });
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     };
-  }, [conversationId, currentUserId]);
+  }, []);
 
-  const sendMessage = (text: string) => {
-    if (!text.trim()) return;
+  // Handle text change with typing indicator
+  const handleTextChange = (text: string) => {
+    setMessageText(text);
 
-    const now = new Date();
-    const newMessage: ChatMessage = {
-      id: `${now.getTime()}`,
-      text: text.trim(),
-      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      isOwn: true,
-      date: now.toISOString().slice(0, 10),
-    };
+    // Send typing indicator
+    if (text.length > 0) {
+      setTyping(true);
 
-    setMessages((prev) => [...prev, newMessage]);
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
 
-    socket.emit("sendMessage", {
-      conversationId,
-      text: text.trim(),
-      senderId: currentUserId,
-      timestamp: now.toISOString(),
-    });
+      // Stop typing after 2 seconds of no input
+      typingTimeoutRef.current = setTimeout(() => {
+        setTyping(false);
+      }, 2000);
+    } else {
+      setTyping(false);
+    }
+  };
+
+  const handleSend = async () => {
+    const text = messageText.trim();
+    if (!text) return;
+
+    setMessageText("");
+    setTyping(false);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    const success = await sendMessage(text);
+    if (!success) {
+      console.error("[ConversationScreen] Failed to send message");
+    }
   };
 
   const handleVideoCall = () => {
-    navigation.navigate("VideoCallScreen", { userId });
+    navigation.navigate("VideoCallScreen", {
+      userId: otherUserId,
+      username: otherUserName,
+      callType: "video",
+    });
   };
 
-  const handleSend = () => {
-    if (!messageText.trim()) return;
-
-    sendMessage(messageText);
-    setMessageText("");
+  const handleVoiceCall = () => {
+    navigation.navigate("VoiceCallScreen", {
+      userId: otherUserId,
+      username: otherUserName,
+      callType: "audio",
+    });
   };
 
   const renderItem = ({ item }: { item: ChatListItem }) => {
@@ -246,8 +231,15 @@ export default function ConversationScreen({
       );
     }
 
-    const msg = item as ChatMessage;
-    return <MessageBubble text={msg.text} time={msg.time} isOwn={msg.isOwn} />;
+    const msg = item as MessageDisplay;
+    return (
+      <MessageBubble
+        text={msg.text}
+        time={msg.time}
+        isOwn={msg.isOwn}
+        status={msg.status}
+      />
+    );
   };
 
   return (
@@ -267,52 +259,111 @@ export default function ConversationScreen({
             <AppHeader
               onBackPress={() => navigation.goBack()}
               centerContent={
-                <View style={styles.headerUserRow}>
-                  <Image
-                    source={{
-                      uri: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80",
-                    }}
-                    style={styles.avatar}
-                  />
+                <TouchableOpacity
+                  style={styles.headerUserRow}
+                  onPress={() => navigation.navigate("DashboardScreen", { userId: otherUserId.toString() })}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${otherUserName}'s profile, ${isOnline ? "online now" : "offline"}`}
+                  accessibilityHint="Double tap to view their profile"
+                >
+                  <View style={styles.avatarContainer}>
+                    <Image
+                      source={{
+                        uri: avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUserName)}&background=random`,
+                      }}
+                      style={styles.avatar}
+                    />
+                    {isOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
+                  </View>
                   <View>
                     <AppText
                       weight="bold"
-                      size="body"
+                      size="h4"
                       color={colors.textPrimary}
                     >
-                      Felix
+                      {otherUserName}
                     </AppText>
-                    <AppText size="tiny" color={colors.textSecondary}>
-                      Active now
+                    <AppText size="small" color={isOnline ? colors.success : colors.textSecondary}>
+                      {isTyping ? "Typing..." : isOnline ? "Online" : "Offline"}
                     </AppText>
                   </View>
-                </View>
+                </TouchableOpacity>
               }
               rightContent={
                 <View style={styles.headerActions}>
-                  <View style={styles.statusDot} />
-                  <AppText size="tiny" color={colors.textSecondary}>
-                    Video Call
-                  </AppText>
+                  <TouchableOpacity
+                    style={styles.headerButton}
+                    onPress={handleVoiceCall}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Voice call ${otherUserName}`}
+                    accessibilityHint="Double tap to start a voice call"
+                  >
+                    <Ionicons name="call" size={22} color={colors.primary} />
+                  </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.videoButton}
+                    style={[styles.headerButton, styles.videoButton]}
                     onPress={handleVideoCall}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Video call ${otherUserName}`}
+                    accessibilityHint="Double tap to start a video call"
                   >
-                    <Ionicons name="videocam" size={16} color={colors.white} />
+                    <Ionicons name="videocam" size={22} color={colors.white} />
                   </TouchableOpacity>
                 </View>
               }
             />
 
-            <FlatList
-              ref={flatListRef}
-              data={formattedMessages}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              renderItem={renderItem}
-              showsVerticalScrollIndicator={false}
-            />
+            {isLoadingHistory ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <AppText size="small" color={colors.textSecondary} style={styles.loadingText}>
+                  Loading messages...
+                </AppText>
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={displayMessages}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.listContent}
+                renderItem={renderItem}
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => {
+                  flatListRef.current?.scrollToEnd({ animated: false });
+                }}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={48} color={colors.textMuted} />
+                    <AppText size="body" weight="medium" color={colors.textSecondary} style={styles.emptyText}>
+                      Start the conversation!
+                    </AppText>
+                    <AppText size="small" color={colors.textMuted} style={styles.emptySubtext}>
+                      Say hello to {otherUserName}
+                    </AppText>
+                  </View>
+                }
+              />
+            )}
+
+            {isTyping && (
+              <View style={styles.typingIndicator}>
+                <AppText size="tiny" color={colors.textSecondary}>
+                  {typingUsername || otherUserName} is typing...
+                </AppText>
+              </View>
+            )}
+
+            {error && (
+              <View style={styles.errorBanner}>
+                <AppText size="tiny" color={colors.danger}>
+                  {error}
+                </AppText>
+              </View>
+            )}
 
             <View
               style={[
@@ -322,8 +373,9 @@ export default function ConversationScreen({
             >
               <MessageInputBar
                 value={messageText}
-                onChangeText={setMessageText}
+                onChangeText={handleTextChange}
                 onSend={handleSend}
+                placeholder={`Message ${otherUserName}...`}
               />
             </View>
           </View>
@@ -333,33 +385,16 @@ export default function ConversationScreen({
   );
 }
 
-function formatDateLabel(dateString: string) {
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-
-  const dateObj = new Date(dateString);
-
-  if (
-    dateObj.getDate() === today.getDate() &&
-    dateObj.getMonth() === today.getMonth() &&
-    dateObj.getFullYear() === today.getFullYear()
-  )
-    return "Today";
-
-  if (
-    dateObj.getDate() === yesterday.getDate() &&
-    dateObj.getMonth() === yesterday.getMonth() &&
-    dateObj.getFullYear() === yesterday.getFullYear()
-  )
-    return "Yesterday";
-
-  return dateObj.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
+/**
+ * ConversationScreen Styles
+ *
+ * Accessibility Optimizations:
+ * - Larger avatar (52px) for better visibility
+ * - Minimum 48px touch targets for call buttons
+ * - Increased spacing between messages
+ * - Larger online indicator (14px)
+ * - Enhanced text sizes
+ */
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   flex: { flex: 1 },
@@ -376,51 +411,100 @@ const styles = StyleSheet.create({
   headerUserRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
+    // Minimum touch target
+    minHeight: 48,
+    paddingVertical: 4,
+  },
+
+  avatarContainer: {
+    position: "relative",
   },
 
   avatar: {
-    height: 44,
-    width: 44,
-    borderRadius: 22,
+    // Larger avatar for better visibility
+    height: 52,
+    width: 52,
+    borderRadius: 26,
     backgroundColor: colors.borderLight,
+  },
+
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    // Larger indicator for visibility
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.success,
+    borderWidth: 3,
+    borderColor: colors.white,
   },
 
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingRight: 6,
   },
 
-  statusDot: {
-    height: 8,
-    width: 8,
-    borderRadius: 4,
-    backgroundColor: colors.success,
+  headerButton: {
+    // Minimum 48px touch target for accessibility
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.backgroundLight,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   videoButton: {
     backgroundColor: colors.accentTeal,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 18,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+
+  loadingText: {
+    marginTop: 12,
   },
 
   listContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 12, // Increased spacing between messages
     flexGrow: 1,
-    justifyContent: "flex-end",
+  },
+
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 12,
+  },
+
+  emptyText: {
+    marginTop: 12,
+  },
+
+  emptySubtext: {
+    textAlign: "center",
+    paddingHorizontal: 32,
   },
 
   dateSeparator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginVertical: 6,
+    gap: 12,
+    marginVertical: 12, // More spacing around date separators
+    paddingVertical: 8,
   },
 
   separatorLine: {
@@ -429,7 +513,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderMedium,
   },
 
+  typingIndicator: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: colors.backgroundLight,
+  },
+
+  errorBanner: {
+    backgroundColor: colors.dangerLight,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+
   inputContainer: {
     backgroundColor: colors.white,
+    paddingTop: 8,
   },
 });

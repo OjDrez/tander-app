@@ -1,4 +1,5 @@
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { CallType } from "../types/chat";
 
 /**
  * ROOT NAVIGATION
@@ -12,13 +13,45 @@ export type RootStackParamList = {
 };
 
 /**
+ * Incoming call data for passing to call screens
+ */
+export type IncomingCallData = {
+  roomId: string;
+  callId: number;
+  callerId: number;
+  callerUsername: string;
+  callerName?: string;
+  callType: CallType;
+};
+
+/**
+ * Call screen params shared between video and voice calls
+ */
+export type CallScreenParams = {
+  userId: number;
+  username: string;
+  callType?: CallType;
+  roomId?: string;
+  callId?: number;
+  isIncoming?: boolean;
+  callerName?: string;
+  incomingCallData?: IncomingCallData;
+};
+
+/**
  * MAIN APP STACK (after onboarding/auth)
  */
 export type AppStackParamList = {
   HomeScreen: undefined;
   InboxScreen: undefined;
   InboxEmptyScreen: undefined;
-  ConversationScreen: { userId: string };
+  ConversationScreen: {
+    conversationId: number;
+    otherUserId: number;
+    otherUserName: string;
+    avatarUrl?: string;
+    roomId?: string;
+  };
   MessageThreadScreen: { userId: string };
   MyMatchesScreen: undefined;
   MatchCelebrationScreen: { user1: string; user2: string };
@@ -36,7 +69,16 @@ export type AppStackParamList = {
   PrivacyScreen: undefined;
   ChangePasswordScreen: undefined;
   HelpCenterScreen: undefined;
-  VideoCallScreen: { userId: string; roomId?: string; callerId?: string };
+  VideoCallScreen: CallScreenParams;
+  VoiceCallScreen: CallScreenParams;
+  IncomingCallScreen: {
+    callerId: number;
+    callerName: string;
+    callerUsername: string;
+    callType: CallType;
+    roomId: string;
+    callId: number;
+  };
 };
 
 /**

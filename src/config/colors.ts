@@ -43,8 +43,11 @@ export default {
   // STATUS COLORS
   // -----------------------------------
   danger: "#FF0000",
+  dangerLight: "#FEE2E2",
   success: "#33A9A2",
+  successLight: "#D1FAE5",
   warning: "#F5A14B",
+  warningLight: "#FEF3C7",
 
   // -----------------------------------
   // SHADOWS

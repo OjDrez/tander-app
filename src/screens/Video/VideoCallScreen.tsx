@@ -1,26 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  RTCIceCandidate,
-  RTCPeerConnection,
-  RTCSessionDescription,
-} from "react-native-webrtc";
+import { RTCView } from "react-native-webrtc";
 
-import GradientButton from "@/src/components/buttons/GradientButton";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
-import {
-  ensureSocketConnection,
-  registerSocketListener,
-  socket,
-} from "@/src/services/socket";
+import { useCall } from "@/src/hooks/useCall";
+import { useSocketConnection } from "@/src/hooks/useSocket";
+import { CallType, IncomingCallPayload, CallEndedPayload, CallRejectedPayload } from "@/src/types/chat";
 
 type ControlButtonProps = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -28,279 +21,313 @@ type ControlButtonProps = {
   active?: boolean;
   onPress?: () => void;
   danger?: boolean;
-};
-
-type IncomingCallPayload = {
-  callerId: string;
-  roomId: string;
-};
-
-type CallResponsePayload = {
-  roomId: string;
-  acceptedBy: string;
-};
-
-type OfferPayload = {
-  roomId: string;
-  offer: RTCSessionDescriptionInit;
-  callerId: string;
-};
-
-type AnswerPayload = {
-  roomId: string;
-  answer: RTCSessionDescriptionInit;
-};
-
-type IceCandidatePayload = {
-  roomId: string;
-  candidate: RTCIceCandidateInit;
+  disabled?: boolean;
 };
 
 export default function VideoCallScreen({
   route,
 }: NativeStackScreenProps<AppStackParamList, "VideoCallScreen">) {
-  const { userId, roomId: initialRoomId, callerId } = route.params;
+  const { userId, username, callType = "video", isIncoming, incomingCallData } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { isConnected } = useSocketConnection();
+  const hasInitialized = useRef(false);
 
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(true);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [callStatus, setCallStatus] = useState("Ringing...");
-  const [roomId, setRoomId] = useState(initialRoomId);
-
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localUserId = callerId ?? "current-user";
-
-  const createPeerConnection = useCallback(() => {
-    const connection = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
-
-    connection.onicecandidate = (event) => {
-      if (event.candidate && roomId) {
-        socket.emit("iceCandidate", {
-          roomId,
-          candidate: event.candidate,
-          senderId: localUserId,
-        });
+  // Initialize the call hook with incoming call data if this is an incoming call
+  const {
+    callStatus,
+    localStream,
+    remoteStream,
+    isMuted,
+    isCameraOn,
+    isSpeakerOn,
+    callDuration,
+    error,
+    connectionQuality,
+    isReconnecting,
+    startCall,
+    acceptCall,
+    declineCall,
+    hangUp,
+    toggleMute,
+    toggleCamera,
+    toggleSpeaker,
+    switchCamera,
+  } = useCall({
+    initialIncomingCall: isIncoming && incomingCallData ? {
+      roomId: incomingCallData.roomId,
+      callId: incomingCallData.callId,
+      callerId: incomingCallData.callerId,
+      callerUsername: incomingCallData.callerUsername,
+      callType: incomingCallData.callType as CallType,
+    } : undefined,
+    onCallEnded: (payload: CallEndedPayload) => {
+      console.log('[VideoCallScreen] Call ended:', payload.reason);
+      navigation.goBack();
+    },
+    onCallRejected: (payload: CallRejectedPayload) => {
+      console.log('[VideoCallScreen] Call rejected:', payload.reason);
+      if (payload.reason === 'busy') {
+        Alert.alert('User Busy', 'The user is currently on another call.');
       }
-    };
-
-    connection.onconnectionstatechange = () => {
-      if (connection.connectionState === "connected") {
-        setCallStatus("Connected");
-      }
-    };
-
-    peerConnectionRef.current = connection;
-    return connection;
-  }, [localUserId, roomId]);
-
-  const handleIncomingCall = useCallback(
-    (payload: IncomingCallPayload) => {
-      setRoomId(payload.roomId);
-      setCallStatus("Incoming call");
-
-      if (payload.callerId !== userId) {
-        navigation.navigate("VideoCallScreen", {
-          userId: payload.callerId,
-          roomId: payload.roomId,
-          callerId: payload.callerId,
-        });
-      }
+      navigation.goBack();
     },
-    [navigation, userId]
-  );
-
-  const handleOffer = useCallback(
-    async (payload: OfferPayload) => {
-      if (roomId && payload.roomId !== roomId) return;
-
-      setRoomId(payload.roomId);
-
-      const connection = peerConnectionRef.current ?? createPeerConnection();
-      await connection.setRemoteDescription(new RTCSessionDescription(payload.offer));
-      const answer = await connection.createAnswer();
-      await connection.setLocalDescription(answer);
-
-      socket.emit("answer", {
-        roomId: payload.roomId,
-        answer,
-        responderId: localUserId,
-      });
-
-      setCallStatus("Answering...");
+    onCallTimeout: () => {
+      console.log('[VideoCallScreen] Call timed out');
+      Alert.alert('No Answer', 'The call was not answered.');
+      navigation.goBack();
     },
-    [createPeerConnection, localUserId, roomId]
-  );
-
-  const handleAnswer = useCallback(
-    async (payload: AnswerPayload) => {
-      if (payload.roomId !== roomId) return;
-
-      const connection = peerConnectionRef.current ?? createPeerConnection();
-      await connection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-      setCallStatus("Connected");
+    onCallDisconnected: () => {
+      console.log('[VideoCallScreen] Call disconnected');
+      Alert.alert('Call Disconnected', 'The connection was lost.');
+      navigation.goBack();
     },
-    [createPeerConnection, roomId]
-  );
+  });
 
-  const handleIceCandidate = useCallback(
-    async (payload: IceCandidatePayload) => {
-      if (payload.roomId !== roomId || !payload.candidate) return;
-
-      const connection = peerConnectionRef.current ?? createPeerConnection();
-      await connection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-    },
-    [createPeerConnection, roomId]
-  );
-
+  // Start outgoing call when screen mounts (if not incoming)
   useEffect(() => {
-    ensureSocketConnection();
+    const initiateCall = async () => {
+      if (!isIncoming && !hasInitialized.current && isConnected) {
+        hasInitialized.current = true;
+        console.log('[VideoCallScreen] Starting outgoing call to:', userId, 'type:', callType);
 
-    const cleanupIncomingCall = registerSocketListener<IncomingCallPayload>(
-      "incomingCall",
-      handleIncomingCall
-    );
-
-    const cleanupCallAccepted = registerSocketListener<CallResponsePayload>(
-      "callAccepted",
-      (payload) => {
-        if (payload.roomId !== roomId) return;
-        setCallStatus("Call connected");
-        peerConnectionRef.current ?? createPeerConnection();
+        try {
+          const success = await startCall(userId, callType as CallType || 'video', username);
+          if (!success) {
+            console.log('[VideoCallScreen] Failed to start call, error:', error);
+            // Give time for error state to update
+            setTimeout(() => {
+              Alert.alert('Call Failed', 'Could not start the call. Please try again.', [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]);
+            }, 100);
+          }
+        } catch (err) {
+          console.error('[VideoCallScreen] Error starting call:', err);
+          Alert.alert('Call Failed', 'An error occurred while starting the call.', [
+            { text: 'OK', onPress: () => navigation.goBack() }
+          ]);
+        }
       }
-    );
-
-    const cleanupCallRejected = registerSocketListener<CallResponsePayload>(
-      "callRejected",
-      (payload) => {
-        if (payload.roomId !== roomId) return;
-        setCallStatus("Call declined");
-        navigation.goBack();
-      }
-    );
-
-    const cleanupOffer = registerSocketListener<OfferPayload>("offer", handleOffer);
-    const cleanupAnswer = registerSocketListener<AnswerPayload>(
-      "answer",
-      handleAnswer
-    );
-    const cleanupIceCandidate = registerSocketListener<IceCandidatePayload>(
-      "iceCandidate",
-      handleIceCandidate
-    );
-
-    return () => {
-      cleanupIncomingCall();
-      cleanupCallAccepted();
-      cleanupCallRejected();
-      cleanupOffer();
-      cleanupAnswer();
-      cleanupIceCandidate();
-      peerConnectionRef.current?.close();
-      peerConnectionRef.current = null;
     };
-  }, [
-    createPeerConnection,
-    handleAnswer,
-    handleIceCandidate,
-    handleIncomingCall,
-    handleOffer,
-    navigation,
-    roomId,
-  ]);
+
+    initiateCall();
+  }, [isIncoming, isConnected, userId, callType, username, startCall, navigation]);
+
+  // Handle accepting incoming call
+  const handleAcceptCall = async () => {
+    console.log('[VideoCallScreen] Accepting call');
+    const success = await acceptCall();
+    if (!success) {
+      Alert.alert('Error', 'Failed to accept the call.');
+      navigation.goBack();
+    }
+  };
+
+  // Handle declining/ending call
+  const handleEndCall = () => {
+    if (callStatus === 'ringing' && isIncoming) {
+      declineCall('rejected');
+    } else {
+      hangUp();
+    }
+    navigation.goBack();
+  };
+
+  // Format call duration
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get status text
+  const getStatusText = (): string => {
+    if (isReconnecting) return 'Reconnecting...';
+    switch (callStatus) {
+      case 'idle': return 'Initializing...';
+      case 'calling': return 'Calling...';
+      case 'ringing': return isIncoming ? 'Incoming call' : 'Ringing...';
+      case 'connecting': return 'Connecting...';
+      case 'connected': return formatDuration(callDuration);
+      case 'ended': return 'Call ended';
+      case 'rejected': return 'Call declined';
+      case 'missed': return 'Missed call';
+      case 'busy': return 'User busy';
+      default: return callStatus;
+    }
+  };
+
+  // Get connection quality indicator
+  const getQualityColor = (): string => {
+    switch (connectionQuality) {
+      case 'excellent': return colors.success;
+      case 'good': return colors.success;
+      case 'fair': return colors.warning;
+      case 'poor': return colors.danger;
+      default: return colors.textMuted;
+    }
+  };
 
   return (
     <FullScreen statusBarStyle="light" style={styles.screen}>
+      {/* Remote Video (Full Screen) */}
       <View style={styles.remoteVideo}>
-        {/* TODO: Attach remote WebRTC stream to this view */}
-        <LinearGradient
-          colors={[colors.accentBlue, colors.backgroundDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.remotePlaceholder}
-        >
-          <View style={styles.avatarShell}>
-            <Ionicons name="person" size={40} color={colors.white} />
-          </View>
-          <AppText size="h3" weight="bold" color={colors.white} style={styles.placeholderTitle}>
-            Preparing video...
-          </AppText>
-          <AppText size="small" color={colors.white} style={styles.placeholderSubtitle}>
-            Waiting for {userId} to join
-          </AppText>
-        </LinearGradient>
+        {remoteStream ? (
+          <RTCView
+            streamURL={remoteStream.toURL()}
+            style={styles.remoteRTCView}
+            objectFit="cover"
+            mirror={false}
+          />
+        ) : (
+          <LinearGradient
+            colors={[colors.accentBlue, colors.backgroundDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.remotePlaceholder}
+          >
+            <View style={styles.avatarShell}>
+              <Ionicons name="person" size={40} color={colors.white} />
+            </View>
+            <AppText size="h3" weight="bold" color={colors.white} style={styles.placeholderTitle}>
+              {callStatus === 'connected' ? 'Camera off' : 'Connecting...'}
+            </AppText>
+            <AppText size="small" color={colors.white} style={styles.placeholderSubtitle}>
+              {username || `User ${userId}`}
+            </AppText>
+          </LinearGradient>
+        )}
       </View>
 
       <View style={styles.overlay} pointerEvents="box-none">
+        {/* Top Bar */}
         <SafeAreaView edges={["top", "left", "right"]} style={styles.topBar} pointerEvents="box-none">
           <View style={styles.callInfo}>
-            <AppText size="h4" weight="bold" color={colors.white}>
-              {userId}
-            </AppText>
+            <View style={styles.callHeader}>
+              <AppText size="h4" weight="bold" color={colors.white}>
+                {username || `User ${userId}`}
+              </AppText>
+              {callStatus === 'connected' && (
+                <View style={[styles.qualityIndicator, { backgroundColor: getQualityColor() }]} />
+              )}
+            </View>
             <AppText size="small" weight="medium" color={colors.white} style={styles.callStatus}>
-              {callStatus}
+              {getStatusText()}
             </AppText>
+            {error && (
+              <AppText size="tiny" color={colors.danger} style={styles.errorText}>
+                {error}
+              </AppText>
+            )}
           </View>
         </SafeAreaView>
 
+        {/* Local Preview (Picture-in-Picture) */}
         <View style={styles.localPreviewContainer}>
-          {/* TODO: Attach local WebRTC stream to this view */}
-          <View style={styles.localVideo}>
-            <View style={styles.localPlaceholder}>
-              <Ionicons name="person-circle" size={34} color={colors.white} />
-              <AppText size="tiny" color={colors.white}>
-                Your preview
-              </AppText>
+          {localStream ? (
+            <RTCView
+              streamURL={localStream.toURL()}
+              style={styles.localRTCView}
+              objectFit="cover"
+              mirror={true}
+              zOrder={1}
+            />
+          ) : (
+            <View style={styles.localVideo}>
+              <View style={styles.localPlaceholder}>
+                <Ionicons name="person-circle" size={34} color={colors.white} />
+                <AppText size="tiny" color={colors.white}>
+                  {callStatus === 'calling' || callStatus === 'ringing' ? 'Starting camera...' : 'Camera off'}
+                </AppText>
+              </View>
             </View>
-          </View>
+          )}
+          {/* Camera switch button */}
+          {localStream && callType === 'video' && (
+            <TouchableOpacity style={styles.switchCameraButton} onPress={switchCamera}>
+              <Ionicons name="camera-reverse" size={20} color={colors.white} />
+            </TouchableOpacity>
+          )}
         </View>
 
+        {/* Bottom Controls */}
         <SafeAreaView edges={["bottom", "left", "right"]} style={styles.bottomSafeArea}>
-          <View style={styles.controlsPanel}>
-            <ControlButton
-              icon={isMuted ? "mic-off" : "mic"}
-              label={isMuted ? "Unmute" : "Mute"}
-              active={isMuted}
-              onPress={() => setIsMuted((prev) => !prev)}
-            />
-            <ControlButton
-              icon={isCameraOn ? "videocam" : "videocam-off"}
-              label={isCameraOn ? "Camera" : "Camera Off"}
-              active={!isCameraOn}
-              onPress={() => setIsCameraOn((prev) => !prev)}
-            />
-            <ControlButton
-              icon={isSpeakerOn ? "volume-high" : "volume-mute"}
-              label={isSpeakerOn ? "Speaker" : "Muted"}
-              active={!isSpeakerOn}
-              onPress={() => setIsSpeakerOn((prev) => !prev)}
-            />
-            <ControlButton
-              icon="call"
-              label="End"
-              danger
-              onPress={() => navigation.goBack()}
-            />
-          </View>
-          <GradientButton title="Send message" onPress={() => navigation.goBack()} style={styles.secondaryAction} />
+          {/* Incoming call - show accept/decline */}
+          {callStatus === 'ringing' && isIncoming ? (
+            <View style={styles.incomingCallControls}>
+              <TouchableOpacity
+                style={[styles.callActionButton, styles.declineButton]}
+                onPress={handleEndCall}
+              >
+                <Ionicons name="call" size={32} color={colors.white} style={{ transform: [{ rotate: '135deg' }] }} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.callActionButton, styles.acceptButton]}
+                onPress={handleAcceptCall}
+              >
+                <Ionicons name="call" size={32} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.controlsPanel}>
+              <ControlButton
+                icon={isMuted ? "mic-off" : "mic"}
+                label={isMuted ? "Unmute" : "Mute"}
+                active={isMuted}
+                onPress={toggleMute}
+                disabled={callStatus !== 'connected' && callStatus !== 'connecting'}
+              />
+              <ControlButton
+                icon={isCameraOn ? "videocam" : "videocam-off"}
+                label={isCameraOn ? "Camera" : "Camera Off"}
+                active={!isCameraOn}
+                onPress={toggleCamera}
+                disabled={callStatus !== 'connected' && callStatus !== 'connecting'}
+              />
+              <ControlButton
+                icon={isSpeakerOn ? "volume-high" : "volume-mute"}
+                label={isSpeakerOn ? "Speaker" : "Earpiece"}
+                active={!isSpeakerOn}
+                onPress={toggleSpeaker}
+                disabled={callStatus !== 'connected' && callStatus !== 'connecting'}
+              />
+              <ControlButton
+                icon="call"
+                label="End"
+                danger
+                onPress={handleEndCall}
+              />
+            </View>
+          )}
         </SafeAreaView>
       </View>
     </FullScreen>
   );
 }
 
-function ControlButton({ icon, label, active = false, onPress, danger = false }: ControlButtonProps) {
+function ControlButton({ icon, label, active = false, onPress, danger = false, disabled = false }: ControlButtonProps) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       activeOpacity={0.9}
       onPress={onPress}
-      style={[styles.controlButton, danger && styles.dangerButton, active && styles.activeButton]}
+      disabled={disabled}
+      style={[
+        styles.controlButton,
+        danger && styles.dangerButton,
+        active && styles.activeButton,
+        disabled && styles.disabledButton,
+      ]}
     >
-      <Ionicons name={icon} size={22} color={colors.white} />
-      <AppText size="tiny" weight="medium" color={colors.white} style={styles.controlLabel}>
+      <Ionicons name={icon} size={22} color={disabled ? colors.textMuted : colors.white} />
+      <AppText
+        size="tiny"
+        weight="medium"
+        color={disabled ? colors.textMuted : colors.white}
+        style={styles.controlLabel}
+      >
         {label}
       </AppText>
     </TouchableOpacity>
@@ -313,6 +340,10 @@ const styles = StyleSheet.create({
   },
   remoteVideo: {
     ...StyleSheet.absoluteFillObject,
+  },
+  remoteRTCView: {
+    flex: 1,
+    backgroundColor: colors.black,
   },
   remotePlaceholder: {
     flex: 1,
@@ -354,16 +385,29 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 4,
   },
+  callHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  qualityIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
   callStatus: {
     opacity: 0.9,
+  },
+  errorText: {
+    marginTop: 4,
   },
   localPreviewContainer: {
     position: "absolute",
     right: 20,
     top: 100,
-    width: 140,
-    height: 180,
-    borderRadius: 18,
+    width: 120,
+    height: 160,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: colors.black,
     shadowColor: colors.shadowMedium,
@@ -372,9 +416,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
+  localRTCView: {
+    flex: 1,
+    backgroundColor: colors.black,
+  },
   localVideo: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: colors.accentBlue,
     alignItems: "center",
     justifyContent: "center",
@@ -384,9 +432,44 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
   },
+  switchCameraButton: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bottomSafeArea: {
     paddingHorizontal: 20,
     paddingBottom: 16,
+  },
+  incomingCallControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+  },
+  callActionButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.shadowMedium,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  acceptButton: {
+    backgroundColor: colors.success,
+  },
+  declineButton: {
+    backgroundColor: colors.danger,
   },
   controlsPanel: {
     flexDirection: "row",
@@ -429,11 +512,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
     borderColor: colors.danger,
   },
+  disabledButton: {
+    opacity: 0.5,
+  },
   controlLabel: {
     textAlign: "center",
     opacity: 0.9,
-  },
-  secondaryAction: {
-    marginTop: 4,
   },
 });
