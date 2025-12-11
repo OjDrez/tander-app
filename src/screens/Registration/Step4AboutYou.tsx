@@ -21,6 +21,8 @@ import colors from "@/src/config/colors";
 import { useSlideUp } from "@/src/hooks/useFadeIn";
 import { useToast } from "@/src/context/ToastContext";
 import { Step4Nav } from "@/src/navigation/NavigationTypes";
+import { useAuth } from "@/src/hooks/useAuth";
+import { authApi } from "@/src/api/authApi";
 
 interface Props {
   navigation: Step4Nav;
@@ -55,6 +57,7 @@ const MIN_SELECTIONS = 2;
 export default function Step4AboutYou({ navigation }: Props) {
   const { values, setFieldValue, handleSubmit } = useFormikContext<any>();
   const toast = useToast();
+  const { phase1Data, registrationFlow } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Animations
@@ -80,11 +83,35 @@ export default function Step4AboutYou({ navigation }: Props) {
       return;
     }
 
+    const username = phase1Data?.username || registrationFlow?.username;
+
+    if (!username) {
+      toast.error("Session expired. Please start registration again.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // Save About You data to backend
+      const response = await authApi.updateAboutYou(
+        username,
+        values.bio || undefined,
+        values.interests || [],
+        values.lookingFor || []
+      );
+
+      if (response.status === 'success') {
+        toast.success("About You saved successfully!");
+      } else {
+        console.warn('About You save returned error status:', response.message);
+        toast.warning("About You data will be saved later.");
+      }
+
+      // Continue with Formik submit to complete registration
       await handleSubmit();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Submit error:", error);
+      toast.error(error.message || "Failed to save About You. Please try again.");
       setIsSubmitting(false);
     }
   };

@@ -217,10 +217,16 @@ import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
 import MyProfileScreen from "../screens/Profile/MyProfileScreen";
 
 // DEEP SCREENS
+import {
+  VideoCallScreen,
+  VoiceCallScreen,
+  IncomingCallScreen,
+} from "../screens/Call";
 import ConversationScreen from "../screens/Chat/ConversationScreen";
 import InboxEmptyScreen from "../screens/Inbox/InboxEmptyScreen";
 import MatchCelebrationScreen from "../screens/Matches/MatchCelebrationScreen";
-import VideoCallScreen from "../screens/Video/VideoCallScreen";
+import DashboardScreen from "../screens/Profile/DashboardScreen";
+import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 
@@ -299,8 +305,24 @@ export default function AppLayout() {
             component={ViewProfileScreen}
           />
           <MainStack.Screen
+            name="ProfileViewScreen"
+            component={ProfileViewScreen}
+          />
+          <MainStack.Screen
+            name="DashboardScreen"
+            component={DashboardScreen}
+          />
+          <MainStack.Screen
             name="VideoCallScreen"
             component={VideoCallScreen}
+          />
+          <MainStack.Screen
+            name="VoiceCallScreen"
+            component={VoiceCallScreen}
+          />
+          <MainStack.Screen
+            name="IncomingCallScreen"
+            component={IncomingCallScreen}
           />
         </MainStack.Navigator>
       </View>

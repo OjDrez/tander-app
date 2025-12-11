@@ -1,6 +1,5 @@
-import apiClient from './config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TOKEN_KEY } from './config';
+import apiClient, { TOKEN_KEY } from './config';
 
 export interface RegisterRequest {
   username: string;
@@ -59,6 +58,25 @@ export interface VerifyIdResponse {
   message: string;
 }
 
+export interface UploadPhotosResponse {
+  status: 'success' | 'error';
+  message: string;
+  profilePhotoUrl?: string;
+  additionalPhotoUrls?: string[];
+}
+
+export interface UpdateAboutYouRequest {
+  username: string;
+  bio?: string;
+  interests: string[];
+  lookingFor: string[];
+}
+
+export interface UpdateAboutYouResponse {
+  status: 'success' | 'error';
+  message: string;
+}
+
 export const authApi = {
   register: async (data: RegisterRequest): Promise<string> => {
     try {
@@ -85,11 +103,9 @@ export const authApi = {
     try {
       const response = await apiClient.post('/user/login', data);
       const token = response.headers['jwt-token'];
-
       if (token) {
         await AsyncStorage.setItem(TOKEN_KEY, token);
       }
-
       return {
         message: response.data,
         token: token || '',
@@ -166,6 +182,81 @@ export const authApi = {
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'ID verification failed';
+      throw new Error(errorMessage);
+    }
+  },
+
+  uploadPhotos: async (
+    username: string,
+    profilePhoto?: { uri: string; type: string; name: string },
+    additionalPhotos?: { uri: string; type: string; name: string }[]
+  ): Promise<UploadPhotosResponse> => {
+    try {
+      console.log('🔵 [authApi.uploadPhotos] Starting photo upload...');
+      console.log('🔵 [authApi.uploadPhotos] Username:', username);
+      console.log('🔵 [authApi.uploadPhotos] Profile photo:', profilePhoto ? 'Yes' : 'No');
+      console.log('🔵 [authApi.uploadPhotos] Additional photos:', additionalPhotos?.length || 0);
+
+      const formData = new FormData();
+      formData.append('username', username);
+
+      // Add profile photo if provided
+      if (profilePhoto) {
+        formData.append('profilePhoto', profilePhoto as any);
+      }
+
+      // Add additional photos if provided
+      if (additionalPhotos && additionalPhotos.length > 0) {
+        additionalPhotos.forEach((photo) => {
+          formData.append('additionalPhotos', photo as any);
+        });
+      }
+
+      const response = await apiClient.post('/user/upload-photos', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 120000, // 2 minute timeout for multiple file uploads
+      });
+
+      console.log('✅ [authApi.uploadPhotos] Success:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [authApi.uploadPhotos] Error:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.message || 'Photo upload failed';
+      throw new Error(errorMessage);
+    }
+  },
+
+  updateAboutYou: async (
+    username: string,
+    bio: string | undefined,
+    interests: string[],
+    lookingFor: string[]
+  ): Promise<UpdateAboutYouResponse> => {
+    try {
+      console.log('🔵 [authApi.updateAboutYou] Starting About You update...');
+      console.log('🔵 [authApi.updateAboutYou] Username:', username);
+      console.log('🔵 [authApi.updateAboutYou] Bio:', bio ? 'Yes' : 'No');
+      console.log('🔵 [authApi.updateAboutYou] Interests:', interests);
+      console.log('🔵 [authApi.updateAboutYou] Looking for:', lookingFor);
+
+      // Build query params
+      const params = new URLSearchParams();
+      params.append('username', username);
+      if (bio) {
+        params.append('bio', bio);
+      }
+      interests.forEach(interest => params.append('interests', interest));
+      lookingFor.forEach(item => params.append('lookingFor', item));
+
+      const response = await apiClient.post(`/user/update-about-you?${params.toString()}`);
+
+      console.log('✅ [authApi.updateAboutYou] Success:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [authApi.updateAboutYou] Error:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.message || 'About You update failed';
       throw new Error(errorMessage);
     }
   },

@@ -65,7 +65,11 @@ export default function MyMatchesScreen() {
       return;
     }
 
-    NavigationService.navigate("VideoCallScreen", { userId: item.id });
+    NavigationService.navigate("VideoCallScreen", {
+      userId: parseInt(item.id, 10),
+      username: item.name,
+      callType: "video",
+    });
   }, []);
 
   return (

@@ -55,8 +55,12 @@ export default function ProfileViewScreen() {
   }, [profile.id]);
 
   const handleVideoPress = useCallback(() => {
-    NavigationService.navigate("VideoCallScreen", { userId: profile.id });
-  }, [profile.id]);
+    NavigationService.navigate("VideoCallScreen", {
+      userId: parseInt(profile.id, 10),
+      username: profile.name,
+      callType: "video",
+    });
+  }, [profile.id, profile.name]);
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
