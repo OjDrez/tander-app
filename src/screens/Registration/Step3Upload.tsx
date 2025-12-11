@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,6 +22,9 @@ import colors from "../../config/colors";
 import { useSlideUp } from "../../hooks/useFadeIn";
 import { useToast } from "@/src/context/ToastContext";
 import { Step3Nav } from "../../navigation/NavigationTypes";
+import { useAuth } from "../../hooks/useAuth";
+import { authApi } from "../../api/authApi";
+import { API_BASE_URL } from "../../api/config";
 
 interface Props {
   navigation: Step3Nav;
@@ -33,9 +37,23 @@ interface FormValues {
 
 const DEFAULT_PROFILE_PHOTO = "https://ui-avatars.com/api/?name=Tander+User&background=F5A14B&color=fff&size=256";
 
+// Helper to convert local URI to file object for upload
+const uriToFile = (uri: string, index: number, type: string = 'profile') => {
+  const filename = uri.split('/').pop() || `${type}_photo_${index}.jpg`;
+  const match = /\.(\w+)$/.exec(filename);
+  const mimeType = match ? `image/${match[1]}` : 'image/jpeg';
+
+  return {
+    uri,
+    type: mimeType,
+    name: filename,
+  };
+};
+
 export default function Step3Upload({ navigation }: Props) {
   const { values, setFieldValue } = useFormikContext<FormValues>();
   const toast = useToast();
+  const { phase1Data, registrationFlow } = useAuth();
 
   // Profile photo (main photo)
   const [profilePhoto, setProfilePhoto] = useState<string>(values.profilePhoto || "");
@@ -44,6 +62,9 @@ export default function Step3Upload({ navigation }: Props) {
   const [additionalPhotos, setAdditionalPhotos] = useState<string[]>(
     values.photos?.slice(1) || []
   );
+
+  // Upload state
+  const [isUploading, setIsUploading] = useState(false);
 
   // Animations
   const headerAnim = useSlideUp(500, 0, 30);
@@ -125,11 +146,69 @@ export default function Step3Upload({ navigation }: Props) {
     setFieldValue("photos", [profilePhoto, ...newPhotos].filter(Boolean));
   };
 
-  const handleContinue = () => {
-    // Save to Formik and proceed
-    const allPhotos = [profilePhoto, ...additionalPhotos].filter(Boolean);
-    setFieldValue("photos", allPhotos);
-    setFieldValue("profilePhoto", profilePhoto || DEFAULT_PROFILE_PHOTO);
+  const handleContinue = async () => {
+    const username = phase1Data?.username || registrationFlow?.username;
+    const hasPhotosToUpload = profilePhoto || additionalPhotos.length > 0;
+
+    // If we have photos and a username, upload them
+    if (hasPhotosToUpload && username) {
+      setIsUploading(true);
+      try {
+        // Prepare profile photo for upload
+        const profilePhotoFile = profilePhoto
+          ? uriToFile(profilePhoto, 0, 'profile')
+          : undefined;
+
+        // Prepare additional photos for upload
+        const additionalPhotoFiles = additionalPhotos
+          .filter(p => p !== "")
+          .map((photo, index) => uriToFile(photo, index, 'additional'));
+
+        // Upload photos to backend
+        const response = await authApi.uploadPhotos(
+          username,
+          profilePhotoFile,
+          additionalPhotoFiles.length > 0 ? additionalPhotoFiles : undefined
+        );
+
+        if (response.status === 'success') {
+          // Store the server URLs in Formik
+          const serverProfilePhotoUrl = response.profilePhotoUrl
+            ? `${API_BASE_URL}${response.profilePhotoUrl}`
+            : DEFAULT_PROFILE_PHOTO;
+          const serverAdditionalUrls = (response.additionalPhotoUrls || [])
+            .map(url => `${API_BASE_URL}${url}`);
+
+          setFieldValue("profilePhoto", serverProfilePhotoUrl);
+          setFieldValue("photos", [serverProfilePhotoUrl, ...serverAdditionalUrls].filter(Boolean));
+
+          toast.success("Photos uploaded successfully!");
+        } else {
+          // If upload fails, still proceed but with local URIs
+          console.warn('Photo upload returned error status:', response.message);
+          toast.warning("Photos will be saved locally. You can retry uploading later.");
+
+          const allPhotos = [profilePhoto, ...additionalPhotos].filter(Boolean);
+          setFieldValue("photos", allPhotos);
+          setFieldValue("profilePhoto", profilePhoto || DEFAULT_PROFILE_PHOTO);
+        }
+      } catch (error: any) {
+        console.error('Photo upload error:', error);
+        toast.warning("Photos will be saved locally. You can retry uploading later.");
+
+        // Fall back to local storage
+        const allPhotos = [profilePhoto, ...additionalPhotos].filter(Boolean);
+        setFieldValue("photos", allPhotos);
+        setFieldValue("profilePhoto", profilePhoto || DEFAULT_PROFILE_PHOTO);
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      // No photos to upload, just save to Formik
+      const allPhotos = [profilePhoto, ...additionalPhotos].filter(Boolean);
+      setFieldValue("photos", allPhotos);
+      setFieldValue("profilePhoto", profilePhoto || DEFAULT_PROFILE_PHOTO);
+    }
 
     navigation.navigate("Step4");
   };
@@ -352,18 +431,29 @@ export default function Step3Upload({ navigation }: Props) {
             style={[
               styles.nextButton,
               !hasProfilePhoto && styles.nextButtonSecondary,
+              isUploading && styles.nextButtonDisabled,
             ]}
             onPress={handleContinue}
             activeOpacity={0.8}
+            disabled={isUploading}
           >
-            <Text style={[styles.nextText, !hasProfilePhoto && styles.nextTextSecondary]}>
-              {hasProfilePhoto ? "Continue" : "Skip Photos"}
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={hasProfilePhoto ? colors.white : colors.primary}
-            />
+            {isUploading ? (
+              <>
+                <ActivityIndicator size="small" color={colors.white} />
+                <Text style={styles.nextText}>Uploading...</Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.nextText, !hasProfilePhoto && styles.nextTextSecondary]}>
+                  {hasProfilePhoto ? "Continue" : "Skip Photos"}
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={hasProfilePhoto ? colors.white : colors.primary}
+                />
+              </>
+            )}
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -672,6 +762,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     shadowOpacity: 0.1,
     elevation: 2,
+  },
+  nextButtonDisabled: {
+    opacity: 0.7,
   },
   nextText: {
     color: colors.white,

@@ -9,6 +9,15 @@ import {
   View,
 } from "react-native";
 
+/**
+ * MessageInputBar - Accessible message composition component
+ *
+ * Accessibility Features:
+ * - Minimum 48px touch targets for buttons
+ * - Large, readable text input (18px)
+ * - Clear button labels for screen readers
+ * - Visual disabled state for send button
+ */
 type MessageInputBarProps = {
   value: string;
   onChangeText: (text: string) => void;
@@ -32,11 +41,13 @@ export default function MessageInputBar({
     <View style={styles.container}>
       <TouchableOpacity
         accessibilityRole="button"
+        accessibilityLabel="Add attachment"
+        accessibilityHint="Double tap to add photos or files"
         onPress={onAttachmentPress}
         style={styles.iconButton}
         activeOpacity={0.85}
       >
-        <Ionicons name="attach" size={18} color={colors.textSecondary} />
+        <Ionicons name="attach" size={24} color={colors.textSecondary} />
       </TouchableOpacity>
 
       <TextInput
@@ -46,18 +57,25 @@ export default function MessageInputBar({
         placeholderTextColor={colors.textMuted}
         style={styles.input}
         multiline
+        accessibilityLabel="Message input"
+        accessibilityHint="Type your message here"
+        allowFontScaling={true}
+        maxFontSizeMultiplier={1.3}
       />
 
       <TouchableOpacity
         accessibilityRole="button"
+        accessibilityLabel={isSendDisabled ? "Send button disabled" : "Send message"}
+        accessibilityHint={isSendDisabled ? "Type a message first" : "Double tap to send your message"}
+        accessibilityState={{ disabled: isSendDisabled }}
         onPress={onSend}
         style={[styles.sendButton, isSendDisabled && styles.sendButtonDisabled]}
-        activeOpacity={0.9}
+        activeOpacity={0.85}
         disabled={isSendDisabled}
       >
         <Ionicons
           name="send"
-          size={18}
+          size={22}
           color={isSendDisabled ? colors.textMuted : colors.white}
         />
       </TouchableOpacity>
@@ -65,48 +83,61 @@ export default function MessageInputBar({
   );
 }
 
+/**
+ * MessageInputBar Styles
+ *
+ * Accessibility Optimizations:
+ * - 48px minimum touch targets
+ * - 18px font size for input
+ * - High contrast colors
+ * - Clear visual feedback
+ */
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderColor: colors.borderMedium,
   },
   iconButton: {
-    height: 42,
-    width: 42,
-    borderRadius: 16,
+    // Minimum 48px touch target
+    height: 48,
+    width: 48,
+    borderRadius: 18,
     backgroundColor: colors.backgroundLight,
     alignItems: "center",
     justifyContent: "center",
   },
   input: {
     flex: 1,
-    minHeight: 44,
-    maxHeight: 120,
-    borderRadius: 24,
+    minHeight: 52, // Increased for larger text
+    maxHeight: 140,
+    borderRadius: 26,
     backgroundColor: colors.backgroundLight,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     color: colors.textPrimary,
+    fontSize: 18, // Larger font for readability
+    lineHeight: 24,
     textAlignVertical: "center",
   },
   sendButton: {
-    height: 46,
-    width: 46,
-    borderRadius: 23,
+    // Minimum 48px touch target
+    height: 52,
+    width: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
     shadowColor: colors.shadowLight,
     shadowOpacity: 0.22,
-    shadowRadius: 8,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    elevation: 5,
   },
   sendButtonDisabled: {
     backgroundColor: colors.borderLight,

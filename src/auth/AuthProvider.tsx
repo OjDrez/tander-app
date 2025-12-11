@@ -1,6 +1,9 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode, useCallback } from 'react';
+import { Alert } from 'react-native';
 import { AuthContext, Phase1RegistrationData, RegistrationFlowState } from './AuthContext';
 import authApi, { LoginRequest, RegisterRequest, CompleteProfileRequest, VerifyIdResponse } from '../api/authApi';
+import { onAuthError, AuthErrorCode } from '../api/config';
+import { disconnectSocket } from '../services/socket';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -12,6 +15,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [phase1Data, setPhase1Data] = useState<Phase1RegistrationData | null>(null);
   const [registrationFlow, setRegistrationFlow] = useState<RegistrationFlowState | null>(null);
+
+  /**
+   * Handle authentication errors from API interceptor
+   * This handles token expiration, invalid tokens, etc.
+   */
+  const handleAuthError = useCallback((errorCode: AuthErrorCode, message: string) => {
+    console.log('[AuthProvider] Auth error received:', errorCode, message);
+
+    // Disconnect socket when auth fails
+    disconnectSocket();
+
+    // Clear auth state
+    setToken(null);
+    setIsAuthenticated(false);
+
+    // Show appropriate message based on error code
+    let alertTitle = 'Session Expired';
+    let alertMessage = message;
+
+    switch (errorCode) {
+      case 'TOKEN_EXPIRED':
+        alertTitle = 'Session Expired';
+        alertMessage = 'Your session has expired. Please log in again to continue.';
+        break;
+      case 'INVALID_TOKEN':
+        alertTitle = 'Authentication Error';
+        alertMessage = 'Your authentication is invalid. Please log in again.';
+        break;
+      case 'AUTH_ERROR':
+        alertTitle = 'Authentication Failed';
+        alertMessage = 'There was an authentication problem. Please log in again.';
+        break;
+    }
+
+    // Show alert to user
+    Alert.alert(alertTitle, alertMessage, [
+      { text: 'OK', style: 'default' }
+    ]);
+  }, []);
+
+  // Subscribe to auth errors on mount
+  useEffect(() => {
+    const unsubscribe = onAuthError(handleAuthError);
+    return () => {
+      unsubscribe();
+    };
+  }, [handleAuthError]);
 
   const checkAuth = async () => {
     try {

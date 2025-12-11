@@ -1,6 +1,11 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 
+import {
+  VideoCallScreen,
+  VoiceCallScreen,
+  IncomingCallScreen,
+} from "../screens/Call";
 import ConversationScreen from "../screens/Chat/ConversationScreen";
 import HomeScreen from "../screens/Home/HomeScreen";
 import InboxEmptyScreen from "../screens/Inbox/InboxEmptyScreen";
@@ -15,7 +20,6 @@ import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
 import PaymentMethodsScreen from "../screens/Settings/PaymentMethodsScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ViewProfileDetailsScreen from "../screens/Settings/ViewProfileDetailsScreen";
-import VideoCallScreen from "../screens/Video/VideoCallScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 import { AppStackParamList } from "./NavigationTypes";
@@ -58,6 +62,8 @@ export default function AppNavigator() {
       />
       <Stack.Screen name="EditAboutYouScreen" component={EditAboutYouScreen} />
       <Stack.Screen name="VideoCallScreen" component={VideoCallScreen} />
+      <Stack.Screen name="VoiceCallScreen" component={VoiceCallScreen} />
+      <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} />
     </Stack.Navigator>
   );
 }
