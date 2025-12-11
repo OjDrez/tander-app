@@ -20,9 +20,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   Platform,
@@ -33,6 +34,136 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+// Animated conversation row component
+const AnimatedConversationRow = ({
+  item,
+  index,
+  onPress,
+  onAvatarPress,
+  onVideoCall,
+  onVoiceCall,
+  isOnline,
+}: {
+  item: ConversationPreview;
+  index: number;
+  onPress: () => void;
+  onAvatarPress: () => void;
+  onVideoCall: () => void;
+  onVoiceCall: () => void;
+  isOnline: boolean;
+}) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        delay: index * 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        delay: index * 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim, index]);
+
+  const hasUnread = (item.unreadCount ?? 0) > 0;
+
+  return (
+    <Animated.View
+      style={[
+        styles.threadCard,
+        Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.threadTouchable}
+        activeOpacity={0.85}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Chat with ${item.name}${hasUnread ? `, ${item.unreadCount} unread messages` : ""}${isOnline ? ", online now" : ""}`}
+        accessibilityHint="Double tap to open conversation"
+      >
+        <TouchableOpacity
+          style={[styles.avatarWrapper, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
+          activeOpacity={0.85}
+          onPress={onAvatarPress}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${item.name}'s profile`}
+        >
+          <Image source={{ uri: item.avatar }} style={styles.avatar} />
+          {isOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
+        </TouchableOpacity>
+
+        <View style={styles.threadBody}>
+          <View style={styles.threadTopRow}>
+            <AppText size="h4" weight="bold" numberOfLines={1} style={styles.name}>
+              {item.name}
+            </AppText>
+            <AppText size="small" color={colors.textSecondary} weight="medium">
+              {item.timestamp}
+            </AppText>
+          </View>
+
+          <AppText
+            size="body"
+            color={hasUnread ? colors.textPrimary : colors.textSecondary}
+            weight={hasUnread ? "semibold" : "normal"}
+            numberOfLines={2}
+            style={styles.preview}
+          >
+            {item.message}
+          </AppText>
+        </View>
+
+        <View style={styles.actionsColumn}>
+          <View style={styles.callButtons}>
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={onVoiceCall}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Voice call ${item.name}`}
+              accessibilityHint="Double tap to start a voice call"
+            >
+              <Ionicons name="call" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.callButton, styles.videoCallButton]}
+              onPress={onVideoCall}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Video call ${item.name}`}
+              accessibilityHint="Double tap to start a video call"
+            >
+              <Ionicons name="videocam" size={20} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+
+          {hasUnread ? (
+            <View style={styles.unreadBadge} accessibilityLabel={`${item.unreadCount} unread messages`}>
+              <AppText size="small" weight="bold" color={colors.white}>
+                {item.unreadCount}
+              </AppText>
+            </View>
+          ) : (
+            <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+          )}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
 type SuggestedPerson = {
   id: string;
@@ -255,86 +386,19 @@ export default function InboxScreen() {
     loadConversations(true);
   };
 
-  const renderConversation = ({ item }: { item: ConversationPreview }) => {
-    const hasUnread = (item.unreadCount ?? 0) > 0;
+  const renderConversation = ({ item, index }: { item: ConversationPreview; index: number }) => {
     const isOnline = item.isOnline || onlineUsers.has(item.userId);
 
     return (
-      <TouchableOpacity
-        style={[styles.threadCard, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
-        activeOpacity={0.85}
+      <AnimatedConversationRow
+        item={item}
+        index={index}
         onPress={() => handlePressConversation(item)}
-        accessibilityRole="button"
-        accessibilityLabel={`Chat with ${item.name}${hasUnread ? `, ${item.unreadCount} unread messages` : ""}${isOnline ? ", online now" : ""}`}
-        accessibilityHint="Double tap to open conversation"
-      >
-        <TouchableOpacity
-          style={[styles.avatarWrapper, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
-          activeOpacity={0.85}
-          onPress={() => handlePressAvatar(item.userId.toString())}
-          accessibilityRole="button"
-          accessibilityLabel={`View ${item.name}'s profile`}
-        >
-          <Image source={{ uri: item.avatar }} style={styles.avatar} />
-          {isOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
-        </TouchableOpacity>
-
-        <View style={styles.threadBody}>
-          <View style={styles.threadTopRow}>
-            <AppText size="h4" weight="bold" numberOfLines={1} style={styles.name}>
-              {item.name}
-            </AppText>
-            <AppText size="small" color={colors.textSecondary} weight="medium">
-              {item.timestamp}
-            </AppText>
-          </View>
-
-          <AppText
-            size="body"
-            color={hasUnread ? colors.textPrimary : colors.textSecondary}
-            weight={hasUnread ? "semibold" : "normal"}
-            numberOfLines={2}
-            style={styles.preview}
-          >
-            {item.message}
-          </AppText>
-        </View>
-
-        <View style={styles.actionsColumn}>
-          <View style={styles.callButtons}>
-            <TouchableOpacity
-              style={styles.callButton}
-              onPress={() => handleVoiceCall(item)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Voice call ${item.name}`}
-              accessibilityHint="Double tap to start a voice call"
-            >
-              <Ionicons name="call" size={22} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.callButton}
-              onPress={() => handleVideoCall(item)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Video call ${item.name}`}
-              accessibilityHint="Double tap to start a video call"
-            >
-              <Ionicons name="videocam" size={22} color={colors.accentTeal} />
-            </TouchableOpacity>
-          </View>
-
-          {hasUnread ? (
-            <View style={styles.unreadBadge} accessibilityLabel={`${item.unreadCount} unread messages`}>
-              <AppText size="small" weight="bold" color={colors.white}>
-                {item.unreadCount}
-              </AppText>
-            </View>
-          ) : (
-            <Ionicons name="chevron-forward" size={24} color={colors.textMuted} />
-          )}
-        </View>
-      </TouchableOpacity>
+        onAvatarPress={() => handlePressAvatar(item.userId.toString())}
+        onVideoCall={() => handleVideoCall(item)}
+        onVoiceCall={() => handleVoiceCall(item)}
+        isOnline={isOnline}
+      />
     );
   };
 
@@ -621,15 +685,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   threadCard: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: colors.white,
     borderRadius: 20,
-    padding: 16, // Increased padding
+    padding: 16,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    minHeight: 100, // Increased for larger content
-    gap: 14,
+    overflow: "hidden",
   },
   avatarWrapper: {
     // Larger avatar for better visibility
@@ -678,25 +739,35 @@ const styles = StyleSheet.create({
   },
   callButtons: {
     flexDirection: "row",
-    gap: 10, // Increased gap between buttons
+    gap: 8,
   },
   callButton: {
-    // Minimum 48x48 touch target for accessibility
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.backgroundLight,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.borderLight,
+  },
+  videoCallButton: {
+    backgroundColor: colors.accentTeal,
+    borderColor: colors.accentTeal,
   },
   unreadBadge: {
-    minWidth: 32,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.accentTeal,
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
+  },
+  threadTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
   separator: {
     height: 14, // Increased spacing between items

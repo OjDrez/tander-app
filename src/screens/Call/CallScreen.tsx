@@ -26,10 +26,79 @@ import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import { AppStackParamList, CallScreenParams } from "@/src/navigation/NavigationTypes";
-import { useCall } from "@/src/hooks/useCall";
+import { useCall, ConnectionQuality } from "@/src/hooks/useCall";
 import { CallStatus } from "@/src/types/chat";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Connection quality indicator component
+const ConnectionQualityIndicator = ({ quality }: { quality: ConnectionQuality }) => {
+  const getQualityBars = () => {
+    switch (quality) {
+      case "excellent":
+        return [1, 1, 1, 1];
+      case "good":
+        return [1, 1, 1, 0.3];
+      case "fair":
+        return [1, 1, 0.3, 0.3];
+      case "poor":
+        return [1, 0.3, 0.3, 0.3];
+      default:
+        return [0.3, 0.3, 0.3, 0.3];
+    }
+  };
+
+  const getQualityColor = () => {
+    switch (quality) {
+      case "excellent":
+      case "good":
+        return colors.success;
+      case "fair":
+        return colors.warning;
+      case "poor":
+        return colors.danger;
+      default:
+        return colors.textMuted;
+    }
+  };
+
+  const bars = getQualityBars();
+  const barColor = getQualityColor();
+
+  return (
+    <View style={qualityStyles.container} accessibilityLabel={`Connection quality: ${quality}`}>
+      {bars.map((opacity, index) => (
+        <View
+          key={index}
+          style={[
+            qualityStyles.bar,
+            {
+              height: 8 + index * 4,
+              backgroundColor: barColor,
+              opacity,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+};
+
+const qualityStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 8,
+  },
+  bar: {
+    width: 4,
+    borderRadius: 2,
+  },
+});
 
 // ==================== ANIMATED PULSE RING ====================
 function PulseRing({ delay = 0, color = colors.accentTeal }: { delay?: number; color?: string }) {
@@ -260,6 +329,8 @@ export default function CallScreen({ route, isVideoCall = false }: CallScreenPro
     isSpeakerOn,
     callDuration,
     error,
+    connectionQuality,
+    isReconnecting,
     startCall,
     acceptCall,
     declineCall,
@@ -477,9 +548,29 @@ export default function CallScreen({ route, isVideoCall = false }: CallScreenPro
               ]}
             />
             <AppText size="body" color="rgba(255,255,255,0.8)" style={styles.statusText}>
-              {showConnectedUI ? formatDuration(callDuration) : getStatusText(callStatus, isIncoming)}
+              {isReconnecting
+                ? "Reconnecting..."
+                : showConnectedUI
+                ? formatDuration(callDuration)
+                : getStatusText(callStatus, isIncoming)}
             </AppText>
           </View>
+
+          {/* Connection quality indicator - show when connected */}
+          {showConnectedUI && (
+            <View style={styles.qualityRow}>
+              <ConnectionQualityIndicator quality={connectionQuality} />
+              <AppText size="small" color="rgba(255,255,255,0.6)">
+                {connectionQuality === "excellent" || connectionQuality === "good"
+                  ? "Good connection"
+                  : connectionQuality === "fair"
+                  ? "Fair connection"
+                  : connectionQuality === "poor"
+                  ? "Poor connection"
+                  : ""}
+              </AppText>
+            </View>
+          )}
 
           {/* Error message */}
           {error && (
@@ -702,6 +793,12 @@ const styles = StyleSheet.create({
   },
   statusText: {
     textAlign: "center",
+  },
+  qualityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 12,
   },
   errorBanner: {
     flexDirection: "row",

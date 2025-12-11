@@ -11,7 +11,7 @@ import {
 // Socket.IO Configuration
 // Set this to your Socket.IO tunnel URL if using Cloudflare Tunnel for Socket.IO
 // Leave empty to auto-calculate from API_BASE_URL
-const SOCKET_IO_TUNNEL_URL = 'https://embedded-anything-museum-returning.trycloudflare.com';
+const SOCKET_IO_TUNNEL_URL = 'https://stuff-strategic-only-winner.trycloudflare.com';
 
 // Socket.IO server URL
 const getSocketUrl = (): string => {

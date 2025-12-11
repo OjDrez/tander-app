@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -28,6 +29,42 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Connection status banner component
+const ConnectionStatusBanner = ({ isOnline, pendingCount }: { isOnline: boolean; pendingCount: number }) => {
+  const slideAnim = useRef(new Animated.Value(isOnline ? -50 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: isOnline && pendingCount === 0 ? -50 : 0,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+  }, [isOnline, pendingCount, slideAnim]);
+
+  if (isOnline && pendingCount === 0) return null;
+
+  return (
+    <Animated.View
+      style={[
+        styles.connectionBanner,
+        { transform: [{ translateY: slideAnim }] },
+        !isOnline ? styles.offlineBanner : styles.pendingBanner,
+      ]}
+    >
+      <Ionicons
+        name={!isOnline ? "cloud-offline" : "time-outline"}
+        size={16}
+        color={colors.white}
+      />
+      <AppText size="small" weight="medium" color={colors.white}>
+        {!isOnline
+          ? "You're offline. Messages will be sent when connected."
+          : `${pendingCount} message${pendingCount > 1 ? "s" : ""} pending...`}
+      </AppText>
+    </Animated.View>
+  );
+};
 
 export default function ConversationScreen({
   route,
@@ -44,7 +81,7 @@ export default function ConversationScreen({
   const flatListRef = useRef<FlatList<ChatListItem>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isOnline = onlineUsers.has(otherUserId);
+  const isUserOnline = onlineUsers.has(otherUserId);
 
   // Load message history from API
   const loadMessageHistory = useCallback(async () => {
@@ -84,8 +121,13 @@ export default function ConversationScreen({
     sendMessage,
     setTyping,
     markAsRead,
+    retryMessage,
+    deleteFailedMessage,
     error,
     roomId,
+    isOnline,
+    pendingCount,
+    hasFailedMessages,
   } = useChat({
     conversationId,
     otherUserId,
@@ -217,6 +259,16 @@ export default function ConversationScreen({
     });
   };
 
+  // Handle retry failed message
+  const handleRetryMessage = useCallback(async (messageId: string) => {
+    await retryMessage(messageId);
+  }, [retryMessage]);
+
+  // Handle delete failed message
+  const handleDeleteMessage = useCallback((messageId: string) => {
+    deleteFailedMessage(messageId);
+  }, [deleteFailedMessage]);
+
   const renderItem = ({ item }: { item: ChatListItem }) => {
     if ((item as DateSeparator).type === "date") {
       const dateItem = item as DateSeparator;
@@ -238,6 +290,8 @@ export default function ConversationScreen({
         time={msg.time}
         isOwn={msg.isOwn}
         status={msg.status}
+        onRetry={msg.status === "failed" ? () => handleRetryMessage(msg.id) : undefined}
+        onDelete={msg.status === "failed" ? () => handleDeleteMessage(msg.id) : undefined}
       />
     );
   };
@@ -264,7 +318,7 @@ export default function ConversationScreen({
                   onPress={() => navigation.navigate("DashboardScreen", { userId: otherUserId.toString() })}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={`${otherUserName}'s profile, ${isOnline ? "online now" : "offline"}`}
+                  accessibilityLabel={`${otherUserName}'s profile, ${isUserOnline ? "online now" : "offline"}`}
                   accessibilityHint="Double tap to view their profile"
                 >
                   <View style={styles.avatarContainer}>
@@ -274,7 +328,7 @@ export default function ConversationScreen({
                       }}
                       style={styles.avatar}
                     />
-                    {isOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
+                    {isUserOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
                   </View>
                   <View>
                     <AppText
@@ -284,8 +338,8 @@ export default function ConversationScreen({
                     >
                       {otherUserName}
                     </AppText>
-                    <AppText size="small" color={isOnline ? colors.success : colors.textSecondary}>
-                      {isTyping ? "Typing..." : isOnline ? "Online" : "Offline"}
+                    <AppText size="small" color={isUserOnline ? colors.success : colors.textSecondary}>
+                      {isTyping ? "Typing..." : isUserOnline ? "Online" : "Offline"}
                     </AppText>
                   </View>
                 </TouchableOpacity>
@@ -349,9 +403,17 @@ export default function ConversationScreen({
               />
             )}
 
+            {/* Connection status banner */}
+            <ConnectionStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
+
             {isTyping && (
               <View style={styles.typingIndicator}>
-                <AppText size="tiny" color={colors.textSecondary}>
+                <View style={styles.typingDots}>
+                  <View style={[styles.typingDot, styles.typingDot1]} />
+                  <View style={[styles.typingDot, styles.typingDot2]} />
+                  <View style={[styles.typingDot, styles.typingDot3]} />
+                </View>
+                <AppText size="small" color={colors.textSecondary}>
                   {typingUsername || otherUserName} is typing...
                 </AppText>
               </View>
@@ -359,8 +421,25 @@ export default function ConversationScreen({
 
             {error && (
               <View style={styles.errorBanner}>
-                <AppText size="tiny" color={colors.danger}>
+                <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                <AppText size="small" color={colors.danger} style={styles.errorText}>
                   {error}
+                </AppText>
+                <TouchableOpacity
+                  onPress={() => {/* Could add a dismiss or retry action */}}
+                  style={styles.errorDismiss}
+                >
+                  <Ionicons name="close" size={18} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Failed messages warning */}
+            {hasFailedMessages && (
+              <View style={styles.failedMessagesBanner}>
+                <Ionicons name="warning" size={16} color={colors.warning} />
+                <AppText size="small" color={colors.textPrimary}>
+                  Some messages failed to send. Tap to retry.
                 </AppText>
               </View>
             )}
@@ -513,17 +592,85 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderMedium,
   },
 
+  // Connection status banner
+  connectionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+  },
+  offlineBanner: {
+    backgroundColor: colors.textSecondary,
+  },
+  pendingBanner: {
+    backgroundColor: colors.accentTeal,
+  },
+
   typingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 10,
     backgroundColor: colors.backgroundLight,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+  },
+  typingDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accentTeal,
+  },
+  typingDot1: {
+    opacity: 0.4,
+  },
+  typingDot2: {
+    opacity: 0.6,
+  },
+  typingDot3: {
+    opacity: 0.8,
   },
 
   errorBanner: {
-    backgroundColor: colors.dangerLight,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    flexDirection: "row",
     alignItems: "center",
+    backgroundColor: colors.dangerLight,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    gap: 10,
+  },
+  errorText: {
+    flex: 1,
+  },
+  errorDismiss: {
+    padding: 4,
+  },
+
+  failedMessagesBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: colors.warningLight,
+    borderRadius: 12,
   },
 
   inputContainer: {

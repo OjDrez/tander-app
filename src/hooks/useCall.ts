@@ -213,6 +213,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
   const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iceRestartAttemptRef = useRef(0);
   const maxIceRestartAttempts = 3;
+  const isMountedRef = useRef(true);
 
   // Keep roomIdRef in sync
   useEffect(() => {
@@ -264,6 +265,14 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       console.log('[useCall] Media constraints:', JSON.stringify(constraints));
 
       const stream = await mediaDevices.getUserMedia(constraints);
+
+      // Check if component is still mounted
+      if (!isMountedRef.current) {
+        console.log('[useCall] Component unmounted during media acquisition, stopping tracks');
+        stream.getTracks().forEach((track) => track.stop());
+        return null;
+      }
+
       const videoTracks = stream.getVideoTracks();
       const audioTracks = stream.getAudioTracks();
       console.log('[useCall] Got local media stream:', stream.id);
@@ -278,7 +287,9 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       return stream;
     } catch (err) {
       console.error('[useCall] Failed to get local media:', err);
-      setError('Failed to access camera/microphone. Please check permissions.');
+      if (isMountedRef.current) {
+        setError('Failed to access camera/microphone. Please check permissions.');
+      }
       return null;
     }
   }, []);
@@ -1390,10 +1401,12 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     };
   }, [callStatus, callType, isCameraOn, onCallDisconnected]);
 
-  // Cleanup on unmount
+  // Track mounted state and cleanup on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       console.log('[useCall] Component unmounting, cleaning up');
+      isMountedRef.current = false;
       cleanup();
     };
   }, [cleanup]);
