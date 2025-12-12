@@ -4,6 +4,7 @@ import { AuthContext, Phase1RegistrationData, RegistrationFlowState } from './Au
 import authApi, { LoginRequest, RegisterRequest, CompleteProfileRequest, VerifyIdResponse } from '../api/authApi';
 import { onAuthError, AuthErrorCode } from '../api/config';
 import { disconnectSocket } from '../services/socket';
+import biometricService from '../services/biometricService';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -93,6 +94,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Clear registration flow state on successful login
       setRegistrationFlow(null);
       setPhase1Data(null);
+
+      // Save credentials for biometric login (if biometrics available)
+      const biometricAvailable = await biometricService.isAvailable();
+      if (biometricAvailable) {
+        await biometricService.saveCredentials(credentials.username, credentials.password);
+        console.log('[AuthProvider] Credentials saved for biometric login');
+      }
     } catch (error: any) {
       // If profile is incomplete, store credentials and flow state
       if (error.profileIncomplete && error.username) {
@@ -199,6 +207,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(false);
       setPhase1Data(null);
       setRegistrationFlow(null);
+
+      // Clear biometric credentials on logout
+      await biometricService.clearCredentials();
+      console.log('[AuthProvider] Biometric credentials cleared on logout');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;

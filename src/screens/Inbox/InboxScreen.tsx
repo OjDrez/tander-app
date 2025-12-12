@@ -8,7 +8,9 @@ import {
   connectSocket,
   registerSocketListener,
 } from "@/src/services/socket";
-import { getConversations, getChatUsers } from "@/src/api/chatApi";
+import { getConversations, getChatUsers, validateChatAccess, getFullPhotoUrl } from "@/src/api/chatApi";
+import { matchingApi } from "@/src/api/matchingApi";
+import { Match } from "@/src/types/matching";
 import {
   ConversationPreview,
   IncomingCallPayload,
@@ -20,9 +22,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -35,16 +38,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Animated conversation row component
-const AnimatedConversationRow = ({
-  item,
-  index,
-  onPress,
-  onAvatarPress,
-  onVideoCall,
-  onVoiceCall,
-  isOnline,
-}: {
+// Props type for AnimatedConversationRow
+type AnimatedConversationRowProps = {
   item: ConversationPreview;
   index: number;
   onPress: () => void;
@@ -52,7 +47,18 @@ const AnimatedConversationRow = ({
   onVideoCall: () => void;
   onVoiceCall: () => void;
   isOnline: boolean;
-}) => {
+};
+
+// Animated conversation row component - memoized for performance
+const AnimatedConversationRow = memo(({
+  item,
+  index,
+  onPress,
+  onAvatarPress,
+  onVideoCall,
+  onVoiceCall,
+  isOnline,
+}: AnimatedConversationRowProps) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
@@ -163,14 +169,22 @@ const AnimatedConversationRow = ({
       </TouchableOpacity>
     </Animated.View>
   );
-};
+});
 
-type SuggestedPerson = {
+AnimatedConversationRow.displayName = "AnimatedConversationRow";
+
+/**
+ * Represents a match that can be displayed in the match queue
+ * Bumble-style: shows countdown timer for 24-hour expiration
+ */
+type MatchQueuePerson = {
   id: string;
   name: string;
   age: number;
   avatar: string;
   userId?: number;
+  hoursUntilExpiration?: number;
+  chatStarted?: boolean;
 };
 
 export default function InboxScreen() {
@@ -179,7 +193,9 @@ export default function InboxScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
-  const [suggestedPeople, setSuggestedPeople] = useState<SuggestedPerson[]>([]);
+  const [matchQueue, setMatchQueue] = useState<MatchQueuePerson[]>([]);
+  const [urgentMatches, setUrgentMatches] = useState<Match[]>([]);
+  const [matchedUserIds, setMatchedUserIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,20 +221,62 @@ export default function InboxScreen() {
     }
   }, []);
 
-  // Load suggested people
-  const loadSuggestedPeople = useCallback(async () => {
+  /**
+   * Load matches for the match queue (Bumble-style)
+   * - Only active matches can be chatted with
+   * - Matches expire after 24 hours if no chat is started
+   * - Sort by urgency (expiring soonest first)
+   */
+  const loadMatchQueue = useCallback(async () => {
     try {
-      const users = await getChatUsers();
-      const suggested: SuggestedPerson[] = users.slice(0, 6).map((user) => ({
-        id: user.id.toString(),
-        name: user.displayName || user.username,
-        age: Math.floor(Math.random() * 20) + 50, // Placeholder age
-        avatar: user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random`,
-        userId: user.id,
-      }));
-      setSuggestedPeople(suggested);
+      const matches = await matchingApi.getMatchesList();
+
+      // Store matched user IDs for validation - only ACTIVE or CHAT_STARTED matches
+      const activeMatchedIds = new Set(
+        matches
+          .filter((m) => m.status === "ACTIVE" || m.status === "CHAT_STARTED")
+          .map((m) => m.matchedUserId)
+      );
+      setMatchedUserIds(activeMatchedIds);
+
+      // Filter matches that haven't started chat yet - these need action
+      const pendingMatches = matches
+        .filter((m) => !m.chatStarted && m.status === "ACTIVE")
+        .sort((a, b) => {
+          // Sort by urgency: expiring soonest first
+          const aHours = a.hoursUntilExpiration ?? 24;
+          const bHours = b.hoursUntilExpiration ?? 24;
+          return aHours - bHours;
+        });
+
+      // Track urgent matches (expiring within 6 hours) for warning banner
+      const urgent = pendingMatches.filter(
+        (m) => m.hoursUntilExpiration !== undefined && m.hoursUntilExpiration <= 6
+      );
+      setUrgentMatches(urgent);
+
+      // Convert to match queue format
+      const queue: MatchQueuePerson[] = pendingMatches.map((match) => {
+        // Convert relative photo URL to full URL, fallback to UI Avatars
+        const fullPhotoUrl = getFullPhotoUrl(match.matchedUserProfilePhotoUrl);
+        return {
+          id: match.matchedUserId.toString(),
+          name: match.matchedUserDisplayName,
+          age: match.matchedUserAge || 0,
+          avatar:
+            fullPhotoUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(match.matchedUserDisplayName)}&background=random`,
+          userId: match.matchedUserId,
+          hoursUntilExpiration: match.hoursUntilExpiration,
+          chatStarted: match.chatStarted,
+        };
+      });
+
+      setMatchQueue(queue);
     } catch (err) {
-      console.error("[InboxScreen] Failed to load suggested people:", err);
+      console.error("[InboxScreen] Failed to load matches:", err);
+      setMatchQueue([]);
+      setMatchedUserIds(new Set());
     }
   }, []);
 
@@ -233,16 +291,10 @@ export default function InboxScreen() {
   useFocusEffect(
     useCallback(() => {
       loadConversations();
-      loadSuggestedPeople();
-    }, [loadConversations, loadSuggestedPeople])
+      loadMatchQueue();
+    }, [loadConversations, loadMatchQueue])
   );
 
-  // Navigate to empty screen if no conversations
-  useEffect(() => {
-    if (!isLoading && conversations.length === 0 && !error) {
-      // Keep showing the screen with empty state instead of replacing
-    }
-  }, [conversations.length, isLoading, error]);
 
   // Socket event listeners
   useEffect(() => {
@@ -256,7 +308,6 @@ export default function InboxScreen() {
             (item) => item.roomId === payload.conversationId || item.id === payload.conversationId
           );
 
-          const now = new Date();
           const updatedConversation: Partial<ConversationPreview> = {
             message: payload.text,
             timestamp: "Just now",
@@ -337,22 +388,38 @@ export default function InboxScreen() {
     );
   }, [onlineUsers]);
 
-  // Filtered conversations
+  // Filtered conversations - only show conversations with matched users
   const filteredConversations = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return conversations;
+    // First filter by matched users - you can only chat with people you've matched with
+    let filtered = conversations.filter((item) => matchedUserIds.has(item.userId));
+
+    // Then apply search filter if present
+    if (searchQuery.trim()) {
+      filtered = filtered.filter((item) =>
+        item.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      );
     }
-    return conversations.filter((item) =>
-      item.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
-    );
-  }, [conversations, searchQuery]);
 
-  // Total unread count
+    return filtered;
+  }, [conversations, searchQuery, matchedUserIds]);
+
+  // Total unread count - only count from matched conversations
   const totalUnread = useMemo(() => {
-    return conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
-  }, [conversations]);
+    return filteredConversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+  }, [filteredConversations]);
 
-  const handlePressConversation = (conversation: ConversationPreview) => {
+  // Validate match before opening conversation
+  const handlePressConversation = useCallback(async (conversation: ConversationPreview) => {
+    // Quick check using local state
+    if (!matchedUserIds.has(conversation.userId)) {
+      Alert.alert(
+        "Cannot Open Chat",
+        "You can only chat with people you have matched with.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     navigation.navigate("ConversationScreen", {
       conversationId: parseInt(conversation.id, 10),
       otherUserId: conversation.userId,
@@ -360,33 +427,83 @@ export default function InboxScreen() {
       avatarUrl: conversation.avatar,
       roomId: conversation.roomId,
     });
-  };
+  }, [navigation, matchedUserIds]);
 
-  const handlePressAvatar = (userId: string) => {
-    navigation.navigate("DashboardScreen", { userId });
-  };
+  const handlePressAvatar = useCallback((userId: string) => {
+    navigation.navigate("ViewProfileScreen", { userId });
+  }, [navigation]);
 
-  const handleVideoCall = (conversation: ConversationPreview) => {
+  /**
+   * Start a chat with a match from the match queue
+   * This is the primary action in Bumble-style matching
+   */
+  const handleStartChat = useCallback(async (userId: string) => {
+    const numericUserId = parseInt(userId, 10);
+
+    if (!matchedUserIds.has(numericUserId)) {
+      Alert.alert(
+        "Match Expired",
+        "This match has expired. Keep swiping to find new matches!",
+        [{ text: "OK" }]
+      );
+      loadMatchQueue(); // Refresh the queue
+      return;
+    }
+
+    // Find the match in the queue for user details
+    const matchPerson = matchQueue.find((p) => p.id === userId);
+
+    navigation.navigate("ConversationScreen", {
+      conversationId: 0, // Will be created on first message
+      otherUserId: numericUserId,
+      otherUserName: matchPerson?.name || "Match",
+      avatarUrl: matchPerson?.avatar || "",
+      roomId: undefined,
+    });
+  }, [navigation, matchedUserIds, matchQueue, loadMatchQueue]);
+
+  // Validate match before video call
+  const handleVideoCall = useCallback(async (conversation: ConversationPreview) => {
+    if (!matchedUserIds.has(conversation.userId)) {
+      Alert.alert(
+        "Cannot Start Call",
+        "You can only call people you have matched with.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     navigation.navigate("VideoCallScreen", {
       userId: conversation.userId,
       username: conversation.name,
       callType: "video",
     });
-  };
+  }, [navigation, matchedUserIds]);
 
-  const handleVoiceCall = (conversation: ConversationPreview) => {
+  // Validate match before voice call
+  const handleVoiceCall = useCallback(async (conversation: ConversationPreview) => {
+    if (!matchedUserIds.has(conversation.userId)) {
+      Alert.alert(
+        "Cannot Start Call",
+        "You can only call people you have matched with.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     navigation.navigate("VoiceCallScreen", {
       userId: conversation.userId,
       username: conversation.name,
       callType: "audio",
     });
-  };
+  }, [navigation, matchedUserIds]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     loadConversations(true);
-  };
+    loadMatchQueue();
+  }, [loadConversations, loadMatchQueue]);
 
-  const renderConversation = ({ item, index }: { item: ConversationPreview; index: number }) => {
+  const renderConversation = useCallback(({ item, index }: { item: ConversationPreview; index: number }) => {
     const isOnline = item.isOnline || onlineUsers.has(item.userId);
 
     return (
@@ -400,9 +517,9 @@ export default function InboxScreen() {
         isOnline={isOnline}
       />
     );
-  };
+  }, [onlineUsers, handlePressConversation, handlePressAvatar, handleVideoCall, handleVoiceCall]);
 
-  const renderHeader = () => (
+  const renderHeader = useCallback(() => (
     <View style={styles.headerSection} accessibilityRole="header">
       <View style={styles.titleRow}>
         <AppText size="h1" weight="bold" style={styles.title}>
@@ -420,15 +537,16 @@ export default function InboxScreen() {
           <TouchableOpacity
             style={styles.circleButton}
             activeOpacity={0.85}
+            onPress={() => navigation.navigate("MyMatchesScreen")}
             accessibilityRole="button"
-            accessibilityLabel="Compose new message"
+            accessibilityLabel="View all matches"
           >
-            <Ionicons name="create-outline" size={24} color={colors.textPrimary} />
+            <Ionicons name="heart" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
       <AppText size="body" color={colors.textSecondary} style={styles.subtitle}>
-        Catch up with your conversations and stay connected.
+        Chat with your matches before time runs out!
       </AppText>
 
       <View style={styles.searchBar} accessibilityRole="search">
@@ -453,34 +571,101 @@ export default function InboxScreen() {
         </TouchableOpacity>
       </View>
 
-      {suggestedPeople.length > 0 && (
-        <LinearGradient
-          colors={colors.gradients.registration.array}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.suggestionsCard, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
+      {/* Urgent Matches Warning - Bumble style */}
+      {urgentMatches.length > 0 && (
+        <TouchableOpacity
+          style={styles.urgentWarning}
+          onPress={() => navigation.navigate("MyMatchesScreen")}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${urgentMatches.length} matches about to expire`}
         >
-          <PeopleYouMayKnowRow
-            people={suggestedPeople}
-            onSelect={(id) => handlePressAvatar(id)}
-          />
-        </LinearGradient>
+          <Ionicons name="warning" size={24} color={colors.error} />
+          <View style={styles.urgentWarningText}>
+            <AppText size="body" weight="bold" color={colors.error}>
+              {urgentMatches.length} match{urgentMatches.length > 1 ? "es" : ""} expiring soon!
+            </AppText>
+            <AppText size="small" color={colors.textSecondary}>
+              Less than 6 hours left - chat now!
+            </AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.error} />
+        </TouchableOpacity>
+      )}
+
+      {/* Match Queue - Bumble style with countdown timers */}
+      {matchQueue.length > 0 && (
+        <View>
+          <View style={styles.matchesSectionHeader}>
+            <View style={styles.matchesHeaderLeft}>
+              <AppText size="body" weight="bold" color={colors.textPrimary}>
+                Match Queue
+              </AppText>
+              <View style={styles.matchCountBadge}>
+                <AppText size="small" weight="bold" color={colors.white}>
+                  {matchQueue.length}
+                </AppText>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("MyMatchesScreen")}
+              accessibilityRole="button"
+              accessibilityLabel="View all matches"
+            >
+              <AppText size="small" weight="semibold" color={colors.primary}>
+                View All
+              </AppText>
+            </TouchableOpacity>
+          </View>
+          <LinearGradient
+            colors={colors.gradients.registration.array}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.matchQueueCard, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
+          >
+            <PeopleYouMayKnowRow
+              people={matchQueue}
+              onSelect={(id) => handlePressAvatar(id)}
+              onStartChat={handleStartChat}
+            />
+          </LinearGradient>
+        </View>
+      )}
+
+      {/* Empty match queue prompt */}
+      {matchQueue.length === 0 && !isLoading && (
+        <TouchableOpacity
+          style={styles.emptyMatchPrompt}
+          onPress={() => navigation.navigate("MatchesScreen")}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="heart-outline" size={32} color={colors.primary} />
+          <View style={styles.emptyMatchText}>
+            <AppText size="body" weight="semibold" color={colors.textPrimary}>
+              No pending matches
+            </AppText>
+            <AppText size="small" color={colors.textSecondary}>
+              Keep swiping to find your next connection!
+            </AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+        </TouchableOpacity>
       )}
 
       <View style={styles.sectionRow}>
         <AppText size="body" weight="bold" color={colors.textPrimary}>
           Messages
         </AppText>
-        <View style={styles.countBadge} accessibilityLabel={`${totalUnread > 0 ? totalUnread + " unread" : conversations.length + " total"} messages`}>
+        <View style={styles.countBadge} accessibilityLabel={`${totalUnread > 0 ? totalUnread + " unread" : filteredConversations.length + " total"} messages`}>
           <AppText size="small" weight="bold" color={colors.white}>
-            {totalUnread > 0 ? totalUnread : conversations.length}
+            {totalUnread > 0 ? totalUnread : filteredConversations.length}
           </AppText>
         </View>
       </View>
     </View>
-  );
+  ), [isAuthenticated, searchQuery, urgentMatches, matchQueue, totalUnread, filteredConversations.length, navigation, handlePressAvatar, handleStartChat, isLoading]);
 
-  const renderEmpty = () => {
+  const renderEmpty = useCallback(() => {
     if (isLoading) {
       return (
         <View style={styles.loadingState}>
@@ -522,7 +707,11 @@ export default function InboxScreen() {
         </AppText>
       </View>
     );
-  };
+  }, [isLoading, error, loadConversations]);
+
+  const keyExtractor = useCallback((item: ConversationPreview) => item.id, []);
+
+  const ItemSeparator = useCallback(() => <View style={styles.separator} />, []);
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.fullScreen}>
@@ -535,10 +724,10 @@ export default function InboxScreen() {
         <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
           <FlatList
             data={filteredConversations}
-            keyExtractor={(item) => item.id}
+            keyExtractor={keyExtractor}
             showsVerticalScrollIndicator={false}
             renderItem={renderConversation}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ItemSeparatorComponent={ItemSeparator}
             contentContainerStyle={styles.listContent}
             ListHeaderComponent={renderHeader}
             ListEmptyComponent={renderEmpty}
@@ -663,11 +852,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.backgroundLight,
-  },
-  suggestionsCard: {
-    borderRadius: 22,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
   },
   sectionRow: {
     marginTop: 8,
@@ -811,5 +995,62 @@ const styles = StyleSheet.create({
   },
   androidShadow: {
     elevation: 3,
+  },
+  // Urgent matches warning styles (Bumble-style)
+  urgentWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.2)",
+  },
+  urgentWarningText: {
+    flex: 1,
+    gap: 2,
+  },
+  // Match Queue section
+  matchesSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  matchesHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  matchCountBadge: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchQueueCard: {
+    borderRadius: 22,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+  },
+  // Empty match queue prompt
+  emptyMatchPrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.white,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  emptyMatchText: {
+    flex: 1,
+    gap: 2,
   },
 });

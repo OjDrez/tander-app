@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useMemo } from "react";
+import React, { useState, useCallback } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -15,42 +16,109 @@ import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
+import { userApi, UserProfile } from "@/src/api/userApi";
+import { photoApi } from "@/src/api/photoApi";
 
 type ViewProfileDetailsRouteProp =
   RouteProp<AppStackParamList, "ViewProfileDetailsScreen">;
 
 type ViewProfileDetailsNav = NativeStackNavigationProp<AppStackParamList>;
 
-const MOCK_PROFILE = {
-  id: "1",
-  name: "Felix Cruz",
-  email: "felix.cruz@hotmail.com",
-  avatar:
-    "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=320&q=80",
-  basicInfo: [
-    { label: "First Name", value: "Felix" },
-    { label: "Last Name", value: "Cruz" },
-    { label: "Nick Name", value: "Tayix" },
-    { label: "Birthday", value: "02/28/1957" },
-    { label: "Age", value: "65" },
-    { label: "Country", value: "Phil" },
-    { label: "Civil Status", value: "Widowed" },
-    { label: "City/Province", value: "Taytay" },
-    { label: "Hobby", value: "Cooking" },
-  ],
+interface ProfileDisplay {
+  name: string;
+  email: string;
+  avatar: string | null;
+  basicInfo: { label: string; value: string }[];
   about: {
-    bio: "If you enjoy good food, we'll get along. I love trying new recipes and sharing them with someone. Let's cook, laugh, and enjoy life together.",
-    interests: ["Music", "Cooking", "Movies"],
-    lookingFor: ["Connect", "Companionship"],
-  },
-};
+    bio: string;
+    interests: string[];
+    lookingFor: string[];
+  };
+}
 
 export default function ViewProfileDetailsScreen() {
   const navigation = useNavigation<ViewProfileDetailsNav>();
   const route = useRoute<ViewProfileDetailsRouteProp>();
-  const { userId } = route.params;
+  const userId = route.params?.userId;
 
-  const profile = useMemo(() => ({ ...MOCK_PROFILE, id: userId }), [userId]);
+  const [profile, setProfile] = useState<ProfileDisplay | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [userId])
+  );
+
+  const loadProfile = async () => {
+    setIsLoading(true);
+    try {
+      // Load current user profile (for settings view)
+      const userData = await userApi.getCurrentUser();
+
+      const displayProfile: ProfileDisplay = {
+        name: userData.displayName || "User",
+        email: userData.email,
+        avatar: userData.profilePhotoUrl || null,
+        basicInfo: [
+          { label: "First Name", value: userData.firstName || "-" },
+          { label: "Last Name", value: userData.lastName || "-" },
+          { label: "Nick Name", value: userData.nickName || "-" },
+          { label: "Age", value: userData.age?.toString() || "-" },
+          { label: "Country", value: userData.country || "-" },
+          { label: "City/Province", value: userData.city || "-" },
+          { label: "Civil Status", value: userData.civilStatus || "-" },
+          { label: "Hobby", value: userData.hobby || "-" },
+        ],
+        about: {
+          bio: userData.bio || "No bio yet",
+          interests: userApi.parseInterests(userData.interests),
+          lookingFor: userApi.parseLookingFor(userData.lookingFor),
+        },
+      };
+
+      setProfile(displayProfile);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getPhotoUrl = () => {
+    if (profile?.avatar) {
+      return photoApi.getPhotoUrl(profile.avatar);
+    }
+    return "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=320&q=80";
+  };
+
+  if (isLoading) {
+    return (
+      <FullScreen statusBarStyle="dark" style={styles.screen}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <AppText size="body" color={colors.textSecondary} style={{ marginTop: 16 }}>
+            Loading profile...
+          </AppText>
+        </View>
+      </FullScreen>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <FullScreen statusBarStyle="dark" style={styles.screen}>
+        <View style={styles.loadingContainer}>
+          <AppText size="body" color={colors.textSecondary}>
+            Failed to load profile
+          </AppText>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+            <AppText size="body" color={colors.primary}>Go Back</AppText>
+          </TouchableOpacity>
+        </View>
+      </FullScreen>
+    );
+  }
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
@@ -74,7 +142,7 @@ export default function ViewProfileDetailsScreen() {
             </TouchableOpacity>
 
             <AppText size="h3" weight="bold" style={styles.headerTitle}>
-              Settings
+              My Profile
             </AppText>
 
             <View style={styles.logoRow}>
@@ -90,7 +158,7 @@ export default function ViewProfileDetailsScreen() {
           </View>
 
           <View style={styles.summaryCard}>
-            <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+            <Image source={{ uri: getPhotoUrl() || undefined }} style={styles.avatar} />
             <View style={styles.summaryTextBlock}>
               <AppText size="h3" weight="bold" color={colors.textPrimary}>
                 {profile.name}
@@ -99,6 +167,15 @@ export default function ViewProfileDetailsScreen() {
                 {profile.email}
               </AppText>
             </View>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => navigation.navigate("EditBasicInfoScreen")}
+            >
+              <Ionicons name="pencil" size={16} color={colors.primary} />
+              <AppText size="small" weight="semibold" color={colors.primary}>
+                Edit Profile
+              </AppText>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.card}>
@@ -139,51 +216,55 @@ export default function ViewProfileDetailsScreen() {
               {profile.about.bio}
             </AppText>
 
-            <View style={styles.tagSection}>
-              <AppText
-                size="tiny"
-                weight="semibold"
-                color={colors.textMuted}
-              >
-                Interests
-              </AppText>
-              <View style={styles.tagRow}>
-                {profile.about.interests.map((tag) => (
-                  <View key={tag} style={styles.tagBadge}>
-                    <AppText
-                      size="tiny"
-                      weight="semibold"
-                      color={colors.textPrimary}
-                    >
-                      {tag}
-                    </AppText>
-                  </View>
-                ))}
+            {profile.about.interests.length > 0 && (
+              <View style={styles.tagSection}>
+                <AppText
+                  size="tiny"
+                  weight="semibold"
+                  color={colors.textMuted}
+                >
+                  Interests
+                </AppText>
+                <View style={styles.tagRow}>
+                  {profile.about.interests.map((tag) => (
+                    <View key={tag} style={styles.tagBadge}>
+                      <AppText
+                        size="tiny"
+                        weight="semibold"
+                        color={colors.textPrimary}
+                      >
+                        {tag}
+                      </AppText>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
 
-            <View style={styles.tagSection}>
-              <AppText
-                size="tiny"
-                weight="semibold"
-                color={colors.textMuted}
-              >
-                Looking For
-              </AppText>
-              <View style={styles.tagRow}>
-                {profile.about.lookingFor.map((tag) => (
-                  <View key={tag} style={styles.tagBadgeSecondary}>
-                    <AppText
-                      size="tiny"
-                      weight="semibold"
-                      color={colors.primary}
-                    >
-                      {tag}
-                    </AppText>
-                  </View>
-                ))}
+            {profile.about.lookingFor.length > 0 && (
+              <View style={styles.tagSection}>
+                <AppText
+                  size="tiny"
+                  weight="semibold"
+                  color={colors.textMuted}
+                >
+                  Looking For
+                </AppText>
+                <View style={styles.tagRow}>
+                  {profile.about.lookingFor.map((tag) => (
+                    <View key={tag} style={styles.tagBadgeSecondary}>
+                      <AppText
+                        size="tiny"
+                        weight="semibold"
+                        color={colors.primary}
+                      >
+                        {tag}
+                      </AppText>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -262,6 +343,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: colors.accentMint,
+    borderRadius: 12,
+  },
   card: {
     backgroundColor: colors.white,
     borderRadius: 18,
@@ -319,5 +410,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.primary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
 });

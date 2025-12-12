@@ -98,12 +98,12 @@ export default function Step1BasicInfo({ navigation }: Props) {
   };
 
   // Calculate field completion for progress indicator
+  // Note: Email removed - already collected in AccountIntroScreen
   const calculateCompletion = () => {
     const requiredFields = [
       "firstName",
       "lastName",
       "nickName",
-      "email",
       "birthday",
       "age",
       "country",
@@ -126,7 +126,6 @@ export default function Step1BasicInfo({ navigation }: Props) {
       firstName: true,
       lastName: true,
       nickName: true,
-      email: true,
       birthday: true,
       age: true,
       country: true,
@@ -139,17 +138,28 @@ export default function Step1BasicInfo({ navigation }: Props) {
     // Validate the form
     const formErrors = await validateForm();
 
-    // Get step1 specific errors
-    const step1Fields = ['firstName', 'lastName', 'nickName', 'email', 'birthday', 'age', 'country', 'civilStatus', 'city', 'hobby'];
+    // Get step1 specific errors (email removed - already collected in AccountIntroScreen)
+    const step1Fields = ['firstName', 'lastName', 'nickName', 'birthday', 'age', 'country', 'civilStatus', 'city', 'hobby'];
     const step1Errors = step1Fields.filter(field => formErrors[field]);
 
     if (step1Errors.length > 0) {
-      // Show first error message
-      const firstErrorField = step1Errors[0];
-      const errorMessage = formErrors[firstErrorField];
+      // Show ALL errors for better user feedback (elderly users need clear guidance)
+      const errorMessages = step1Errors
+        .map((field) => {
+          const msg = formErrors[field];
+          return typeof msg === 'string' ? msg : null;
+        })
+        .filter(Boolean);
 
-      if (typeof errorMessage === 'string') {
-        toast.error(errorMessage);
+      if (errorMessages.length > 0) {
+        // Show count and first few errors
+        if (errorMessages.length === 1) {
+          toast.error(errorMessages[0] as string);
+        } else {
+          toast.error(
+            `Please fix ${errorMessages.length} errors:\n• ${errorMessages.slice(0, 3).join('\n• ')}${errorMessages.length > 3 ? `\n• ...and ${errorMessages.length - 3} more` : ''}`
+          );
+        }
       } else {
         toast.warning("Please complete all required fields correctly.");
       }
@@ -180,12 +190,14 @@ export default function Step1BasicInfo({ navigation }: Props) {
     // Save progress to backend using completeProfile (sets profile_completed = true)
     setIsSaving(true);
     try {
-      // Convert MM/DD/YYYY to yyyy-MM-dd format for backend
+      // Ensure date is in MM/dd/yyyy format for backend (already in this format from DatePicker)
       const formatDateForBackend = (dateStr: string): string => {
+        // DatePicker outputs MM/DD/YYYY - backend expects MM/dd/yyyy
+        // Just ensure proper padding
         const parts = dateStr.split('/');
         if (parts.length === 3) {
           const [month, day, year] = parts;
-          return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          return `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`;
         }
         return dateStr;
       };
@@ -194,12 +206,13 @@ export default function Step1BasicInfo({ navigation }: Props) {
       console.log('📅 Original birthday:', values.birthday);
       console.log('📅 Formatted birthDate for backend:', formattedBirthDate);
 
+      // Email is already collected in AccountIntroScreen, use it from phase1Data
       const profileData = {
         firstName: values.firstName,
         lastName: values.lastName,
         middleName: values.middleName || '',
         nickName: values.nickName,
-        email: phase1Data?.email || values.email,
+        email: phase1Data?.email || '', // Use email from AccountIntroScreen
         birthDate: formattedBirthDate,
         age: parseInt(values.age),
         country: values.country,
@@ -335,19 +348,6 @@ export default function Step1BasicInfo({ navigation }: Props) {
               error={getErrorString(errors.nickName)}
               onChangeText={(t) => setFieldValue("nickName", t, true)}
               onBlur={() => setFieldTouched("nickName", true, false)}
-            />
-
-            {/* EMAIL */}
-            <TextInputField
-              label="Email *"
-              placeholder="Enter your email address"
-              value={values.email}
-              touched={!!touched.email}
-              error={getErrorString(errors.email)}
-              onChangeText={(t) => setFieldValue("email", t, true)}
-              onBlur={() => setFieldTouched("email", true, false)}
-              keyboardType="email-address"
-              autoCapitalize="none"
             />
 
             {/* BIRTHDAY + AGE (2-column layout) */}
@@ -582,9 +582,9 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.textSecondary,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
     width: "95%",
-    fontSize: 14,
+    fontSize: 16, // Increased for elderly users
   },
 
   completionIndicator: {
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
   },
 
   completionHint: {
-    fontSize: 12,
+    fontSize: 14, // Increased for elderly users
     color: colors.textSecondary,
     marginTop: 4,
     marginLeft: 26,
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   },
 
   autoCalculated: {
-    fontSize: 11,
+    fontSize: 13, // Increased for elderly users
     color: colors.textMuted,
     marginTop: 4,
     textAlign: "center",
@@ -696,11 +696,11 @@ const styles = StyleSheet.create({
   },
 
   ageError: {
-    fontSize: 12,
+    fontSize: 14, // Increased for elderly users
     color: "#D9534F",
     marginTop: 4,
     textAlign: "center",
-    fontWeight: "500",
+    fontWeight: "600",
   },
 
   // Bottom Navigation

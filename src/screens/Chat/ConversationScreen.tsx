@@ -7,7 +7,15 @@ import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { useChat } from "@/src/hooks/useChat";
 import { useSocketConnection } from "@/src/hooks/useSocket";
-import { getConversationMessages, formatMessageTime, formatMessageDate, getDateLabel } from "@/src/api/chatApi";
+import {
+  getConversationMessages,
+  formatMessageTime,
+  formatMessageDate,
+  getDateLabel,
+  checkMatchStatus,
+  getExpirationWarning,
+  MatchInfo,
+} from "@/src/api/chatApi";
 import { ChatListItem, DateSeparator, MessageDisplay } from "@/src/types/chat";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -19,6 +27,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -66,6 +75,29 @@ const ConnectionStatusBanner = ({ isOnline, pendingCount }: { isOnline: boolean;
   );
 };
 
+// Match expiration warning banner
+const MatchExpirationBanner = ({
+  hoursUntilExpiration,
+  chatStarted,
+}: {
+  hoursUntilExpiration?: number;
+  chatStarted?: boolean;
+}) => {
+  const warningMessage = getExpirationWarning(hoursUntilExpiration);
+
+  // Don't show warning if chat has started (match won't expire)
+  if (chatStarted || !warningMessage) return null;
+
+  return (
+    <View style={styles.expirationBanner}>
+      <Ionicons name="time-outline" size={18} color={colors.warning} />
+      <AppText size="small" color={colors.textPrimary} style={styles.expirationText}>
+        {warningMessage}
+      </AppText>
+    </View>
+  );
+};
+
 export default function ConversationScreen({
   route,
 }: NativeStackScreenProps<AppStackParamList, "ConversationScreen">) {
@@ -77,11 +109,31 @@ export default function ConversationScreen({
   const [messageText, setMessageText] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [initialMessages, setInitialMessages] = useState<MessageDisplay[]>([]);
+  const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList<ChatListItem>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isUserOnline = onlineUsers.has(otherUserId);
+
+  // Check match status when screen loads
+  useEffect(() => {
+    const validateMatch = async () => {
+      const info = await checkMatchStatus(otherUserId);
+      setMatchInfo(info);
+
+      if (!info.isMatched) {
+        setMatchError("You can only chat with users you have matched with.");
+      } else if (info.status === "EXPIRED") {
+        setMatchError("This match has expired. Keep swiping to find new matches!");
+      } else if (info.status === "UNMATCHED") {
+        setMatchError("This match is no longer active.");
+      }
+    };
+
+    validateMatch();
+  }, [otherUserId]);
 
   // Load message history from API
   const loadMessageHistory = useCallback(async () => {
@@ -315,7 +367,7 @@ export default function ConversationScreen({
               centerContent={
                 <TouchableOpacity
                   style={styles.headerUserRow}
-                  onPress={() => navigation.navigate("DashboardScreen", { userId: otherUserId.toString() })}
+                  onPress={() => navigation.navigate("ViewProfileScreen", { userId: otherUserId.toString() })}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                   accessibilityLabel={`${otherUserName}'s profile, ${isUserOnline ? "online now" : "offline"}`}
@@ -371,14 +423,45 @@ export default function ConversationScreen({
               }
             />
 
-            {isLoadingHistory ? (
+            {/* Match Error State */}
+            {matchError && (
+              <View style={styles.matchErrorContainer}>
+                <Ionicons name="heart-dislike-outline" size={64} color={colors.textMuted} />
+                <AppText size="h4" weight="semibold" color={colors.textPrimary} style={styles.matchErrorTitle}>
+                  Can't Start Chat
+                </AppText>
+                <AppText size="body" color={colors.textSecondary} style={styles.matchErrorText}>
+                  {matchError}
+                </AppText>
+                <TouchableOpacity
+                  style={styles.matchErrorButton}
+                  onPress={() => navigation.goBack()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                >
+                  <AppText size="body" weight="semibold" color={colors.primary}>
+                    Go Back
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Expiration Warning Banner */}
+            {!matchError && matchInfo && (
+              <MatchExpirationBanner
+                hoursUntilExpiration={matchInfo.hoursUntilExpiration}
+                chatStarted={matchInfo.chatStarted}
+              />
+            )}
+
+            {isLoadingHistory && !matchError ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <AppText size="small" color={colors.textSecondary} style={styles.loadingText}>
                   Loading messages...
                 </AppText>
               </View>
-            ) : (
+            ) : !matchError ? (
               <FlatList
                 ref={flatListRef}
                 data={displayMessages}
@@ -401,7 +484,7 @@ export default function ConversationScreen({
                   </View>
                 }
               />
-            )}
+            ) : null}
 
             {/* Connection status banner */}
             <ConnectionStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
@@ -444,19 +527,22 @@ export default function ConversationScreen({
               </View>
             )}
 
-            <View
-              style={[
-                styles.inputContainer,
-                { paddingBottom: Math.max(insets.bottom, 10) },
-              ]}
-            >
-              <MessageInputBar
-                value={messageText}
-                onChangeText={handleTextChange}
-                onSend={handleSend}
-                placeholder={`Message ${otherUserName}...`}
-              />
-            </View>
+            {/* Only show input if match is valid */}
+            {!matchError && (
+              <View
+                style={[
+                  styles.inputContainer,
+                  { paddingBottom: Math.max(insets.bottom, 10) },
+                ]}
+              >
+                <MessageInputBar
+                  value={messageText}
+                  onChangeText={handleTextChange}
+                  onSend={handleSend}
+                  placeholder={`Message ${otherUserName}...`}
+                />
+              </View>
+            )}
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>
@@ -676,5 +762,53 @@ const styles = StyleSheet.create({
   inputContainer: {
     backgroundColor: colors.white,
     paddingTop: 8,
+  },
+
+  // Match error styles
+  matchErrorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    paddingVertical: 48,
+    gap: 16,
+  },
+  matchErrorTitle: {
+    marginTop: 16,
+    textAlign: "center",
+  },
+  matchErrorText: {
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  matchErrorButton: {
+    marginTop: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Expiration warning styles
+  expirationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: colors.warningLight,
+    borderRadius: 12,
+  },
+  expirationText: {
+    flex: 1,
+    lineHeight: 20,
   },
 });

@@ -7,12 +7,13 @@ import {
   IncomingCallScreen,
 } from "../screens/Call";
 import ConversationScreen from "../screens/Chat/ConversationScreen";
+import DiscoveryScreen from "../screens/Discovery/DiscoveryScreen";
 import HomeScreen from "../screens/Home/HomeScreen";
 import InboxEmptyScreen from "../screens/Inbox/InboxEmptyScreen";
 import InboxScreen from "../screens/Inbox/InboxScreen";
 import MatchCelebrationScreen from "../screens/Matches/MatchCelebrationScreen";
+import MatchesScreen from "../screens/Matches/MatchesScreen";
 import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
-import DashboardScreen from "../screens/Profile/DashboardScreen";
 import MyProfileScreen from "../screens/Profile/MyProfileScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
@@ -30,6 +31,7 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={HomeScreen} />
+      <Stack.Screen name="DiscoveryScreen" component={DiscoveryScreen} />
       <Stack.Screen name="InboxScreen" component={InboxScreen} />
       <Stack.Screen name="InboxEmptyScreen" component={InboxEmptyScreen} />
       <Stack.Screen name="ConversationScreen" component={ConversationScreen} />
@@ -39,6 +41,7 @@ export default function AppNavigator() {
         component={MatchCelebrationScreen}
       />
       <Stack.Screen name="MyMatchesScreen" component={MyMatchesScreen} />
+      <Stack.Screen name="MatchesScreen" component={MatchesScreen} />
       <Stack.Screen
         name="PeopleViewedMeScreen"
         component={PeopleViewedMeScreen}
@@ -50,7 +53,6 @@ export default function AppNavigator() {
         name="ViewProfileDetailsScreen"
         component={ViewProfileDetailsScreen}
       />
-      <Stack.Screen name="DashboardScreen" component={DashboardScreen} />
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
       <Stack.Screen
         name="EditBasicInfoScreen"

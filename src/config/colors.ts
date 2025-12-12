@@ -7,6 +7,7 @@ export default {
   accentTeal: "#33A9A2",
   accentBlue: "#0B2E61",
   accentMint: "#E8F8F7",
+  accentPeach: "#FFECD4",
 
   // -----------------------------------
   // PRESSED STATES
@@ -44,10 +45,13 @@ export default {
   // -----------------------------------
   danger: "#FF0000",
   dangerLight: "#FEE2E2",
+  error: "#EF4444",
+  errorLight: "#FEE2E2",
   success: "#33A9A2",
   successLight: "#D1FAE5",
   warning: "#F5A14B",
   warningLight: "#FEF3C7",
+  primaryLight: "#FED7AA",
 
   // -----------------------------------
   // SHADOWS

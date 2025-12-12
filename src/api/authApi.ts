@@ -19,7 +19,7 @@ export interface CompleteProfileRequest {
   nickName: string;
   address?: string;
   phone?: string;
-  email: string;
+  email?: string; // Optional - already collected in AccountIntroScreen
   birthDate: string;
   age: number;
   country: string;
@@ -56,13 +56,6 @@ export interface VerifyIdRequest {
 export interface VerifyIdResponse {
   status: 'success' | 'error';
   message: string;
-}
-
-export interface UploadPhotosResponse {
-  status: 'success' | 'error';
-  message: string;
-  profilePhotoUrl?: string;
-  additionalPhotoUrls?: string[];
 }
 
 export interface UpdateAboutYouRequest {
@@ -182,48 +175,6 @@ export const authApi = {
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'ID verification failed';
-      throw new Error(errorMessage);
-    }
-  },
-
-  uploadPhotos: async (
-    username: string,
-    profilePhoto?: { uri: string; type: string; name: string },
-    additionalPhotos?: { uri: string; type: string; name: string }[]
-  ): Promise<UploadPhotosResponse> => {
-    try {
-      console.log('🔵 [authApi.uploadPhotos] Starting photo upload...');
-      console.log('🔵 [authApi.uploadPhotos] Username:', username);
-      console.log('🔵 [authApi.uploadPhotos] Profile photo:', profilePhoto ? 'Yes' : 'No');
-      console.log('🔵 [authApi.uploadPhotos] Additional photos:', additionalPhotos?.length || 0);
-
-      const formData = new FormData();
-      formData.append('username', username);
-
-      // Add profile photo if provided
-      if (profilePhoto) {
-        formData.append('profilePhoto', profilePhoto as any);
-      }
-
-      // Add additional photos if provided
-      if (additionalPhotos && additionalPhotos.length > 0) {
-        additionalPhotos.forEach((photo) => {
-          formData.append('additionalPhotos', photo as any);
-        });
-      }
-
-      const response = await apiClient.post('/user/upload-photos', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 120000, // 2 minute timeout for multiple file uploads
-      });
-
-      console.log('✅ [authApi.uploadPhotos] Success:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ [authApi.uploadPhotos] Error:', error.response?.data || error.message);
-      const errorMessage = error.response?.data?.message || 'Photo upload failed';
       throw new Error(errorMessage);
     }
   },

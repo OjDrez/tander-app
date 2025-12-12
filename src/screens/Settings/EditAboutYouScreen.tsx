@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -17,22 +19,51 @@ import FullScreen from "@/src/components/layout/FullScreen";
 import AppText from "@/src/components/inputs/AppText";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
-
-const MOCK_ABOUT = {
-  bio: "If you enjoy good food, we'll get along. I love trying new recipes and sharing them with someone. Let's cook, laugh, and enjoy life together.",
-  interests: ["Music", "Cooking", "Movies"],
-  lookingFor: ["Connect", "Companionship"],
-};
+import { userApi } from "@/src/api/userApi";
 
 type EditAboutNav = NativeStackNavigationProp<AppStackParamList>;
+
+interface AboutData {
+  bio: string;
+  interests: string[];
+  lookingFor: string[];
+}
 
 export default function EditAboutYouScreen() {
   const navigation = useNavigation<EditAboutNav>();
 
-  const [about, setAbout] = useState(MOCK_ABOUT);
+  const [about, setAbout] = useState<AboutData>({
+    bio: "",
+    interests: [],
+    lookingFor: [],
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load profile data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [])
+  );
+
+  const loadProfile = async () => {
+    try {
+      const userData = await userApi.getCurrentUser();
+      setAbout({
+        bio: userData.bio || "",
+        interests: userApi.parseInterests(userData.interests),
+        lookingFor: userApi.parseLookingFor(userData.lookingFor),
+      });
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const interestOptions = useMemo(
-    () => ["Music", "Cooking", "Movies", "Travel", "Sports", "Art"],
+    () => ["Music", "Cooking", "Movies", "Travel", "Sports", "Art", "Reading", "Gardening", "Dancing", "Photography"],
     []
   );
   const lookingForOptions = useMemo(
@@ -51,6 +82,38 @@ export default function EditAboutYouScreen() {
   };
 
   const handleGoBack = () => navigation.goBack();
+
+  const handleUpdateProfile = async () => {
+    setIsSaving(true);
+    try {
+      await userApi.updateProfile({
+        bio: about.bio,
+        interests: about.interests,
+        lookingFor: about.lookingFor,
+      });
+
+      Alert.alert("Success", "Your profile has been updated!", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to update profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <FullScreen statusBarStyle="dark" style={styles.screen}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <AppText size="body" color={colors.textSecondary} style={{ marginTop: 16 }}>
+            Loading profile...
+          </AppText>
+        </View>
+      </FullScreen>
+    );
+  }
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
@@ -114,7 +177,7 @@ export default function EditAboutYouScreen() {
           </View>
 
           <View style={styles.card}>
-            <AppText size="h5" weight="bold" color={colors.textPrimary}>
+            <AppText size="h4" weight="bold" color={colors.textPrimary}>
               Interests
             </AppText>
             <PillSelector
@@ -125,7 +188,7 @@ export default function EditAboutYouScreen() {
           </View>
 
           <View style={styles.card}>
-            <AppText size="h5" weight="bold" color={colors.textPrimary}>
+            <AppText size="h4" weight="bold" color={colors.textPrimary}>
               Looking for
             </AppText>
             <View style={styles.tagGrid}>
@@ -150,10 +213,19 @@ export default function EditAboutYouScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.updateButton} activeOpacity={0.9}>
-            <AppText weight="bold" color={colors.white} style={{ textAlign: "center" }}>
-              Update Profile
-            </AppText>
+          <TouchableOpacity
+            style={[styles.updateButton, isSaving && styles.updateButtonDisabled]}
+            activeOpacity={0.9}
+            onPress={handleUpdateProfile}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <AppText weight="bold" color={colors.white} style={{ textAlign: "center" }}>
+                Update Profile
+              </AppText>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -251,5 +323,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
     marginTop: 4,
+    minHeight: 52,
+  },
+  updateButtonDisabled: {
+    opacity: 0.7,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
 });

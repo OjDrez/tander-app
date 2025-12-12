@@ -125,86 +125,68 @@ export const PHILIPPINES_CITIES = [
   "Marawi",
 ].sort();
 
+// Curated hobby options for senior users (60+)
+// Organized by popularity and relevance to elderly demographic
 export const HOBBY_OPTIONS = [
+  // Social & Community (most relevant for seniors seeking connection)
+  "Socializing",
+  "Volunteering",
+  "Church Activities",
+  "Community Events",
+
+  // Relaxing Activities
+  "Reading",
+  "Watching Movies/TV",
+  "Listening to Music",
+  "Gardening",
+  "Walking",
+  "Meditation",
+
   // Creative & Arts
-  "Painting",
-  "Drawing",
+  "Painting/Drawing",
   "Photography",
   "Writing",
-  "Poetry",
+  "Crafts/DIY",
+  "Knitting/Crocheting",
   "Playing Music",
   "Singing",
   "Dancing",
-  "Acting",
-  "Crafts",
-  "Knitting/Crochet",
-  "Digital Art",
-  "Video Editing",
-  "Graphic Design",
-
-  // Sports & Fitness
-  "Running",
-  "Gym/Weightlifting",
-  "Yoga",
-  "Swimming",
-  "Basketball",
-  "Volleyball",
-  "Badminton",
-  "Tennis",
-  "Football/Soccer",
-  "Martial Arts",
-  "Boxing",
-  "Cycling",
-  "Hiking",
-  "Rock Climbing",
-  "Skateboarding",
-  "Surfing",
-
-  // Gaming & Tech
-  "Video Gaming",
-  "Board Games",
-  "Chess",
-  "Coding/Programming",
-  "Building PCs",
-  "Robotics",
 
   // Food & Culinary
   "Cooking",
   "Baking",
-  "Food Tasting",
-  "Coffee Brewing",
-  "Wine Tasting",
+  "Trying New Restaurants",
 
-  // Outdoor & Adventure
-  "Traveling",
-  "Camping",
+  // Games & Mental Activities
+  "Card Games",
+  "Board Games",
+  "Chess/Checkers",
+  "Puzzles",
+  "Crosswords",
+
+  // Physical Activities (senior-friendly)
+  "Swimming",
+  "Yoga/Stretching",
+  "Tai Chi",
+  "Golf",
+  "Bowling",
+  "Light Exercise",
+  "Cycling",
   "Fishing",
-  "Gardening",
+
+  // Travel & Outdoors
+  "Traveling",
+  "Day Trips",
   "Bird Watching",
-  "Nature Photography",
+  "Nature Walks",
 
-  // Entertainment & Social
-  "Watching Movies",
-  "Watching Series/Anime",
-  "Reading Books",
-  "Listening to Music",
-  "Going to Concerts",
-  "Karaoke",
-  "Social Media",
-  "Vlogging",
-  "Podcasting",
-
-  // Collection & Hobbies
-  "Collecting (Coins/Stamps/etc)",
-  "Fashion/Shopping",
-  "Makeup/Beauty",
-  "Car Enthusiast",
-  "Motorcycle Riding",
-
-  // Learning & Development
+  // Learning
   "Learning Languages",
-  "Reading Self-Help Books",
-  "Meditation",
-  "Volunteering",
+  "Taking Classes",
+  "History",
+
+  // Other
   "Pet Care",
-].sort();
+  "Collecting",
+  "Karaoke",
+];
