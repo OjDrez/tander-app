@@ -32,8 +32,23 @@ type FormValues = {
   confirmPassword: string;
 };
 
+// Password strength checker for elderly-friendly feedback
+const getPasswordStrength = (password: string) => {
+  const checks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
+  };
+  const passedChecks = Object.values(checks).filter(Boolean).length;
+  const strength = passedChecks === 0 ? 0 : passedChecks === 1 ? 1 : passedChecks === 2 ? 2 : 3;
+
+  return { checks, strength };
+};
+
 export default function AccountIntroScreen() {
   const [useBiometric, setUseBiometric] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register, setPhase1Data } = useAuth();
   const toast = useToast();
 
@@ -219,29 +234,144 @@ export default function AccountIntroScreen() {
                     error={touched.email ? errors.email : undefined}
                   />
 
-                  <AppTextInput
-                    icon="lock-closed-outline"
-                    placeholder="Create a password *"
-                    secureTextEntry
-                    autoCapitalize="none"
-                    value={values.password}
-                    onChangeText={handleChange("password")}
-                    onBlur={handleBlur("password")}
-                    error={touched.password ? errors.password : undefined}
-                  />
+                  {/* Password field with show/hide toggle */}
+                  <View style={styles.passwordContainer}>
+                    <AppTextInput
+                      icon="lock-closed-outline"
+                      placeholder="Create a password *"
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      value={values.password}
+                      onChangeText={handleChange("password")}
+                      onBlur={handleBlur("password")}
+                      error={touched.password ? errors.password : undefined}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setShowPassword(!showPassword)}
+                      accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off-outline" : "eye-outline"}
+                        size={24}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
 
-                  <AppTextInput
-                    icon="shield-checkmark-outline"
-                    placeholder="Confirm password *"
-                    secureTextEntry
-                    autoCapitalize="none"
-                    value={values.confirmPassword}
-                    onChangeText={handleChange("confirmPassword")}
-                    onBlur={handleBlur("confirmPassword")}
-                    error={
-                      touched.confirmPassword ? errors.confirmPassword : undefined
-                    }
-                  />
+                  {/* Password strength indicator - elderly friendly */}
+                  {values.password.length > 0 && (
+                    <View style={styles.strengthContainer}>
+                      <View style={styles.strengthBarContainer}>
+                        {[1, 2, 3].map((level) => (
+                          <View
+                            key={level}
+                            style={[
+                              styles.strengthBar,
+                              getPasswordStrength(values.password).strength >= level &&
+                                (level === 1 ? styles.strengthWeak :
+                                 level === 2 ? styles.strengthMedium :
+                                 styles.strengthStrong)
+                            ]}
+                          />
+                        ))}
+                      </View>
+                      <Text style={styles.strengthText}>
+                        {getPasswordStrength(values.password).strength === 0 && "Too weak"}
+                        {getPasswordStrength(values.password).strength === 1 && "Weak"}
+                        {getPasswordStrength(values.password).strength === 2 && "Good"}
+                        {getPasswordStrength(values.password).strength === 3 && "Strong"}
+                      </Text>
+                      {/* Requirements checklist for elderly users */}
+                      <View style={styles.requirementsList}>
+                        <View style={styles.requirementItem}>
+                          <Ionicons
+                            name={getPasswordStrength(values.password).checks.length ? "checkmark-circle" : "ellipse-outline"}
+                            size={18}
+                            color={getPasswordStrength(values.password).checks.length ? colors.success : colors.textMuted}
+                          />
+                          <Text style={[
+                            styles.requirementText,
+                            getPasswordStrength(values.password).checks.length && styles.requirementMet
+                          ]}>
+                            At least 8 characters
+                          </Text>
+                        </View>
+                        <View style={styles.requirementItem}>
+                          <Ionicons
+                            name={getPasswordStrength(values.password).checks.uppercase ? "checkmark-circle" : "ellipse-outline"}
+                            size={18}
+                            color={getPasswordStrength(values.password).checks.uppercase ? colors.success : colors.textMuted}
+                          />
+                          <Text style={[
+                            styles.requirementText,
+                            getPasswordStrength(values.password).checks.uppercase && styles.requirementMet
+                          ]}>
+                            One uppercase letter (A-Z)
+                          </Text>
+                        </View>
+                        <View style={styles.requirementItem}>
+                          <Ionicons
+                            name={getPasswordStrength(values.password).checks.number ? "checkmark-circle" : "ellipse-outline"}
+                            size={18}
+                            color={getPasswordStrength(values.password).checks.number ? colors.success : colors.textMuted}
+                          />
+                          <Text style={[
+                            styles.requirementText,
+                            getPasswordStrength(values.password).checks.number && styles.requirementMet
+                          ]}>
+                            One number (0-9)
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Confirm password with show/hide toggle */}
+                  <View style={styles.passwordContainer}>
+                    <AppTextInput
+                      icon="shield-checkmark-outline"
+                      placeholder="Confirm password *"
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                      value={values.confirmPassword}
+                      onChangeText={handleChange("confirmPassword")}
+                      onBlur={handleBlur("confirmPassword")}
+                      error={
+                        touched.confirmPassword ? errors.confirmPassword : undefined
+                      }
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      accessibilityLabel={showConfirmPassword ? "Hide password" : "Show password"}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons
+                        name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+                        size={24}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Password match indicator */}
+                  {values.confirmPassword.length > 0 && (
+                    <View style={styles.matchIndicator}>
+                      <Ionicons
+                        name={values.password === values.confirmPassword ? "checkmark-circle" : "close-circle"}
+                        size={20}
+                        color={values.password === values.confirmPassword ? colors.success : colors.error}
+                      />
+                      <Text style={[
+                        styles.matchText,
+                        values.password === values.confirmPassword ? styles.matchSuccess : styles.matchError
+                      ]}>
+                        {values.password === values.confirmPassword ? "Passwords match" : "Passwords do not match"}
+                      </Text>
+                    </View>
+                  )}
 
                   <View style={styles.biometricRow}>
                     <View style={styles.biometricTextContainer}>
@@ -487,5 +617,82 @@ const styles = StyleSheet.create({
   footerAction: {
     color: colors.accentTeal,
     fontWeight: "700",
+  },
+  // Password visibility toggle styles
+  passwordContainer: {
+    position: "relative",
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 16,
+    top: 18,
+    padding: 8,
+    zIndex: 1,
+  },
+  // Password strength indicator styles
+  strengthContainer: {
+    marginTop: -8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  strengthBarContainer: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 8,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#E5E5E5",
+  },
+  strengthWeak: {
+    backgroundColor: "#EF4444",
+  },
+  strengthMedium: {
+    backgroundColor: "#F59E0B",
+  },
+  strengthStrong: {
+    backgroundColor: "#22C55E",
+  },
+  strengthText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  requirementsList: {
+    gap: 6,
+  },
+  requirementItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  requirementText: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  requirementMet: {
+    color: colors.success,
+  },
+  // Password match indicator
+  matchIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: -8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  matchText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  matchSuccess: {
+    color: colors.success,
+  },
+  matchError: {
+    color: colors.error,
   },
 });

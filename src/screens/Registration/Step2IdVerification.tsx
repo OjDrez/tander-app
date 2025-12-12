@@ -33,18 +33,35 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface Props {
   navigation: Step2Nav;
+  /** If true, screen is used from Settings (no Formik context, no progress bar) */
+  isSettings?: boolean;
 }
 
 interface FormValues {
   idPhotoFront: string;
 }
 
-export default function Step2IdVerification({ navigation }: Props) {
-  const { values, setFieldValue } = useFormikContext<FormValues>();
-  const { verifyId, phase1Data, registrationFlow } = useAuth();
+/**
+ * Custom hook to safely use Formik context
+ * Returns null if not wrapped in Formik provider
+ */
+function useFormikContextSafe<T>() {
+  try {
+    return useFormikContext<T>();
+  } catch {
+    return null;
+  }
+}
+
+export default function Step2IdVerification({ navigation, isSettings = false }: Props) {
+  // Try to get Formik context (will be null if accessed from Settings)
+  const formikContext = useFormikContextSafe<FormValues>();
+  const { verifyId, phase1Data, registrationFlow, user } = useAuth();
   const toast = useToast();
 
-  const [idPhotoFront, setIdPhotoFront] = useState<string>(values.idPhotoFront || "");
+  // Get initial value from Formik if available
+  const initialPhoto = formikContext?.values?.idPhotoFront || "";
+  const [idPhotoFront, setIdPhotoFront] = useState<string>(initialPhoto);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [showCamera, setShowCamera] = useState(false);
@@ -89,6 +106,13 @@ export default function Step2IdVerification({ navigation }: Props) {
     }
   };
 
+  // Helper to update Formik if available
+  const updateFormikField = (field: string, value: string) => {
+    if (formikContext?.setFieldValue) {
+      formikContext.setFieldValue(field, value);
+    }
+  };
+
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -99,7 +123,7 @@ export default function Step2IdVerification({ navigation }: Props) {
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
       setIdPhotoFront(uri);
-      setFieldValue("idPhotoFront", uri);
+      updateFormikField("idPhotoFront", uri);
     }
   };
 
@@ -125,7 +149,7 @@ export default function Step2IdVerification({ navigation }: Props) {
         });
 
         setIdPhotoFront(photo.uri);
-        setFieldValue("idPhotoFront", photo.uri);
+        updateFormikField("idPhotoFront", photo.uri);
         setShowCamera(false);
       } catch (error) {
         console.error("Error taking photo:", error);
@@ -144,9 +168,15 @@ export default function Step2IdVerification({ navigation }: Props) {
       return;
     }
 
-    const username = phase1Data?.username || registrationFlow?.username;
+    // Get username from different sources depending on context
+    const username = isSettings
+      ? user?.username
+      : (phase1Data?.username || registrationFlow?.username);
+
     if (!username) {
-      toast.error("Session expired. Please start registration again.");
+      toast.error(isSettings
+        ? "Please log in to verify your ID."
+        : "Session expired. Please start registration again.");
       return;
     }
 
@@ -167,8 +197,14 @@ export default function Step2IdVerification({ navigation }: Props) {
       );
 
       if (result.status === "success") {
-        toast.success("ID verified successfully! Your progress has been saved.", 3000);
-        navigation.navigate("Step3");
+        toast.success("ID verified successfully!", 3000);
+        if (isSettings) {
+          // Go back to settings
+          navigation.goBack();
+        } else {
+          // Continue registration flow
+          navigation.navigate("Step3");
+        }
       } else {
         toast.error(result.message || "ID verification failed. Please try again.");
       }
@@ -281,17 +317,25 @@ export default function Step2IdVerification({ navigation }: Props) {
         >
           {/* Camera overlay with landscape ID card outline */}
           <View style={styles.cameraOverlay}>
-            {/* Close button - top left */}
+            {/* Close button - top left - LARGER for elderly users */}
             <TouchableOpacity
               style={styles.cameraCloseButton}
               onPress={handleCloseCamera}
+              accessibilityLabel="Cancel and go back"
+              accessibilityRole="button"
             >
-              <Ionicons name="close" size={28} color={colors.white} />
+              <Ionicons name="close" size={32} color={colors.white} />
+              <Text style={styles.cameraCloseText}>Cancel</Text>
             </TouchableOpacity>
 
             {/* Title - top center */}
             <Text style={styles.cameraTitle}>
               Scan Front of ID
+            </Text>
+
+            {/* Helpful tip for elderly users */}
+            <Text style={styles.cameraTip}>
+              Hold your phone steady over your ID card
             </Text>
 
             {/* Landscape ID Card Outline Guide - centered */}
@@ -307,14 +351,19 @@ export default function Step2IdVerification({ navigation }: Props) {
               Align your ID within the frame
             </Text>
 
-            {/* Capture button - bottom center */}
+            {/* Capture button - bottom center - LARGER with label for elderly */}
             <View style={styles.cameraControls}>
               <TouchableOpacity
                 style={styles.captureButton}
                 onPress={handleTakePhoto}
+                accessibilityLabel="Take photo of your ID"
+                accessibilityRole="button"
               >
-                <View style={styles.captureButtonInner} />
+                <View style={styles.captureButtonInner}>
+                  <Ionicons name="camera" size={32} color={colors.primary} />
+                </View>
               </TouchableOpacity>
+              <Text style={styles.captureLabel}>Tap to Take Photo</Text>
             </View>
           </View>
         </CameraView>
@@ -334,7 +383,8 @@ export default function Step2IdVerification({ navigation }: Props) {
       />
 
       <SafeAreaView edges={["top"]} style={styles.headerView}>
-        <ProgressBar step={2} total={4} />
+        {/* Only show progress bar during registration flow */}
+        {!isSettings && <ProgressBar step={2} total={4} />}
 
         <Animated.View
           style={[
@@ -391,7 +441,7 @@ export default function Step2IdVerification({ navigation }: Props) {
                     style={styles.removePhotoButton}
                     onPress={() => {
                       setIdPhotoFront("");
-                      setFieldValue("idPhotoFront", "");
+                      updateFormikField("idPhotoFront", "");
                     }}
                   >
                     <Ionicons name="close-circle" size={28} color={colors.error} />
@@ -672,10 +722,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  // Increased back button size for elderly users (56x56 minimum)
   backButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#F5F5F5",
     justifyContent: "center",
     alignItems: "center",
@@ -793,26 +844,49 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  // LARGER close button for elderly users with text label
   cameraCloseButton: {
     position: "absolute",
-    top: 20,
-    left: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
+    top: 16,
+    left: 16,
+    flexDirection: "row",
     alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    gap: 8,
     zIndex: 10,
+  },
+  cameraCloseText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "600",
   },
   cameraTitle: {
     position: "absolute",
-    top: 28,
+    top: 24,
     alignSelf: "center",
     color: colors.white,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     zIndex: 10,
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  cameraTip: {
+    position: "absolute",
+    top: 52,
+    alignSelf: "center",
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "500",
+    zIndex: 10,
+    opacity: 0.9,
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 
   // Landscape ID Card Outline - horizontal rectangle
@@ -877,14 +951,15 @@ const styles = StyleSheet.create({
   },
   cameraControls: {
     position: "absolute",
-    bottom: 30,
-    right: 40,
+    bottom: 24,
+    right: 32,
     alignItems: "center",
   },
+  // LARGER capture button for elderly users
   captureButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
@@ -892,9 +967,20 @@ const styles = StyleSheet.create({
     borderColor: colors.white,
   },
   captureButtonInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: colors.white,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  captureLabel: {
+    marginTop: 8,
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "600",
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

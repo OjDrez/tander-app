@@ -1,6 +1,24 @@
 import { ChatUser, ConversationPreview } from '../types/chat';
-import apiClient, { getCurrentUsernameFromToken } from './config';
+import apiClient, { API_BASE_URL, getCurrentUsernameFromToken } from './config';
 import { getCurrentUserId, getCurrentUsername } from '../services/socket';
+import { matchingApi } from './matchingApi';
+
+/**
+ * Convert a relative photo URL to a full URL
+ * Backend returns relative paths like /uploads/profile-photos/username/photo.jpg
+ * We need to prepend the API base URL for the Image component to load them
+ */
+export const getFullPhotoUrl = (relativeUrl: string | null | undefined): string | null => {
+  if (!relativeUrl) return null;
+
+  // If already a full URL (http/https), return as-is
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl;
+  }
+
+  // Prepend the API base URL to relative paths
+  return `${API_BASE_URL}${relativeUrl}`;
+};
 
 // ==================== TYPES ====================
 
@@ -18,13 +36,17 @@ export interface ConversationResponse {
   updatedAt: string;
 }
 
-// Response type from backend /chat/users/{id}/start-conversation endpoint
+// Response type from backend /chat/conversations and /chat/users/{id}/start-conversation endpoints
 export interface StartConversationResponse {
   id: number;
   user1Id: number;
   user1Username: string;
+  user1DisplayName?: string;
+  user1ProfilePhotoUrl?: string;
   user2Id: number;
   user2Username: string;
+  user2DisplayName?: string;
+  user2ProfilePhotoUrl?: string;
   createdAt: string;
   lastMessageAt: string;
   lastMessage: string | null;
@@ -103,30 +125,36 @@ export const getConversations = async (): Promise<ConversationPreview[]> => {
 
       const otherUserId = isUser1Me ? conv.user2Id : conv.user1Id;
       const otherUsername = isUser1Me ? conv.user2Username : conv.user1Username;
+      const otherDisplayName = isUser1Me ? conv.user2DisplayName : conv.user1DisplayName;
+      const otherProfilePhotoUrl = isUser1Me ? conv.user2ProfilePhotoUrl : conv.user1ProfilePhotoUrl;
 
       // Generate room ID from user IDs
       const roomId = generateRoomId(conv.user1Id, conv.user2Id);
 
+      // Use display name if available, fallback to username
+      const displayName = otherDisplayName || otherUsername;
+
+      // Convert relative photo URL to full URL, fallback to UI Avatars
+      const fullPhotoUrl = getFullPhotoUrl(otherProfilePhotoUrl);
+      const avatarUrl = fullPhotoUrl ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`;
+
       console.log('[ChatAPI] Conversation mapping:', {
         convId: conv.id,
-        user1Id: conv.user1Id,
-        user1Username: conv.user1Username,
-        user2Id: conv.user2Id,
-        user2Username: conv.user2Username,
-        myUserId,
-        myUsername,
-        isUser1Me,
         otherUserId,
         otherUsername,
+        otherDisplayName,
+        otherProfilePhotoUrl,
+        avatarUrl,
         roomId,
       });
 
       return {
         id: conv.id.toString(),
-        name: otherUsername,
+        name: displayName,
         message: conv.lastMessage || 'No messages yet',
         timestamp: conv.lastMessageAt ? formatTimestamp(conv.lastMessageAt) : '',
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUsername)}&background=random`,
+        avatar: avatarUrl,
         unreadCount: conv.unreadCount,
         isOnline: false, // Will be updated via socket
         userId: otherUserId,
@@ -418,4 +446,111 @@ export const getDateLabel = (dateString: string): string => {
     month: 'short',
     day: 'numeric',
   });
+};
+
+// ==================== MATCH VALIDATION ====================
+
+export interface MatchInfo {
+  isMatched: boolean;
+  matchId?: number;
+  status?: string;
+  chatStarted?: boolean;
+  hoursUntilExpiration?: number;
+  expiresAt?: string;
+}
+
+/**
+ * Check if current user is matched with another user
+ * Returns match info including expiration status
+ * Uses checkMatch for quick boolean check, then getMatchesList for full details if matched
+ */
+export const checkMatchStatus = async (otherUserId: number): Promise<MatchInfo> => {
+  try {
+    // First do a quick check if users are matched
+    const checkResult = await matchingApi.checkMatch(otherUserId);
+
+    if (!checkResult.isMatched) {
+      return { isMatched: false };
+    }
+
+    // If matched, get full match details from matches list
+    const matches = await matchingApi.getMatchesList();
+    const match = matches.find(m => m.matchedUserId === otherUserId);
+
+    if (!match) {
+      // Match exists but couldn't find details - still allow chat
+      return { isMatched: true };
+    }
+
+    return {
+      isMatched: true,
+      matchId: match.id,
+      status: match.status,
+      chatStarted: match.chatStarted,
+      hoursUntilExpiration: match.hoursUntilExpiration,
+      expiresAt: match.expiresAt,
+    };
+  } catch (error) {
+    console.error('[ChatAPI] Failed to check match status:', error);
+    return { isMatched: false };
+  }
+};
+
+/**
+ * Validate that a chat can proceed (users are matched and match is active)
+ * Returns error message if chat is not allowed, null if allowed
+ */
+export const validateChatAccess = async (otherUserId: number): Promise<string | null> => {
+  try {
+    const matchInfo = await checkMatchStatus(otherUserId);
+
+    if (!matchInfo.isMatched) {
+      return 'You can only chat with users you have matched with.';
+    }
+
+    if (matchInfo.status === 'EXPIRED') {
+      return 'This match has expired. Keep swiping to find new matches!';
+    }
+
+    if (matchInfo.status === 'UNMATCHED') {
+      return 'This match is no longer active.';
+    }
+
+    return null; // Chat is allowed
+  } catch (error) {
+    console.error('[ChatAPI] Failed to validate chat access:', error);
+    return 'Unable to verify match status. Please try again.';
+  }
+};
+
+/**
+ * Format expiration warning message (Bumble-style 24-hour expiration)
+ */
+export const getExpirationWarning = (hoursUntilExpiration?: number): string | null => {
+  if (hoursUntilExpiration === undefined || hoursUntilExpiration < 0) {
+    return null;
+  }
+
+  if (hoursUntilExpiration <= 1) {
+    return 'Less than 1 hour left! Start chatting now or this match will expire.';
+  }
+
+  if (hoursUntilExpiration <= 3) {
+    return `Only ${Math.ceil(hoursUntilExpiration)} hours left! Send a message to keep this match.`;
+  }
+
+  if (hoursUntilExpiration <= 6) {
+    return `${Math.ceil(hoursUntilExpiration)} hours remaining. Say hello before time runs out!`;
+  }
+
+  if (hoursUntilExpiration <= 12) {
+    return `${Math.ceil(hoursUntilExpiration)} hours left to start a conversation.`;
+  }
+
+  // For 12-24 hours, show a gentle reminder
+  if (hoursUntilExpiration <= 24) {
+    return `Match expires in ${Math.ceil(hoursUntilExpiration)} hours. Don't miss out!`;
+  }
+
+  return null;
 };

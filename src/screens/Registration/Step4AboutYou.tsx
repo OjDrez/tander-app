@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   completionHint: {
-    fontSize: 12,
+    fontSize: 14, // Increased for elderly users
     color: colors.textSecondary,
     marginTop: 4,
     marginLeft: 26,
@@ -468,9 +468,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   sectionHint: {
-    fontSize: 13,
+    fontSize: 15, // Increased for elderly users
     color: colors.textSecondary,
     marginBottom: 12,
+    lineHeight: 20,
   },
 
   // Info Card
@@ -518,10 +519,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  // Increased back button size for elderly users
   backButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#F5F5F5",
     justifyContent: "center",
     alignItems: "center",

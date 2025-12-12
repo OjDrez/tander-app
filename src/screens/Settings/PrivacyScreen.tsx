@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import React, { useState, useCallback } from "react";
 import {
-  Image,
   ScrollView,
   StyleSheet,
   Switch,
@@ -10,64 +9,84 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
+import AppHeader from "@/src/components/navigation/AppHeader";
 import colors from "@/src/config/colors";
-import NavigationService from "@/src/navigation/NavigationService";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { SETTINGS_STORAGE_KEYS, PrivacySettings } from "@/src/types/settings";
 
 type PrivacyNav = NativeStackNavigationProp<AppStackParamList>;
 
+const PRIVACY_SETTINGS_KEY = SETTINGS_STORAGE_KEYS.PRIVACY_SETTINGS;
+
+const DEFAULT_SETTINGS: PrivacySettings = {
+  isProfilePublic: true,
+  allowLocation: true,
+  showApproximateDistance: false,
+};
+
 export default function PrivacyScreen() {
   const navigation = useNavigation<PrivacyNav>();
-  const [isProfilePublic, setIsProfilePublic] = useState(true);
-  const [allowLocation, setAllowLocation] = useState(true);
-  const [showApproximateDistance, setShowApproximateDistance] = useState(false);
+  const [settings, setSettings] = useState<PrivacySettings>(DEFAULT_SETTINGS);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSettings();
+    }, [])
+  );
+
+  const loadSettings = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(PRIVACY_SETTINGS_KEY);
+      if (stored) {
+        setSettings(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error("Failed to load privacy settings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveSettings = async (newSettings: PrivacySettings) => {
+    try {
+      await AsyncStorage.setItem(PRIVACY_SETTINGS_KEY, JSON.stringify(newSettings));
+    } catch (error) {
+      console.error("Failed to save privacy settings:", error);
+    }
+  };
+
+  const handleSettingChange = (key: keyof PrivacySettings, value: boolean) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
 
   const handleGoBack = () => navigation.goBack();
 
   const handleBlockedUsersPress = () => {
-    NavigationService.navigate("BlockedUsersScreen");
+    navigation.navigate("BlockedUsersScreen" as never);
   };
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <AppHeader
+          title="Privacy"
+          titleAlign="left"
+          onBackPress={handleGoBack}
+          showLogo
+        />
+
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
-          <View style={styles.header}>
-            <TouchableOpacity
-              accessibilityRole="button"
-              activeOpacity={0.85}
-              style={styles.iconButton}
-              onPress={handleGoBack}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={22}
-                color={colors.textPrimary}
-              />
-            </TouchableOpacity>
-
-            <AppText size="h3" weight="bold" style={styles.headerTitle}>
-              Privacy
-            </AppText>
-
-            <View style={styles.logoRow}>
-              <Image
-                source={require("@/src/assets/icons/tander-logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <AppText weight="bold" color={colors.accentBlue}>
-                TANDER
-              </AppText>
-            </View>
-          </View>
 
           <View style={styles.sectionHeader}>
             <AppText size="h4" weight="bold" color={colors.textPrimary}>
@@ -85,17 +104,23 @@ export default function PrivacyScreen() {
 
             <View style={styles.cardGroup}>
               <View style={styles.listCard}>
-                <AppText weight="semibold" color={colors.textPrimary}>
-                  Show my profile publicly
-                </AppText>
+                <View style={styles.settingInfo}>
+                  <AppText weight="semibold" color={colors.textPrimary}>
+                    Show my profile publicly
+                  </AppText>
+                  <AppText size="tiny" color={colors.textSecondary}>
+                    When off, others cannot find your profile
+                  </AppText>
+                </View>
                 <Switch
-                  value={isProfilePublic}
-                  onValueChange={setIsProfilePublic}
+                  value={settings.isProfilePublic}
+                  onValueChange={(value) => handleSettingChange("isProfilePublic", value)}
                   trackColor={{
                     false: colors.borderMedium,
                     true: colors.primary,
                   }}
                   thumbColor={colors.white}
+                  disabled={isLoading}
                 />
               </View>
             </View>
@@ -108,32 +133,44 @@ export default function PrivacyScreen() {
 
             <View style={styles.cardGroup}>
               <View style={styles.listCard}>
-                <AppText weight="semibold" color={colors.textPrimary}>
-                  Allow location access
-                </AppText>
+                <View style={styles.settingInfo}>
+                  <AppText weight="semibold" color={colors.textPrimary}>
+                    Allow location access
+                  </AppText>
+                  <AppText size="tiny" color={colors.textSecondary}>
+                    Used to show matches near you
+                  </AppText>
+                </View>
                 <Switch
-                  value={allowLocation}
-                  onValueChange={setAllowLocation}
+                  value={settings.allowLocation}
+                  onValueChange={(value) => handleSettingChange("allowLocation", value)}
                   trackColor={{
                     false: colors.borderMedium,
                     true: colors.primary,
                   }}
                   thumbColor={colors.white}
+                  disabled={isLoading}
                 />
               </View>
 
               <View style={styles.listCard}>
-                <AppText weight="semibold" color={colors.textPrimary}>
-                  Show approximate distance
-                </AppText>
+                <View style={styles.settingInfo}>
+                  <AppText weight="semibold" color={colors.textPrimary}>
+                    Show approximate distance
+                  </AppText>
+                  <AppText size="tiny" color={colors.textSecondary}>
+                    Shows rough distance instead of exact
+                  </AppText>
+                </View>
                 <Switch
-                  value={showApproximateDistance}
-                  onValueChange={setShowApproximateDistance}
+                  value={settings.showApproximateDistance}
+                  onValueChange={(value) => handleSettingChange("showApproximateDistance", value)}
                   trackColor={{
                     false: colors.borderMedium,
                     true: colors.primary,
                   }}
                   thumbColor={colors.white}
+                  disabled={isLoading}
                 />
               </View>
             </View>
@@ -170,6 +207,13 @@ export default function PrivacyScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          <View style={styles.infoCard}>
+            <Ionicons name="information-circle" size={20} color={colors.accentBlue} />
+            <AppText size="small" color={colors.textSecondary} style={{ flex: 1, marginLeft: 10 }}>
+              Your privacy settings are saved automatically on this device.
+            </AppText>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </FullScreen>
@@ -187,39 +231,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     gap: 16,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  iconButton: {
-    height: 42,
-    width: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.white,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "left",
-    color: colors.textPrimary,
-  },
-  logoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  logo: {
-    width: 34,
-    height: 34,
   },
   sectionHeader: {
     gap: 4,
@@ -247,6 +258,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
+  settingInfo: {
+    flex: 1,
+    gap: 2,
+    marginRight: 12,
+  },
   itemLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -259,5 +275,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentMint,
     alignItems: "center",
     justifyContent: "center",
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.accentMint,
+    padding: 14,
+    borderRadius: 14,
   },
 });
