@@ -28,6 +28,7 @@ import colors from "@/src/config/colors";
 import { AppStackParamList, CallScreenParams } from "@/src/navigation/NavigationTypes";
 import { useCall, ConnectionQuality } from "@/src/hooks/useCall";
 import { CallStatus } from "@/src/types/chat";
+import { isNativeAudioAvailable } from "@/src/utility/audioManager";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -97,6 +98,35 @@ const qualityStyles = StyleSheet.create({
   bar: {
     width: 4,
     borderRadius: 2,
+  },
+});
+
+// Audio mode indicator component
+const AudioModeIndicator = ({ isSpeakerOn, isNativeAvailable }: { isSpeakerOn: boolean; isNativeAvailable: boolean }) => {
+  return (
+    <View style={audioModeStyles.container}>
+      <Ionicons
+        name={isSpeakerOn ? "volume-high" : "ear"}
+        size={14}
+        color={colors.white}
+      />
+      <AppText size="small" weight="medium" color={colors.white}>
+        {isSpeakerOn ? "Speaker" : "Earpiece"}
+        {!isNativeAvailable && " (UI)"}
+      </AppText>
+    </View>
+  );
+};
+
+const audioModeStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 12,
   },
 });
 
@@ -556,19 +586,22 @@ export default function CallScreen({ route, isVideoCall = false }: CallScreenPro
             </AppText>
           </View>
 
-          {/* Connection quality indicator - show when connected */}
+          {/* Connection quality and audio mode indicators - show when connected */}
           {showConnectedUI && (
-            <View style={styles.qualityRow}>
-              <ConnectionQualityIndicator quality={connectionQuality} />
-              <AppText size="small" color="rgba(255,255,255,0.6)">
-                {connectionQuality === "excellent" || connectionQuality === "good"
-                  ? "Good connection"
-                  : connectionQuality === "fair"
-                  ? "Fair connection"
-                  : connectionQuality === "poor"
-                  ? "Poor connection"
-                  : ""}
-              </AppText>
+            <View style={styles.indicatorsContainer}>
+              <View style={styles.qualityRow}>
+                <ConnectionQualityIndicator quality={connectionQuality} />
+                <AppText size="small" color="rgba(255,255,255,0.6)">
+                  {connectionQuality === "excellent" || connectionQuality === "good"
+                    ? "Good connection"
+                    : connectionQuality === "fair"
+                    ? "Fair connection"
+                    : connectionQuality === "poor"
+                    ? "Poor connection"
+                    : ""}
+                </AppText>
+              </View>
+              <AudioModeIndicator isSpeakerOn={isSpeakerOn} isNativeAvailable={isNativeAudioAvailable()} />
             </View>
           )}
 
@@ -646,11 +679,11 @@ export default function CallScreen({ route, isVideoCall = false }: CallScreenPro
                 )}
 
                 <ControlButton
-                  icon={isSpeakerOn ? "volume-high" : "volume-mute"}
-                  label={isSpeakerOn ? "Speaker On" : "Speaker Off"}
-                  active={!isSpeakerOn}
+                  icon={isSpeakerOn ? "volume-high" : "ear"}
+                  label={isSpeakerOn ? "Speaker" : "Earpiece"}
+                  active={isSpeakerOn}
                   onPress={toggleSpeaker}
-                  accessibilityHint={isSpeakerOn ? "Double tap to turn off speaker" : "Double tap to turn on speaker"}
+                  accessibilityHint={isSpeakerOn ? "Double tap to switch to earpiece" : "Double tap to switch to speaker"}
                 />
               </View>
 
@@ -794,11 +827,15 @@ const styles = StyleSheet.create({
   statusText: {
     textAlign: "center",
   },
+  indicatorsContainer: {
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
   qualityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 12,
   },
   errorBanner: {
     flexDirection: "row",

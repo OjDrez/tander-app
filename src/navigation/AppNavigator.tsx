@@ -19,8 +19,15 @@ import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
 import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
 import PaymentMethodsScreen from "../screens/Settings/PaymentMethodsScreen";
+import AddPaymentMethodScreen from "../screens/Settings/AddPaymentMethodScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ViewProfileDetailsScreen from "../screens/Settings/ViewProfileDetailsScreen";
+import PrivacyScreen from "../screens/Settings/PrivacyScreen";
+import ChangePasswordScreen from "../screens/Settings/ChangePasswordScreen";
+import BlockedUsersScreen from "../screens/Settings/BlockedUsersScreen";
+import SecuritySettingsScreen from "../screens/Settings/SecuritySettingsScreen";
+import HelpCenterScreen from "../screens/Settings/HelpCenterScreen";
+import Step2IdVerification from "../screens/Registration/Step2IdVerification";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 import { AppStackParamList } from "./NavigationTypes";
@@ -62,7 +69,19 @@ export default function AppNavigator() {
         name="PaymentMethodsScreen"
         component={PaymentMethodsScreen}
       />
+      <Stack.Screen
+        name="AddPaymentMethodScreen"
+        component={AddPaymentMethodScreen}
+      />
       <Stack.Screen name="EditAboutYouScreen" component={EditAboutYouScreen} />
+      <Stack.Screen name="PrivacyScreen" component={PrivacyScreen} />
+      <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} />
+      <Stack.Screen name="BlockedUsersScreen" component={BlockedUsersScreen} />
+      <Stack.Screen name="SecuritySettingsScreen" component={SecuritySettingsScreen} />
+      <Stack.Screen name="HelpCenterScreen" component={HelpCenterScreen} />
+      <Stack.Screen name="IdVerificationScreen">
+        {(props) => <Step2IdVerification {...props} isSettings={true} />}
+      </Stack.Screen>
       <Stack.Screen name="VideoCallScreen" component={VideoCallScreen} />
       <Stack.Screen name="VoiceCallScreen" component={VoiceCallScreen} />
       <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} />

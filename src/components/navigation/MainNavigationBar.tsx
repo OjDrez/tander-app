@@ -1,9 +1,9 @@
 import colors from "@/src/config/colors";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
 
-export type MainNavigationTab = "Home" | "Inbox" | "Matches" | "Profile";
+export type MainNavigationTab = "Home" | "Inbox" | "Tandy" | "Matches" | "Profile";
 
 type MainNavigationBarProps = {
   activeTab?: MainNavigationTab;
@@ -11,11 +11,19 @@ type MainNavigationBarProps = {
   style?: ViewStyle | ViewStyle[];
 };
 
-const TABS: { key: MainNavigationTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+type TabConfig = {
+  key: MainNavigationTab;
+  label: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  customIcon?: any;
+};
+
+const TABS: TabConfig[] = [
   { key: "Home", label: "Home", icon: "home" },
   { key: "Inbox", label: "Inbox", icon: "chatbox-ellipses" },
   { key: "Matches", label: "Matches", icon: "people" },
   { key: "Profile", label: "My Profile", icon: "person" },
+  { key: "Tandy", label: "Tandy", customIcon: require("@/src/assets/icon.png") },
 ];
 
 export default function MainNavigationBar({
@@ -36,11 +44,18 @@ export default function MainNavigationBar({
             style={[styles.item, isActive && styles.itemActive]}
             onPress={() => onTabPress?.(tab.key)}
           >
-            <Ionicons
-              name={tab.icon}
-              size={20}
-              color={isActive ? colors.primary : colors.textSecondary}
-            />
+            {tab.customIcon ? (
+              <Image
+                source={tab.customIcon}
+                style={[styles.customIcon, { tintColor: isActive ? colors.primary : colors.textSecondary }]}
+              />
+            ) : (
+              <Ionicons
+                name={tab.icon!}
+                size={20}
+                color={isActive ? colors.primary : colors.textSecondary}
+              />
+            )}
             <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
           </TouchableOpacity>
         );
@@ -63,6 +78,10 @@ const styles = StyleSheet.create({
   item: {
     alignItems: "center",
     gap: 4,
+  },
+  customIcon: {
+    width: 20,
+    height: 20,
   },
   itemActive: {
     transform: [{ translateY: -2 }],

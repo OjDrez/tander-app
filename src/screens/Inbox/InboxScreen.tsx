@@ -50,6 +50,7 @@ type AnimatedConversationRowProps = {
 };
 
 // Animated conversation row component - memoized for performance
+// SENIOR-FRIENDLY: Large touch targets, clear text, simple layout
 const AnimatedConversationRow = memo(({
   item,
   index,
@@ -85,6 +86,7 @@ const AnimatedConversationRow = memo(({
     <Animated.View
       style={[
         styles.threadCard,
+        hasUnread && styles.threadCardUnread,
         Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow,
         {
           opacity: fadeAnim,
@@ -94,29 +96,42 @@ const AnimatedConversationRow = memo(({
     >
       <TouchableOpacity
         style={styles.threadTouchable}
-        activeOpacity={0.85}
+        activeOpacity={0.7}
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Chat with ${item.name}${hasUnread ? `, ${item.unreadCount} unread messages` : ""}${isOnline ? ", online now" : ""}`}
-        accessibilityHint="Double tap to open conversation"
+        accessibilityLabel={`Open chat with ${item.name}${hasUnread ? `. You have ${item.unreadCount} new message${item.unreadCount > 1 ? 's' : ''}` : ""}${isOnline ? ". They are online now" : ""}`}
+        accessibilityHint="Tap to read and reply to messages"
       >
+        {/* Large avatar with online status */}
         <TouchableOpacity
           style={[styles.avatarWrapper, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
           onPress={onAvatarPress}
           accessibilityRole="button"
-          accessibilityLabel={`View ${item.name}'s profile`}
+          accessibilityLabel={`View ${item.name}'s profile photo`}
         >
           <Image source={{ uri: item.avatar }} style={styles.avatar} />
-          {isOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
+          {isOnline && (
+            <View style={styles.onlineIndicator}>
+              <View style={styles.onlineDot} />
+            </View>
+          )}
         </TouchableOpacity>
 
+        {/* Name and message preview */}
         <View style={styles.threadBody}>
           <View style={styles.threadTopRow}>
-            <AppText size="h4" weight="bold" numberOfLines={1} style={styles.name}>
-              {item.name}
-            </AppText>
-            <AppText size="small" color={colors.textSecondary} weight="medium">
+            <View style={styles.nameRow}>
+              <AppText size="h3" weight="bold" numberOfLines={1} style={styles.name}>
+                {item.name}
+              </AppText>
+              {isOnline && (
+                <AppText size="small" weight="semibold" color={colors.success} style={styles.onlineText}>
+                  Online
+                </AppText>
+              )}
+            </View>
+            <AppText size="body" color={colors.textSecondary} weight="medium">
               {item.timestamp}
             </AppText>
           </View>
@@ -124,49 +139,67 @@ const AnimatedConversationRow = memo(({
           <AppText
             size="body"
             color={hasUnread ? colors.textPrimary : colors.textSecondary}
-            weight={hasUnread ? "semibold" : "normal"}
+            weight={hasUnread ? "bold" : "normal"}
             numberOfLines={2}
             style={styles.preview}
           >
-            {item.message}
+            {hasUnread ? "● " : ""}{item.message}
           </AppText>
-        </View>
 
-        <View style={styles.actionsColumn}>
-          <View style={styles.callButtons}>
-            <TouchableOpacity
-              style={styles.callButton}
-              onPress={onVoiceCall}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Voice call ${item.name}`}
-              accessibilityHint="Double tap to start a voice call"
-            >
-              <Ionicons name="call" size={20} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.callButton, styles.videoCallButton]}
-              onPress={onVideoCall}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Video call ${item.name}`}
-              accessibilityHint="Double tap to start a video call"
-            >
-              <Ionicons name="videocam" size={20} color={colors.white} />
-            </TouchableOpacity>
-          </View>
-
-          {hasUnread ? (
-            <View style={styles.unreadBadge} accessibilityLabel={`${item.unreadCount} unread messages`}>
-              <AppText size="small" weight="bold" color={colors.white}>
-                {item.unreadCount}
-              </AppText>
+          {/* Unread count badge - more prominent */}
+          {hasUnread && (
+            <View style={styles.unreadRow}>
+              <View style={styles.unreadBadgeLarge}>
+                <AppText size="body" weight="bold" color={colors.white}>
+                  {item.unreadCount} NEW
+                </AppText>
+              </View>
             </View>
-          ) : (
-            <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
           )}
         </View>
       </TouchableOpacity>
+
+      {/* Call buttons - larger and clearly labeled */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.callButtonLarge}
+          onPress={onVoiceCall}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${item.name}`}
+          accessibilityHint="Tap to make a voice call"
+        >
+          <Ionicons name="call" size={24} color={colors.primary} />
+          <AppText size="small" weight="semibold" color={colors.primary}>
+            Call
+          </AppText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.callButtonLarge, styles.videoCallButtonLarge]}
+          onPress={onVideoCall}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Video call ${item.name}`}
+          accessibilityHint="Tap to make a video call"
+        >
+          <Ionicons name="videocam" size={24} color={colors.white} />
+          <AppText size="small" weight="semibold" color={colors.white}>
+            Video
+          </AppText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.messageButton}
+          onPress={onPress}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Message ${item.name}`}
+        >
+          <Ionicons name="chatbubble" size={24} color={colors.accentTeal} />
+          <AppText size="small" weight="semibold" color={colors.accentTeal}>
+            Message
+          </AppText>
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 });
@@ -521,102 +554,112 @@ export default function InboxScreen() {
 
   const renderHeader = useCallback(() => (
     <View style={styles.headerSection} accessibilityRole="header">
-      <View style={styles.titleRow}>
+      {/* Welcome section - clear and friendly */}
+      <View style={styles.welcomeSection}>
         <AppText size="h1" weight="bold" style={styles.title}>
-          Inbox
+          Your Messages
         </AppText>
-        <View style={styles.headerActions}>
-          {!isAuthenticated && (
-            <View style={styles.connectionStatus} accessibilityLabel="You are offline">
-              <View style={styles.offlineDot} />
-              <AppText size="small" color={colors.textMuted}>
-                Offline
-              </AppText>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.circleButton}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate("MyMatchesScreen")}
-            accessibilityRole="button"
-            accessibilityLabel="View all matches"
-          >
-            <Ionicons name="heart" size={24} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <AppText size="h4" color={colors.textSecondary} style={styles.subtitle}>
+          Tap on a person to chat with them
+        </AppText>
       </View>
-      <AppText size="body" color={colors.textSecondary} style={styles.subtitle}>
-        Chat with your matches before time runs out!
-      </AppText>
 
+      {/* Connection status - very visible */}
+      {!isAuthenticated && (
+        <View style={styles.connectionStatusLarge}>
+          <Ionicons name="cloud-offline" size={28} color={colors.error} />
+          <View style={styles.connectionTextContainer}>
+            <AppText size="h4" weight="bold" color={colors.error}>
+              You are offline
+            </AppText>
+            <AppText size="body" color={colors.textSecondary}>
+              Messages will send when you reconnect
+            </AppText>
+          </View>
+        </View>
+      )}
+
+      {/* Simple search bar */}
       <View style={styles.searchBar} accessibilityRole="search">
-        <Ionicons name="search" size={22} color={colors.textSecondary} />
+        <Ionicons name="search" size={26} color={colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search conversations"
+          placeholder="Search by name..."
           placeholderTextColor={colors.textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
           selectionColor={colors.primary}
-          accessibilityLabel="Search conversations"
-          accessibilityHint="Type to search your messages"
+          accessibilityLabel="Search for a person"
+          accessibilityHint="Type a name to find their conversation"
         />
-        <TouchableOpacity
-          style={styles.filterButton}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Filter conversations"
-        >
-          <Ionicons name="options-outline" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            style={styles.clearSearchButton}
+            onPress={() => setSearchQuery("")}
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Urgent Matches Warning - Bumble style */}
+      {/* Urgent Matches Warning - very prominent for seniors */}
       {urgentMatches.length > 0 && (
         <TouchableOpacity
-          style={styles.urgentWarning}
+          style={styles.urgentWarningLarge}
           onPress={() => navigation.navigate("MyMatchesScreen")}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`${urgentMatches.length} matches about to expire`}
+          accessibilityLabel={`Important: ${urgentMatches.length} matches expiring soon. Tap to view.`}
         >
-          <Ionicons name="warning" size={24} color={colors.error} />
-          <View style={styles.urgentWarningText}>
-            <AppText size="body" weight="bold" color={colors.error}>
-              {urgentMatches.length} match{urgentMatches.length > 1 ? "es" : ""} expiring soon!
+          <View style={styles.urgentIconContainer}>
+            <Ionicons name="alert-circle" size={36} color={colors.white} />
+          </View>
+          <View style={styles.urgentWarningTextLarge}>
+            <AppText size="h4" weight="bold" color={colors.error}>
+              ⏰ Time is running out!
             </AppText>
-            <AppText size="small" color={colors.textSecondary}>
-              Less than 6 hours left - chat now!
+            <AppText size="body" weight="medium" color={colors.textPrimary}>
+              {urgentMatches.length} {urgentMatches.length > 1 ? "people are" : "person is"} waiting to hear from you
+            </AppText>
+            <AppText size="body" color={colors.textSecondary}>
+              Tap here to start chatting
             </AppText>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.error} />
+          <Ionicons name="chevron-forward" size={28} color={colors.error} />
         </TouchableOpacity>
       )}
 
-      {/* Match Queue - Bumble style with countdown timers */}
+      {/* New Matches Section - clearer for seniors */}
       {matchQueue.length > 0 && (
-        <View>
-          <View style={styles.matchesSectionHeader}>
-            <View style={styles.matchesHeaderLeft}>
-              <AppText size="body" weight="bold" color={colors.textPrimary}>
-                Match Queue
+        <View style={styles.newMatchesSection}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="heart" size={24} color={colors.primary} />
+              <AppText size="h3" weight="bold" color={colors.textPrimary}>
+                New Matches
               </AppText>
-              <View style={styles.matchCountBadge}>
-                <AppText size="small" weight="bold" color={colors.white}>
+              <View style={styles.matchCountBadgeLarge}>
+                <AppText size="body" weight="bold" color={colors.white}>
                   {matchQueue.length}
                 </AppText>
               </View>
             </View>
             <TouchableOpacity
+              style={styles.viewAllButton}
               onPress={() => navigation.navigate("MyMatchesScreen")}
               accessibilityRole="button"
-              accessibilityLabel="View all matches"
+              accessibilityLabel="View all your matches"
             >
-              <AppText size="small" weight="semibold" color={colors.primary}>
-                View All
+              <AppText size="body" weight="bold" color={colors.primary}>
+                See All
               </AppText>
+              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
+          <AppText size="body" color={colors.textSecondary} style={styles.sectionHint}>
+            These people want to talk to you! Tap to start chatting.
+          </AppText>
           <LinearGradient
             colors={colors.gradients.registration.array}
             start={{ x: 0, y: 0 }}
@@ -632,35 +675,44 @@ export default function InboxScreen() {
         </View>
       )}
 
-      {/* Empty match queue prompt */}
+      {/* Empty state - friendly and encouraging */}
       {matchQueue.length === 0 && !isLoading && (
         <TouchableOpacity
-          style={styles.emptyMatchPrompt}
+          style={styles.emptyMatchPromptLarge}
           onPress={() => navigation.navigate("MatchesScreen")}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
+          accessibilityLabel="Find new people to match with"
         >
-          <Ionicons name="heart-outline" size={32} color={colors.primary} />
-          <View style={styles.emptyMatchText}>
-            <AppText size="body" weight="semibold" color={colors.textPrimary}>
-              No pending matches
+          <View style={styles.emptyMatchIconContainer}>
+            <Ionicons name="heart-outline" size={48} color={colors.primary} />
+          </View>
+          <View style={styles.emptyMatchTextLarge}>
+            <AppText size="h4" weight="bold" color={colors.textPrimary}>
+              Looking for someone to chat with?
             </AppText>
-            <AppText size="small" color={colors.textSecondary}>
-              Keep swiping to find your next connection!
+            <AppText size="body" color={colors.textSecondary}>
+              Tap here to find new people
             </AppText>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+          <Ionicons name="chevron-forward" size={28} color={colors.primary} />
         </TouchableOpacity>
       )}
 
-      <View style={styles.sectionRow}>
-        <AppText size="body" weight="bold" color={colors.textPrimary}>
-          Messages
-        </AppText>
-        <View style={styles.countBadge} accessibilityLabel={`${totalUnread > 0 ? totalUnread + " unread" : filteredConversations.length + " total"} messages`}>
-          <AppText size="small" weight="bold" color={colors.white}>
-            {totalUnread > 0 ? totalUnread : filteredConversations.length}
+      {/* Conversations section header */}
+      <View style={styles.conversationsSectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <Ionicons name="chatbubbles" size={24} color={colors.accentTeal} />
+          <AppText size="h3" weight="bold" color={colors.textPrimary}>
+            Your Conversations
           </AppText>
         </View>
+        {totalUnread > 0 && (
+          <View style={styles.unreadCountBadge}>
+            <AppText size="body" weight="bold" color={colors.white}>
+              {totalUnread} new
+            </AppText>
+          </View>
+        )}
       </View>
     </View>
   ), [isAuthenticated, searchQuery, urgentMatches, matchQueue, totalUnread, filteredConversations.length, navigation, handlePressAvatar, handleStartChat, isLoading]);
@@ -668,10 +720,13 @@ export default function InboxScreen() {
   const renderEmpty = useCallback(() => {
     if (isLoading) {
       return (
-        <View style={styles.loadingState}>
+        <View style={styles.loadingStateLarge}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="small" color={colors.textSecondary} style={styles.loadingText}>
-            Loading conversations...
+          <AppText size="h4" weight="medium" color={colors.textSecondary} style={styles.loadingText}>
+            Loading your messages...
+          </AppText>
+          <AppText size="body" color={colors.textMuted}>
+            Please wait a moment
           </AppText>
         </View>
       );
@@ -679,16 +734,23 @@ export default function InboxScreen() {
 
     if (error) {
       return (
-        <View style={styles.emptyState}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
-          <AppText size="h4" weight="bold" color={colors.textPrimary} style={styles.emptyTitle}>
+        <View style={styles.emptyStateLarge}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="alert-circle" size={64} color={colors.error} />
+          </View>
+          <AppText size="h3" weight="bold" color={colors.textPrimary} style={styles.emptyTitle}>
             Something went wrong
           </AppText>
-          <AppText size="small" color={colors.textSecondary} style={styles.emptySubtitle}>
-            {error}
+          <AppText size="body" color={colors.textSecondary} style={styles.emptySubtitle}>
+            We couldn't load your messages. Please try again.
           </AppText>
-          <TouchableOpacity style={styles.retryButton} onPress={() => loadConversations()}>
-            <AppText size="small" weight="semibold" color={colors.primary}>
+          <TouchableOpacity
+            style={styles.retryButtonLarge}
+            onPress={() => loadConversations()}
+            accessibilityLabel="Try loading messages again"
+          >
+            <Ionicons name="refresh" size={24} color={colors.white} />
+            <AppText size="h4" weight="bold" color={colors.white}>
               Try Again
             </AppText>
           </TouchableOpacity>
@@ -697,17 +759,29 @@ export default function InboxScreen() {
     }
 
     return (
-      <View style={styles.emptyState}>
-        <Ionicons name="chatbubbles-outline" size={48} color={colors.textMuted} />
-        <AppText size="h4" weight="bold" color={colors.textPrimary} style={styles.emptyTitle}>
+      <View style={styles.emptyStateLarge}>
+        <View style={styles.emptyIconContainer}>
+          <Ionicons name="chatbubbles-outline" size={80} color={colors.accentTeal} />
+        </View>
+        <AppText size="h3" weight="bold" color={colors.textPrimary} style={styles.emptyTitle}>
           No messages yet
         </AppText>
-        <AppText size="small" color={colors.textSecondary} style={styles.emptySubtitle}>
-          Start connecting with people and your conversations will appear here.
+        <AppText size="body" color={colors.textSecondary} style={styles.emptySubtitle}>
+          When you match with someone and start chatting, your conversations will appear here.
         </AppText>
+        <TouchableOpacity
+          style={styles.findPeopleButton}
+          onPress={() => navigation.navigate("MatchesScreen")}
+          accessibilityLabel="Find people to chat with"
+        >
+          <Ionicons name="heart" size={24} color={colors.white} />
+          <AppText size="h4" weight="bold" color={colors.white}>
+            Find People
+          </AppText>
+        </TouchableOpacity>
       </View>
     );
-  }, [isLoading, error, loadConversations]);
+  }, [isLoading, error, loadConversations, navigation]);
 
   const keyExtractor = useCallback((item: ConversationPreview) => item.id, []);
 
@@ -747,13 +821,16 @@ export default function InboxScreen() {
 }
 
 /**
- * InboxScreen Styles
+ * InboxScreen Styles - SENIOR-FRIENDLY VERSION
  *
- * Accessibility Optimizations:
- * - Minimum touch targets of 48x48px
- * - Larger fonts for readability
- * - Increased spacing between elements
- * - High contrast text colors
+ * Design Principles for Elderly Users:
+ * - Minimum touch targets of 56x56px (larger than standard 48px)
+ * - Large, readable fonts (minimum 18px)
+ * - High contrast colors with clear visual hierarchy
+ * - Generous spacing between interactive elements
+ * - Clear labels on all buttons (icons + text)
+ * - Simple, uncluttered layout
+ * - Obvious visual feedback on interactions
  */
 const styles = StyleSheet.create({
   fullScreen: {
@@ -766,121 +843,200 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+    paddingTop: 16,
   },
   headerSection: {
-    gap: 16, // Increased spacing
-    marginBottom: 16,
+    gap: 20,
+    marginBottom: 20,
   },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+
+  // Welcome section - clear and prominent
+  welcomeSection: {
+    gap: 8,
+    paddingBottom: 8,
   },
   title: {
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
+    fontSize: 32,
   },
   subtitle: {
-    lineHeight: 26,
+    lineHeight: 28,
+    fontSize: 18,
   },
-  headerActions: {
+
+  // Connection status - very visible for offline state
+  connectionStatusLarge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-  },
-  connectionStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.backgroundLight,
-    borderRadius: 14,
-  },
-  offlineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.textMuted,
-  },
-  circleButton: {
-    // Minimum 48x48 touch target for accessibility
-    height: 48,
-    width: 48,
+    gap: 16,
+    backgroundColor: colors.errorLight,
+    padding: 20,
     borderRadius: 20,
-    backgroundColor: colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.borderMedium,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.shadowLight,
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    borderWidth: 2,
+    borderColor: colors.error,
   },
+  connectionTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+
+  // Search bar - larger and simpler
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.white,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    height: 56, // Increased from 48 for easier tapping
-    gap: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
+    height: 64,
+    gap: 14,
   },
   searchInput: {
     flex: 1,
-    fontSize: 18, // Increased for readability
+    fontSize: 20,
     color: colors.textPrimary,
     paddingVertical: 0,
   },
-  filterButton: {
-    // Minimum 48x48 touch target
-    height: 44,
-    width: 44,
-    borderRadius: 14,
+  clearSearchButton: {
+    height: 48,
+    width: 48,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.backgroundLight,
   },
-  sectionRow: {
-    marginTop: 8,
+
+  // Urgent warning - very prominent
+  urgentWarningLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    backgroundColor: colors.errorLight,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: colors.error,
+  },
+  urgentIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.error,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  urgentWarningTextLarge: {
+    flex: 1,
+    gap: 6,
+  },
+
+  // New matches section
+  newMatchesSection: {
+    gap: 12,
+  },
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  countBadge: {
-    minWidth: 36,
-    height: 30,
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sectionHint: {
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  matchCountBadgeLarge: {
+    minWidth: 32,
+    height: 32,
     paddingHorizontal: 12,
-    borderRadius: 15,
+    borderRadius: 16,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.accentPeach,
+    borderRadius: 16,
+  },
+  matchQueueCard: {
+    borderRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+
+  // Empty match prompt - larger and clearer
+  emptyMatchPromptLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    backgroundColor: colors.white,
+    padding: 24,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
+  },
+  emptyMatchIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.accentPeach,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyMatchTextLarge: {
+    flex: 1,
+    gap: 6,
+  },
+
+  // Conversations section header
+  conversationsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 8,
+  },
+  unreadCountBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+  },
+
+  // Thread card - much larger and clearer
   threadCard: {
     backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 2,
     borderColor: colors.borderLight,
     overflow: "hidden",
+    gap: 16,
   },
+  threadCardUnread: {
+    borderColor: colors.primary,
+    borderWidth: 3,
+    backgroundColor: colors.accentPeach,
+  },
+  threadTouchable: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 16,
+  },
+
+  // Avatar - much larger
   avatarWrapper: {
-    // Larger avatar for better visibility
-    height: 64,
-    width: 64,
-    borderRadius: 20,
+    height: 80,
+    width: 80,
+    borderRadius: 40,
     overflow: "hidden",
     backgroundColor: colors.borderMedium,
     position: "relative",
@@ -891,166 +1047,183 @@ const styles = StyleSheet.create({
   },
   onlineIndicator: {
     position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 16, // Larger indicator
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.success,
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 3,
     borderColor: colors.white,
   },
+  onlineDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.success,
+  },
+
+  // Thread body - larger text
   threadBody: {
     flex: 1,
-    gap: 8, // Increased spacing
-  },
-  threadTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  name: {
-    flex: 1,
-    marginRight: 8,
-  },
-  preview: {
-    lineHeight: 24, // Increased for readability
-  },
-  actionsColumn: {
-    alignItems: "flex-end",
     gap: 10,
   },
-  callButtons: {
-    flexDirection: "row",
+  threadTopRow: {
     gap: 8,
   },
-  callButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.backgroundLight,
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  name: {
+    fontSize: 22,
+  },
+  onlineText: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: colors.successLight,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  preview: {
+    lineHeight: 26,
+    fontSize: 17,
+  },
+  unreadRow: {
+    marginTop: 8,
+  },
+  unreadBadgeLarge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+  },
+
+  // Action buttons row - large labeled buttons
+  actionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    paddingTop: 16,
+    marginTop: 4,
+  },
+  callButtonLarge: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: colors.borderLight,
+    gap: 8,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundLight,
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
-  videoCallButton: {
+  videoCallButtonLarge: {
     backgroundColor: colors.accentTeal,
     borderColor: colors.accentTeal,
   },
-  unreadBadge: {
-    minWidth: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-  },
-  threadTouchable: {
+  messageButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    justifyContent: "center",
+    gap: 8,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.accentMint,
+    borderWidth: 2,
+    borderColor: colors.accentTeal,
   },
+
+  // Separator
   separator: {
-    height: 14, // Increased spacing between items
+    height: 16,
   },
-  loadingState: {
-    paddingVertical: 64,
+
+  // Loading state
+  loadingStateLarge: {
+    paddingVertical: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+  },
+
+  // Empty state - large and friendly
+  emptyStateLarge: {
+    paddingVertical: 80,
     alignItems: "center",
     justifyContent: "center",
     gap: 16,
   },
-  loadingText: {
-    marginTop: 12,
-  },
-  emptyState: {
-    paddingVertical: 64,
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.accentMint,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    marginBottom: 16,
+  },
+  errorIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.errorLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   emptyTitle: {
-    marginTop: 12,
+    textAlign: "center",
+    fontSize: 24,
   },
   emptySubtitle: {
     textAlign: "center",
     paddingHorizontal: 32,
-    lineHeight: 26,
+    lineHeight: 28,
+    fontSize: 17,
   },
-  retryButton: {
-    marginTop: 16,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    backgroundColor: colors.backgroundLight,
-    borderRadius: 16,
-    minHeight: 48, // Accessible touch target
+  retryButtonLarge: {
+    marginTop: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 18,
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    minHeight: 64,
   },
+  findPeopleButton: {
+    marginTop: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 18,
+    backgroundColor: colors.accentTeal,
+    borderRadius: 20,
+    minHeight: 64,
+  },
+
+  // Shadows
   iosShadow: {
     shadowColor: colors.shadowMedium,
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
   },
   androidShadow: {
-    elevation: 3,
-  },
-  // Urgent matches warning styles (Bumble-style)
-  urgentWarning: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(255, 59, 48, 0.1)",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255, 59, 48, 0.2)",
-  },
-  urgentWarningText: {
-    flex: 1,
-    gap: 2,
-  },
-  // Match Queue section
-  matchesSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  matchesHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  matchCountBadge: {
-    minWidth: 24,
-    height: 24,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  matchQueueCard: {
-    borderRadius: 22,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-  },
-  // Empty match queue prompt
-  emptyMatchPrompt: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.white,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  emptyMatchText: {
-    flex: 1,
-    gap: 2,
+    elevation: 4,
   },
 });

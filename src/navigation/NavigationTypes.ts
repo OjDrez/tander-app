@@ -46,6 +46,7 @@ export type AppStackParamList = {
   Tabs: undefined;
   TabRoot: undefined;
   HomeScreen: undefined;
+  TandyScreen: undefined;
   DiscoveryScreen: undefined;
   InboxScreen: undefined;
   InboxEmptyScreen: undefined;
@@ -71,6 +72,7 @@ export type AppStackParamList = {
   EditAboutYouScreen: undefined;
   EditBioScreen: undefined;
   PaymentMethodsScreen: undefined;
+  AddPaymentMethodScreen: undefined;
   PrivacyScreen: undefined;
   BlockedUsersScreen: undefined;
   ChangePasswordScreen: undefined;

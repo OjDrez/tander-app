@@ -28,7 +28,7 @@ export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   // 🎉 Import Google login handler
   const { login: googleLogin } = useGoogleLogin();
@@ -46,9 +46,9 @@ export default function LoginScreen() {
 
   const checkBiometricStatus = async () => {
     const available = await biometricService.isAvailable();
-    const hasCredentials = await biometricService.hasStoredCredentials();
+    const enabled = await biometricService.isBiometricLoginEnabled();
     setBiometricAvailable(available);
-    setHasStoredCredentials(hasCredentials);
+    setBiometricEnabled(enabled);
   };
 
   // ⭐ GOOGLE LOGIN HANDLER
@@ -81,12 +81,7 @@ export default function LoginScreen() {
         // No credentials stored or biometric failed - show message
         const biometricType = await biometricService.getBiometricType();
         const biometricLabel = biometricService.getBiometricLabel(biometricType);
-
-        if (!hasStoredCredentials) {
-          toast.info(`Please login once with your password to enable ${biometricLabel}.`);
-        } else {
-          toast.error(`${biometricLabel} authentication failed. Please try again.`);
-        }
+        toast.error(`${biometricLabel} authentication failed. Please try again.`);
         return;
       }
 
@@ -118,7 +113,7 @@ export default function LoginScreen() {
         toast.error("Login failed. Please try with your password.");
         // Clear stored credentials if they're invalid
         await biometricService.clearCredentials();
-        setHasStoredCredentials(false);
+        setBiometricEnabled(false);
       }
     } finally {
       setIsLoading(false);
@@ -155,7 +150,18 @@ export default function LoginScreen() {
                   setIsLoading(true);
 
                   await login(values);
-                  toast.success("Login successful! Welcome back.");
+
+                  // Credentials are saved automatically in AuthProvider
+                  // Show appropriate message based on biometric availability
+                  if (biometricAvailable) {
+                    const biometricType = await biometricService.getBiometricType();
+                    const biometricLabel = biometricService.getBiometricLabel(biometricType);
+                    setBiometricEnabled(true);
+                    toast.success(`Login successful! ${biometricLabel} has been enabled for faster sign-in.`);
+                  } else {
+                    toast.success("Login successful! Welcome back.");
+                  }
+
                   NavigationService.replace("HomeScreen");
                 } catch (error: any) {
                   console.error("Login error:", error);
@@ -270,17 +276,12 @@ export default function LoginScreen() {
                     style={{ marginTop: 5 }}
                   />
 
-                  {/* ⭐ BIOMETRIC LOGIN - Only show if device supports it */}
-                  {biometricAvailable && (
+                  {/* ⭐ BIOMETRIC LOGIN - Only show if device supports it AND user has enabled it */}
+                  {biometricAvailable && biometricEnabled && (
                     <View style={styles.biometricRow}>
                       <UniversalBiometricButton
                         onAuthenticate={handleBiometricLogin}
                       />
-                      {!hasStoredCredentials && (
-                        <Text style={styles.biometricHint}>
-                          Login once to enable biometric sign-in
-                        </Text>
-                      )}
                     </View>
                   )}
 
@@ -357,13 +358,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
     marginBottom: 12,
-  },
-  biometricHint: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginTop: 8,
-    fontStyle: "italic",
   },
   dividerText: {
     textAlign: "center",

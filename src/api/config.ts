@@ -43,12 +43,12 @@ const notifyAuthError = (errorCode: AuthErrorCode, message: string) => {
 const getApiBaseUrl = () => {
   if (__DEV__) {
     if (Platform.OS === 'android') {
-      return 'https://invited-allowance-constitution-campbell.trycloudflare.com'; // Android emulator
+      return 'https://layers-requirements-expand-locks.trycloudflare.com'; // Android emulator
     }
-    return 'https://invited-allowance-constitution-campbell.trycloudflare.com'; // iOS simulator or web
+    return 'https://layers-requirements-expand-locks.trycloudflare.com'; // iOS simulator or web
   }
   // Production URL - update this for production deployment
-  return 'https://invited-allowance-constitution-campbell.trycloudflare.com';
+  return 'https://layers-requirements-expand-locks.trycloudflare.com';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
