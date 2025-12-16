@@ -22,9 +22,39 @@
 //   }
 // }
 
+// {
+//   "cli": {
+//     "version": ">= 3.0.0"
+//   },
+//   "build": {
+//     "development": {
+//       "developmentClient": true,
+//       "distribution": "internal",
+//       "android": {
+//         "buildType": "apk"
+//       },
+//       "ios": {
+//         "simulator": false
+//       }
+//     },
+//     "preview": {
+//       "android": {
+//         "buildType": "apk"
+//       },
+//       "distribution": "internal",
+//       "developmentClient": false
+//     },
+//     "simulator": {
+//       "ios": {
+//         "simulator": true
+//       }
+//     }
+//   }
+// }
 {
   "cli": {
-    "version": ">= 3.0.0"
+    "version": ">= 3.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -32,9 +62,6 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "ios": {
-        "simulator": false
       }
     },
     "preview": {
