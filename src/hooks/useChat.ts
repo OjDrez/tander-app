@@ -23,6 +23,9 @@ import { formatMessageDate, formatMessageTime, getDateLabel } from '../api/chatA
 // Key for storing pending messages in AsyncStorage
 const PENDING_MESSAGES_KEY = '@tander_pending_messages';
 
+// Maximum number of retries for sending messages
+const MAX_RETRIES = 5;
+
 // Interface for queued messages
 interface QueuedMessage {
   id: string;
@@ -82,7 +85,14 @@ export const useChat = ({
   const currentUserId = getCurrentUserId();
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingRef = useRef<boolean>(false);
-  const isFlushing = useRef(false);
+  const isFlushingRef = useRef(false);
+  const pendingMessagesRef = useRef<QueuedMessage[]>([]);
+  const isMountedRef = useRef(true);
+
+  // Keep ref in sync with state for use in callbacks
+  useEffect(() => {
+    pendingMessagesRef.current = pendingMessages;
+  }, [pendingMessages]);
 
   // Use provided room ID from backend, or generate one
   const roomId = useMemo(() => {
@@ -174,19 +184,33 @@ export const useChat = ({
 
   /**
    * Flush all pending messages
+   * Uses refs to avoid stale closure issues
    */
   const flushPendingMessages = useCallback(async () => {
-    if (isFlushing.current || pendingMessages.length === 0) return;
-    isFlushing.current = true;
+    // Use ref to get current pending messages to avoid stale closure
+    const currentPending = pendingMessagesRef.current;
 
-    console.log('[useChat] Flushing', pendingMessages.length, 'pending messages');
+    if (isFlushingRef.current || currentPending.length === 0) return;
+    isFlushingRef.current = true;
+
+    console.log('[useChat] Flushing', currentPending.length, 'pending messages');
 
     const remaining: QueuedMessage[] = [];
-    const maxRetries = 5;
 
-    for (const msg of pendingMessages) {
+    for (const msg of currentPending) {
+      // Check if component is still mounted
+      if (!isMountedRef.current) {
+        remaining.push(msg);
+        continue;
+      }
+
       try {
         const result = await socketSendMessage(msg.roomId, msg.text, msg.receiverId);
+
+        if (!isMountedRef.current) {
+          remaining.push(msg);
+          continue;
+        }
 
         if (result.success) {
           console.log('[useChat] Sent pending message:', msg.id);
@@ -196,7 +220,7 @@ export const useChat = ({
               m.id === msg.id ? { ...m, id: result.messageId || msg.id, status: 'sent' } : m
             )
           );
-        } else if (msg.retryCount < maxRetries) {
+        } else if (msg.retryCount < MAX_RETRIES) {
           remaining.push({ ...msg, retryCount: msg.retryCount + 1 });
         } else {
           // Max retries exceeded, mark as failed
@@ -206,28 +230,34 @@ export const useChat = ({
         }
       } catch (err) {
         console.error('[useChat] Failed to send pending message:', err);
-        if (msg.retryCount < maxRetries) {
+        if (msg.retryCount < MAX_RETRIES) {
           remaining.push({ ...msg, retryCount: msg.retryCount + 1 });
         } else {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === msg.id ? { ...m, status: 'failed' } : m))
-          );
+          if (isMountedRef.current) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === msg.id ? { ...m, status: 'failed' } : m))
+            );
+          }
         }
       }
     }
 
-    setPendingMessages(remaining);
+    if (isMountedRef.current) {
+      setPendingMessages(remaining);
+    }
     await savePendingMessages(remaining);
-    isFlushing.current = false;
-  }, [pendingMessages, savePendingMessages]);
+    isFlushingRef.current = false;
+  }, [savePendingMessages]);
 
   /**
    * Flush pending messages when socket reconnects
+   * Uses refs to avoid recreating listeners
    */
   useEffect(() => {
     const handleReconnect = () => {
-      console.log('[useChat] Socket reconnected, flushing pending messages');
-      if (pendingMessages.length > 0) {
+      console.log('[useChat] Socket reconnected, checking for pending messages');
+      // Use ref to check current pending count
+      if (pendingMessagesRef.current.length > 0) {
         flushPendingMessages();
       }
     };
@@ -239,7 +269,7 @@ export const useChat = ({
       socket.off('reconnect', handleReconnect);
       socket.off('authenticated', handleReconnect);
     };
-  }, [pendingMessages.length, flushPendingMessages]);
+  }, [flushPendingMessages]);
 
   // Format messages with date separators
   const formattedMessages = useMemo<ChatListItem[]>(() => {
@@ -511,6 +541,14 @@ export const useChat = ({
     () => messages.some((m) => m.status === 'failed'),
     [messages]
   );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   return {
     messages,

@@ -71,8 +71,8 @@ export default Yup.object().shape({
     .max(20, "Nickname must be less than 20 characters")
     .matches(/^[a-zA-Z0-9_\s]+$/, "Nickname can only contain letters, numbers, underscores, and spaces"),
 
+  // Email is optional here - already collected in AccountIntroScreen
   email: Yup.string()
-    .required("Email is required")
     .email("Please enter a valid email address"),
 
   phone: Yup.string()

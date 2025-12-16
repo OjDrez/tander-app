@@ -4,7 +4,7 @@ import AuthFooterLink from "@/src/components/common/AuthFooterLink";
 import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
 import FullScreen from "@/src/components/layout/FullScreen";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
@@ -22,10 +22,13 @@ import NavigationService from "@/src/navigation/NavigationService";
 import { useToast } from "@/src/context/ToastContext";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useGoogleLogin } from "@/src/hooks/useGoogleLogin";
+import biometricService from "@/src/services/biometricService";
 
 export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   // 🎉 Import Google login handler
   const { login: googleLogin } = useGoogleLogin();
@@ -35,6 +38,18 @@ export default function LoginScreen() {
 
   // 🎉 Import toast handler
   const toast = useToast();
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    checkBiometricStatus();
+  }, []);
+
+  const checkBiometricStatus = async () => {
+    const available = await biometricService.isAvailable();
+    const enabled = await biometricService.isBiometricLoginEnabled();
+    setBiometricAvailable(available);
+    setBiometricEnabled(enabled);
+  };
 
   // ⭐ GOOGLE LOGIN HANDLER
   const handleGoogleLogin = async () => {
@@ -54,10 +69,55 @@ export default function LoginScreen() {
     }
   };
 
-  // ⭐ BIOMETRIC HANDLER
-  const handleBiometricAuthSuccess = () => {
-    console.log("BIOMETRIC SUCCESS");
-    NavigationService.replace("LoginSuccessScreen");
+  // ⭐ BIOMETRIC HANDLER - Now performs actual login with stored credentials
+  const handleBiometricLogin = async () => {
+    try {
+      setIsLoading(true);
+
+      // Get credentials after biometric authentication
+      const credentials = await biometricService.performBiometricLogin();
+
+      if (!credentials) {
+        // No credentials stored or biometric failed - show message
+        const biometricType = await biometricService.getBiometricType();
+        const biometricLabel = biometricService.getBiometricLabel(biometricType);
+        toast.error(`${biometricLabel} authentication failed. Please try again.`);
+        return;
+      }
+
+      // Perform actual login with stored credentials
+      await login(credentials);
+      toast.success("Welcome back!");
+      NavigationService.replace("HomeScreen");
+    } catch (error: any) {
+      console.error("Biometric login error:", error);
+
+      // Handle specific errors like profile/ID incomplete
+      if (error.profileIncomplete) {
+        toast.warning("Please complete your profile first.");
+        setTimeout(() => {
+          NavigationService.navigate("Auth", {
+            screen: "Register",
+            params: { screen: "Step1" }
+          });
+        }, 1500);
+      } else if (error.idVerificationIncomplete) {
+        toast.warning("Please complete ID verification first.");
+        setTimeout(() => {
+          NavigationService.navigate("Auth", {
+            screen: "Register",
+            params: { screen: "Step2" }
+          });
+        }, 1500);
+      } else {
+        toast.error("Login failed. Please try with your password.");
+        // Clear stored credentials if they're invalid
+        await biometricService.clearCredentials();
+        setBiometricEnabled(false);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -90,7 +150,18 @@ export default function LoginScreen() {
                   setIsLoading(true);
 
                   await login(values);
-                  toast.success("Login successful! Welcome back.");
+
+                  // Credentials are saved automatically in AuthProvider
+                  // Show appropriate message based on biometric availability
+                  if (biometricAvailable) {
+                    const biometricType = await biometricService.getBiometricType();
+                    const biometricLabel = biometricService.getBiometricLabel(biometricType);
+                    setBiometricEnabled(true);
+                    toast.success(`Login successful! ${biometricLabel} has been enabled for faster sign-in.`);
+                  } else {
+                    toast.success("Login successful! Welcome back.");
+                  }
+
                   NavigationService.replace("HomeScreen");
                 } catch (error: any) {
                   console.error("Login error:", error);
@@ -205,12 +276,14 @@ export default function LoginScreen() {
                     style={{ marginTop: 5 }}
                   />
 
-                  {/* ⭐ UNIVERSAL BIOMETRIC BUTTON */}
-                  <View style={styles.biometricRow}>
-                    <UniversalBiometricButton
-                      onAuthenticate={handleBiometricAuthSuccess}
-                    />
-                  </View>
+                  {/* ⭐ BIOMETRIC LOGIN - Only show if device supports it AND user has enabled it */}
+                  {biometricAvailable && biometricEnabled && (
+                    <View style={styles.biometricRow}>
+                      <UniversalBiometricButton
+                        onAuthenticate={handleBiometricLogin}
+                      />
+                    </View>
+                  )}
 
                   <Text style={styles.dividerText}>continue with</Text>
 

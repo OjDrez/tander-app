@@ -23,8 +23,7 @@ import { useSlideUp } from "../../hooks/useFadeIn";
 import { useToast } from "@/src/context/ToastContext";
 import { Step3Nav } from "../../navigation/NavigationTypes";
 import { useAuth } from "../../hooks/useAuth";
-import { authApi } from "../../api/authApi";
-import { API_BASE_URL } from "../../api/config";
+import { photoApi } from "../../api/photoApi";
 
 interface Props {
   navigation: Step3Nav;
@@ -36,19 +35,6 @@ interface FormValues {
 }
 
 const DEFAULT_PROFILE_PHOTO = "https://ui-avatars.com/api/?name=Tander+User&background=F5A14B&color=fff&size=256";
-
-// Helper to convert local URI to file object for upload
-const uriToFile = (uri: string, index: number, type: string = 'profile') => {
-  const filename = uri.split('/').pop() || `${type}_photo_${index}.jpg`;
-  const match = /\.(\w+)$/.exec(filename);
-  const mimeType = match ? `image/${match[1]}` : 'image/jpeg';
-
-  return {
-    uri,
-    type: mimeType,
-    name: filename,
-  };
-};
 
 export default function Step3Upload({ navigation }: Props) {
   const { values, setFieldValue } = useFormikContext<FormValues>();
@@ -118,10 +104,10 @@ export default function Step3Upload({ navigation }: Props) {
     setFieldValue("profilePhoto", "");
   };
 
-  // Pick additional photo
+  // Pick additional photo (up to 6 additional photos)
   const handlePickAdditionalPhoto = async () => {
-    if (additionalPhotoCount >= 5) {
-      toast.warning("You can only upload up to 5 additional photos.");
+    if (additionalPhotoCount >= 6) {
+      toast.warning("You can only upload up to 6 additional photos.");
       return;
     }
 
@@ -147,50 +133,44 @@ export default function Step3Upload({ navigation }: Props) {
   };
 
   const handleContinue = async () => {
-    const username = phase1Data?.username || registrationFlow?.username;
     const hasPhotosToUpload = profilePhoto || additionalPhotos.length > 0;
 
-    // If we have photos and a username, upload them
-    if (hasPhotosToUpload && username) {
+    // Get username from registration flow
+    const username = phase1Data?.username;
+    if (!username) {
+      toast.warning("Username not found. Please restart registration.");
+      return;
+    }
+
+    // If we have photos, upload them using photoApi
+    if (hasPhotosToUpload) {
       setIsUploading(true);
       try {
-        // Prepare profile photo for upload
-        const profilePhotoFile = profilePhoto
-          ? uriToFile(profilePhoto, 0, 'profile')
-          : undefined;
-
-        // Prepare additional photos for upload
-        const additionalPhotoFiles = additionalPhotos
-          .filter(p => p !== "")
-          .map((photo, index) => uriToFile(photo, index, 'additional'));
-
-        // Upload photos to backend
-        const response = await authApi.uploadPhotos(
+        // Use the registration-specific upload method
+        const validAdditionalPhotos = additionalPhotos.filter(p => p !== "");
+        const response = await photoApi.uploadRegistrationPhotos(
           username,
-          profilePhotoFile,
-          additionalPhotoFiles.length > 0 ? additionalPhotoFiles : undefined
+          profilePhoto || null,
+          validAdditionalPhotos,
+          (progress) => {
+            console.log('Upload progress:', progress);
+          }
         );
 
         if (response.status === 'success') {
-          // Store the server URLs in Formik
-          const serverProfilePhotoUrl = response.profilePhotoUrl
-            ? `${API_BASE_URL}${response.profilePhotoUrl}`
-            : DEFAULT_PROFILE_PHOTO;
-          const serverAdditionalUrls = (response.additionalPhotoUrls || [])
-            .map(url => `${API_BASE_URL}${url}`);
-
-          setFieldValue("profilePhoto", serverProfilePhotoUrl);
-          setFieldValue("photos", [serverProfilePhotoUrl, ...serverAdditionalUrls].filter(Boolean));
-
+          // Update formik with server URLs
+          if (response.profilePhotoUrl) {
+            const serverProfileUrl = photoApi.getPhotoUrl(response.profilePhotoUrl) || DEFAULT_PROFILE_PHOTO;
+            setFieldValue("profilePhoto", serverProfileUrl);
+          }
+          if (response.additionalPhotoUrls && response.additionalPhotoUrls.length > 0) {
+            const serverUrls = response.additionalPhotoUrls.map(url => photoApi.getPhotoUrl(url) || url);
+            const allPhotos = [response.profilePhotoUrl || profilePhoto || DEFAULT_PROFILE_PHOTO, ...serverUrls].filter(Boolean);
+            setFieldValue("photos", allPhotos);
+          }
           toast.success("Photos uploaded successfully!");
         } else {
-          // If upload fails, still proceed but with local URIs
-          console.warn('Photo upload returned error status:', response.message);
-          toast.warning("Photos will be saved locally. You can retry uploading later.");
-
-          const allPhotos = [profilePhoto, ...additionalPhotos].filter(Boolean);
-          setFieldValue("photos", allPhotos);
-          setFieldValue("profilePhoto", profilePhoto || DEFAULT_PROFILE_PHOTO);
+          throw new Error(response.message || 'Upload failed');
         }
       } catch (error: any) {
         console.error('Photo upload error:', error);
@@ -366,7 +346,7 @@ export default function Step3Upload({ navigation }: Props) {
                   <Ionicons name="grid" size={20} color={colors.primary} />
                   <Text style={styles.cardTitle}>More Photos</Text>
                 </View>
-                <Text style={styles.photoCount}>{additionalPhotoCount}/5</Text>
+                <Text style={styles.photoCount}>{additionalPhotoCount}/6</Text>
               </View>
               <Text style={styles.cardSubtitle}>
                 Add more photos to show your personality and interests.
@@ -387,7 +367,7 @@ export default function Step3Upload({ navigation }: Props) {
                 ))}
 
                 {/* Add photo button */}
-                {additionalPhotoCount < 5 && (
+                {additionalPhotoCount < 6 && (
                   <TouchableOpacity
                     style={styles.addPhotoButton}
                     onPress={handlePickAdditionalPhoto}
@@ -409,7 +389,7 @@ export default function Step3Upload({ navigation }: Props) {
           </Animated.View>
         </ScrollView>
 
-        {/* Bottom Navigation */}
+        {/* Bottom Navigation - Clearer buttons for elderly users */}
         <Animated.View
           style={[
             styles.bottomNav,
@@ -423,38 +403,57 @@ export default function Step3Upload({ navigation }: Props) {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
+            accessibilityLabel="Go back to previous step"
+            accessibilityRole="button"
           >
             <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.nextButton,
-              !hasProfilePhoto && styles.nextButtonSecondary,
-              isUploading && styles.nextButtonDisabled,
-            ]}
-            onPress={handleContinue}
-            activeOpacity={0.8}
-            disabled={isUploading}
-          >
-            {isUploading ? (
-              <>
-                <ActivityIndicator size="small" color={colors.white} />
-                <Text style={styles.nextText}>Uploading...</Text>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.nextText, !hasProfilePhoto && styles.nextTextSecondary]}>
-                  {hasProfilePhoto ? "Continue" : "Skip Photos"}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={hasProfilePhoto ? colors.white : colors.primary}
-                />
-              </>
+          {/* Two separate buttons for clarity - elderly users understand separate actions */}
+          <View style={styles.actionButtons}>
+            {!hasProfilePhoto && !isUploading && (
+              <TouchableOpacity
+                style={styles.skipButton2}
+                onPress={handleSkip}
+                activeOpacity={0.8}
+                accessibilityLabel="Skip adding photos and continue"
+                accessibilityRole="button"
+              >
+                <Text style={styles.skipButton2Text}>Skip for Now</Text>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.nextButton,
+                !hasProfilePhoto && styles.nextButtonSecondary,
+                isUploading && styles.nextButtonDisabled,
+              ]}
+              onPress={handleContinue}
+              activeOpacity={0.8}
+              disabled={isUploading || !hasProfilePhoto}
+              accessibilityLabel={hasProfilePhoto ? "Continue with photos" : "Add a photo first"}
+              accessibilityRole="button"
+            >
+              {isUploading ? (
+                <>
+                  <ActivityIndicator size="small" color={colors.white} />
+                  <Text style={styles.nextText}>Uploading...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.nextText, !hasProfilePhoto && styles.nextTextSecondary]}>
+                    {hasProfilePhoto ? "Continue with Photo" : "Add Photo First"}
+                  </Text>
+                  <Ionicons
+                    name={hasProfilePhoto ? "chevron-forward" : "camera"}
+                    size={20}
+                    color={hasProfilePhoto ? colors.white : colors.primary}
+                  />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </View>
     </FullScreen>
@@ -731,24 +730,47 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  // Increased back button size for elderly users
   backButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#F5F5F5",
     justifyContent: "center",
     alignItems: "center",
+  },
+  // Container for action buttons
+  actionButtons: {
+    flex: 1,
+    flexDirection: "row",
+    marginLeft: 12,
+    gap: 10,
+  },
+  // Clear "Skip" button for elderly users
+  skipButton2: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
+  },
+  skipButton2Text: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: "600",
   },
   nextButton: {
     flex: 1,
     flexDirection: "row",
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 16,
     gap: 8,
     shadowColor: colors.primary,
     shadowOpacity: 0.3,
@@ -768,7 +790,7 @@ const styles = StyleSheet.create({
   },
   nextText: {
     color: colors.white,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   nextTextSecondary: {

@@ -21,6 +21,17 @@ export default function RegistrationNavigator() {
   const { completeProfile, phase1Data, registrationFlow } = useAuth();
   const toast = useToast();
 
+  // Helper to ensure date is in MM/dd/yyyy format for backend
+  const formatDateForBackend = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      const [month, day, year] = parts;
+      return `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`;
+    }
+    return dateStr;
+  };
+
   const handleRegistration = async (values: any) => {
     try {
       // Check if Phase 1 data exists
@@ -48,7 +59,7 @@ export default function RegistrationNavigator() {
         address: values.address || '',
         phone: values.phone || '',
         email: phase1Data?.email || values.email,
-        birthDate: values.birthday,
+        birthDate: formatDateForBackend(values.birthday),
         age: parseInt(values.age) || 0,
         country: values.country,
         city: values.city,

@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Platform, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
+import { Animated, Platform, StyleSheet, TouchableOpacity, View, Alert, Vibration } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RTCView } from "react-native-webrtc";
 
@@ -11,9 +11,61 @@ import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
-import { useCall } from "@/src/hooks/useCall";
+import { useCall, ConnectionQuality } from "@/src/hooks/useCall";
 import { useSocketConnection } from "@/src/hooks/useSocket";
 import { CallType, IncomingCallPayload, CallEndedPayload, CallRejectedPayload } from "@/src/types/chat";
+
+// Connection quality indicator component
+const ConnectionQualityIndicator = ({ quality }: { quality: ConnectionQuality }) => {
+  const getQualityBars = () => {
+    switch (quality) {
+      case "excellent": return [1, 1, 1, 1];
+      case "good": return [1, 1, 1, 0.3];
+      case "fair": return [1, 1, 0.3, 0.3];
+      case "poor": return [1, 0.3, 0.3, 0.3];
+      default: return [0.3, 0.3, 0.3, 0.3];
+    }
+  };
+
+  const getQualityColor = () => {
+    switch (quality) {
+      case "excellent":
+      case "good": return colors.success;
+      case "fair": return colors.warning;
+      case "poor": return colors.danger;
+      default: return colors.textMuted;
+    }
+  };
+
+  const bars = getQualityBars();
+  const barColor = getQualityColor();
+
+  return (
+    <View style={qualityStyles.container} accessibilityLabel={`Connection quality: ${quality}`}>
+      {bars.map((opacity, index) => (
+        <View
+          key={index}
+          style={[
+            qualityStyles.bar,
+            { height: 6 + index * 3, backgroundColor: barColor, opacity },
+          ]}
+        />
+      ))}
+    </View>
+  );
+};
+
+const qualityStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  bar: {
+    width: 3,
+    borderRadius: 1.5,
+  },
+});
 
 type ControlButtonProps = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -21,7 +73,10 @@ type ControlButtonProps = {
   active?: boolean;
   onPress?: () => void;
   danger?: boolean;
+  success?: boolean;
   disabled?: boolean;
+  size?: "normal" | "large";
+  accessibilityHint?: string;
 };
 
 export default function VideoCallScreen({
@@ -157,14 +212,14 @@ export default function VideoCallScreen({
     }
   };
 
-  // Get connection quality indicator
-  const getQualityColor = (): string => {
+  // Get quality text
+  const getQualityText = (): string => {
     switch (connectionQuality) {
-      case 'excellent': return colors.success;
-      case 'good': return colors.success;
-      case 'fair': return colors.warning;
-      case 'poor': return colors.danger;
-      default: return colors.textMuted;
+      case 'excellent': return 'Excellent';
+      case 'good': return 'Good';
+      case 'fair': return 'Fair';
+      case 'poor': return 'Poor';
+      default: return '';
     }
   };
 
@@ -208,16 +263,28 @@ export default function VideoCallScreen({
                 {username || `User ${userId}`}
               </AppText>
               {callStatus === 'connected' && (
-                <View style={[styles.qualityIndicator, { backgroundColor: getQualityColor() }]} />
+                <View style={styles.qualityContainer}>
+                  <ConnectionQualityIndicator quality={connectionQuality} />
+                </View>
               )}
             </View>
-            <AppText size="small" weight="medium" color={colors.white} style={styles.callStatus}>
-              {getStatusText()}
-            </AppText>
-            {error && (
-              <AppText size="tiny" color={colors.danger} style={styles.errorText}>
-                {error}
+            <View style={styles.statusRow}>
+              <AppText size="small" weight="medium" color={colors.white} style={styles.callStatus}>
+                {getStatusText()}
               </AppText>
+              {callStatus === 'connected' && getQualityText() && (
+                <AppText size="tiny" color="rgba(255,255,255,0.7)">
+                  • {getQualityText()}
+                </AppText>
+              )}
+            </View>
+            {error && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="warning" size={14} color={colors.danger} />
+                <AppText size="tiny" color={colors.danger} style={styles.errorText}>
+                  {error}
+                </AppText>
+              </View>
             )}
           </View>
         </SafeAreaView>
@@ -305,32 +372,72 @@ export default function VideoCallScreen({
   );
 }
 
-function ControlButton({ icon, label, active = false, onPress, danger = false, disabled = false }: ControlButtonProps) {
+function ControlButton({
+  icon,
+  label,
+  active = false,
+  onPress,
+  danger = false,
+  success = false,
+  disabled = false,
+  size = "normal",
+  accessibilityHint,
+}: ControlButtonProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.9,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const isLarge = size === "large";
+  const buttonSize = isLarge ? 72 : 60;
+  const iconSize = isLarge ? 30 : 24;
+
   return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      activeOpacity={0.9}
-      onPress={onPress}
-      disabled={disabled}
-      style={[
-        styles.controlButton,
-        danger && styles.dangerButton,
-        active && styles.activeButton,
-        disabled && styles.disabledButton,
-      ]}
-    >
-      <Ionicons name={icon} size={22} color={disabled ? colors.textMuted : colors.white} />
-      <AppText
-        size="tiny"
-        weight="medium"
-        color={disabled ? colors.textMuted : colors.white}
-        style={styles.controlLabel}
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={{ disabled, selected: active }}
+        activeOpacity={0.8}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled}
+        style={[
+          styles.controlButton,
+          { width: buttonSize, height: buttonSize, borderRadius: buttonSize / 2 },
+          danger && styles.dangerButton,
+          success && styles.successButton,
+          active && styles.activeButton,
+          disabled && styles.disabledButton,
+        ]}
       >
-        {label}
-      </AppText>
-    </TouchableOpacity>
+        <Ionicons name={icon} size={iconSize} color={disabled ? colors.textMuted : colors.white} />
+      </TouchableOpacity>
+      {label && (
+        <AppText
+          size="tiny"
+          weight="medium"
+          color={disabled ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.9)"}
+          style={styles.controlLabel}
+        >
+          {label}
+        </AppText>
+      )}
+    </Animated.View>
   );
 }
 
@@ -388,18 +495,34 @@ const styles = StyleSheet.create({
   callHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
-  qualityIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  qualityContainer: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   callStatus: {
     opacity: 0.9,
   },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    backgroundColor: 'rgba(255,0,0,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
   errorText: {
-    marginTop: 4,
+    flex: 1,
   },
   localPreviewContainer: {
     position: "absolute",
@@ -507,6 +630,10 @@ const styles = StyleSheet.create({
   activeButton: {
     backgroundColor: colors.accentBlue,
     borderColor: colors.accentBlue,
+  },
+  successButton: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
   },
   dangerButton: {
     backgroundColor: colors.danger,

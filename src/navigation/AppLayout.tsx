@@ -202,7 +202,7 @@
 // }
 
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -215,6 +215,7 @@ import HomeScreen from "../screens/Home/HomeScreen";
 import InboxScreen from "../screens/Inbox/InboxScreen";
 import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
 import MyProfileScreen from "../screens/Profile/MyProfileScreen";
+import TandyScreen from "../screens/Tandy/TandyScreen";
 
 // DEEP SCREENS
 import {
@@ -223,14 +224,17 @@ import {
   IncomingCallScreen,
 } from "../screens/Call";
 import ConversationScreen from "../screens/Chat/ConversationScreen";
+import DiscoveryScreen from "../screens/Discovery/DiscoveryScreen";
 import InboxEmptyScreen from "../screens/Inbox/InboxEmptyScreen";
 import MatchCelebrationScreen from "../screens/Matches/MatchCelebrationScreen";
-import DashboardScreen from "../screens/Profile/DashboardScreen";
+import MatchesScreen from "../screens/Matches/MatchesScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 
-// NEW SETTINGS NAVIGATOR
+// SERVICES
+import { notificationService } from "../services/notificationService";
+import { matchingApi } from "../api/matchingApi";
 
 import { AppStackParamList } from "./NavigationTypes";
 
@@ -249,6 +253,8 @@ function Tabs({ activeTab }: { activeTab: MainNavigationTab }) {
         return MyMatchesScreen;
       case "Profile":
         return MyProfileScreen;
+      case "Tandy":
+        return TandyScreen;
       default:
         return HomeScreen;
     }
@@ -265,25 +271,71 @@ function Tabs({ activeTab }: { activeTab: MainNavigationTab }) {
   );
 }
 
+// Screens where the bottom navigation should be visible
+const MAIN_TAB_SCREENS = ["Tabs", "TabRoot"];
+
 /* ---------------------- MAIN LAYOUT ---------------------- */
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<MainNavigationTab>("Home");
+  const [currentRouteName, setCurrentRouteName] = useState<string>("Tabs");
+
+  // Only show bottom nav on main tab screens (Home, Inbox, Matches, Profile)
+  const showBottomNav = MAIN_TAB_SCREENS.includes(currentRouteName);
+
+  // Initialize notifications and schedule expiration reminders
+  useEffect(() => {
+    const initNotifications = async () => {
+      try {
+        // Request notification permissions
+        await notificationService.requestPermissions();
+
+        // Schedule expiration reminders for all active matches
+        const matches = await matchingApi.getMatchesList();
+        await notificationService.scheduleExpirationReminders(matches);
+
+        console.log('✅ Notifications initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize notifications:', error);
+      }
+    };
+
+    initNotifications();
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
       {/* MAIN STACK */}
       <View style={{ flex: 1 }}>
-        <MainStack.Navigator screenOptions={{ headerShown: false }}>
+        <MainStack.Navigator
+          screenOptions={{ headerShown: false }}
+          screenListeners={{
+            state: (e) => {
+              // Track navigation state changes to show/hide bottom nav
+              const state = e.data.state;
+              if (state && state.routes && state.routes.length > 0) {
+                const route = state.routes[state.index];
+                setCurrentRouteName(route?.name || "Tabs");
+              }
+            },
+          }}
+        >
           {/* TABS */}
           <MainStack.Screen name="Tabs">
             {() => <Tabs activeTab={activeTab} />}
           </MainStack.Screen>
 
-          {/* SETTINGS FLOW (stack inside Root) */}
-          {/* <MainStack.Screen name="Settings" component={SettingNavigator} /> */}
+          {/* DISCOVERY & MATCHING */}
+          <MainStack.Screen
+            name="DiscoveryScreen"
+            component={DiscoveryScreen}
+          />
+          <MainStack.Screen
+            name="MyMatchesScreen"
+            component={MatchesScreen}
+          />
 
-          {/* OTHER DEEP SCREENS */}
+          {/* CHAT & MESSAGING */}
           <MainStack.Screen
             name="ConversationScreen"
             component={ConversationScreen}
@@ -292,10 +344,14 @@ export default function AppLayout() {
             name="InboxEmptyScreen"
             component={InboxEmptyScreen}
           />
+
+          {/* CELEBRATION */}
           <MainStack.Screen
             name="MatchCelebrationScreen"
             component={MatchCelebrationScreen}
           />
+
+          {/* PROFILE SCREENS */}
           <MainStack.Screen
             name="PeopleViewedMeScreen"
             component={PeopleViewedMeScreen}
@@ -308,10 +364,8 @@ export default function AppLayout() {
             name="ProfileViewScreen"
             component={ProfileViewScreen}
           />
-          <MainStack.Screen
-            name="DashboardScreen"
-            component={DashboardScreen}
-          />
+
+          {/* CALLS */}
           <MainStack.Screen
             name="VideoCallScreen"
             component={VideoCallScreen}
@@ -327,14 +381,16 @@ export default function AppLayout() {
         </MainStack.Navigator>
       </View>
 
-      {/* FIXED BOTTOM NAVIGATION BAR */}
-      <MainNavigationBar
-        activeTab={activeTab}
-        onTabPress={(tab) => setActiveTab(tab)}
-        style={{
-          paddingBottom: Platform.OS === "android" ? insets.bottom : 10,
-        }}
-      />
+      {/* FIXED BOTTOM NAVIGATION BAR - Only visible on main tab screens */}
+      {showBottomNav && (
+        <MainNavigationBar
+          activeTab={activeTab}
+          onTabPress={(tab) => setActiveTab(tab)}
+          style={{
+            paddingBottom: Platform.OS === "android" ? insets.bottom : 10,
+          }}
+        />
+      )}
     </View>
   );
 }

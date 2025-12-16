@@ -42,7 +42,12 @@ export type CallScreenParams = {
  * MAIN APP STACK (after onboarding/auth)
  */
 export type AppStackParamList = {
+  // Internal tab navigation
+  Tabs: undefined;
+  TabRoot: undefined;
   HomeScreen: undefined;
+  TandyScreen: undefined;
+  DiscoveryScreen: undefined;
   InboxScreen: undefined;
   InboxEmptyScreen: undefined;
   ConversationScreen: {
@@ -54,20 +59,25 @@ export type AppStackParamList = {
   };
   MessageThreadScreen: { userId: string };
   MyMatchesScreen: undefined;
+  MatchesScreen: undefined;
   MatchCelebrationScreen: { user1: string; user2: string };
   PeopleViewedMeScreen: undefined;
   MyProfileScreen: undefined;
   ProfileViewScreen: { userId: string };
   ViewProfileScreen: { userId: string };
   ViewProfileDetailsScreen: { userId: string };
-  DashboardScreen: { userId: string };
   SettingsScreen: undefined;
   EditProfileScreen: undefined;
   EditBasicInfoScreen: undefined;
   EditAboutYouScreen: undefined;
+  EditBioScreen: undefined;
   PaymentMethodsScreen: undefined;
+  AddPaymentMethodScreen: undefined;
   PrivacyScreen: undefined;
+  BlockedUsersScreen: undefined;
   ChangePasswordScreen: undefined;
+  SecuritySettingsScreen: undefined;
+  IdVerificationScreen: undefined;
   HelpCenterScreen: undefined;
   VideoCallScreen: CallScreenParams;
   VoiceCallScreen: CallScreenParams;

@@ -43,12 +43,12 @@ const notifyAuthError = (errorCode: AuthErrorCode, message: string) => {
 const getApiBaseUrl = () => {
   if (__DEV__) {
     if (Platform.OS === 'android') {
-      return 'https://invitation-pod-lender-issn.trycloudflare.com'; // Android emulator
+      return 'https://layers-requirements-expand-locks.trycloudflare.com'; // Android emulator
     }
-    return 'https://invitation-pod-lender-issn.trycloudflare.com'; // iOS simulator or web
+    return 'https://layers-requirements-expand-locks.trycloudflare.com'; // iOS simulator or web
   }
   // Production URL - update this for production deployment
-  return 'https://invitation-pod-lender-issn.trycloudflare.com';
+  return 'https://layers-requirements-expand-locks.trycloudflare.com';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -92,10 +92,11 @@ export const getCurrentUsernameFromToken = async (): Promise<string | null> => {
   }
 };
 
-// Log API configuration on startup
-console.log('⚙️  [API Config] Platform:', Platform.OS);
-console.log('⚙️  [API Config] Base URL:', API_BASE_URL);
-console.log('⚙️  [API Config] Dev mode:', __DEV__);
+// Log API configuration on startup (only in dev mode)
+if (__DEV__) {
+  console.log('⚙️  [API Config] Platform:', Platform.OS);
+  console.log('⚙️  [API Config] Base URL:', API_BASE_URL);
+}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -107,61 +108,57 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   async (config) => {
-    console.log(`🌐 [API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    console.log('🌐 [API Request] Headers:', config.headers);
-    if (config.data) {
-      console.log('🌐 [API Request] Body:', JSON.stringify(config.data, null, 2));
+    // Only log in development mode - never log sensitive data in production
+    if (__DEV__) {
+      console.log(`🌐 [API Request] ${config.method?.toUpperCase()} ${config.url}`);
+      // NOTE: Never log request body or full headers - may contain sensitive data
     }
 
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     if (token) {
       config.headers['Jwt-Token'] = token;
-      console.log('🔑 [API Request] Token added to headers:', token.substring(0, 50) + '...');
-    } else {
-      console.log('⚠️ [API Request] No token found in storage');
     }
     return config;
   },
   (error) => {
-    console.error('❌ [API Request Error]:', error);
+    if (__DEV__) {
+      console.error('❌ [API Request Error]:', error.message);
+    }
     return Promise.reject(error);
   }
 );
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ [API Response] ${response.status} ${response.config.url}`);
-    console.log('✅ [API Response] Data:', JSON.stringify(response.data, null, 2));
-    console.log('✅ [API Response] All Headers:', JSON.stringify(response.headers, null, 2));
+    // Only log in development mode - never log response data in production
+    if (__DEV__) {
+      console.log(`✅ [API Response] ${response.status} ${response.config.url}`);
+      // NOTE: Never log response body - may contain sensitive user data
+    }
 
     // Try both lowercase and original case header names
     const token = response.headers['jwt-token'] || response.headers['Jwt-Token'];
     if (token) {
       AsyncStorage.setItem(TOKEN_KEY, token);
-      console.log('🔑 [API Response] JWT token saved:', token.substring(0, 50) + '...');
-    } else {
-      console.log('⚠️ [API Response] No JWT token found in response headers');
     }
     return response;
   },
   async (error: AxiosError<{ error?: boolean; errorCode?: AuthErrorCode; message?: string }>) => {
-    console.error(`❌ [API Response Error] ${error.config?.url}`);
-    console.error(`❌ [API Response Error] Status: ${error.response?.status}`);
-    console.error(`❌ [API Response Error] Data:`, JSON.stringify(error.response?.data, null, 2));
-    console.error(`❌ [API Response Error] Message:`, error.message);
+    // Only log in development mode
+    if (__DEV__) {
+      console.error(`❌ [API Response Error] ${error.config?.url} - Status: ${error.response?.status}`);
+      // NOTE: Never log error response data - may contain sensitive info
+    }
 
     if (error.response?.status === 401) {
       // Clear the invalid token
       await AsyncStorage.removeItem(TOKEN_KEY);
-      console.log('🔑 [API Response] Token removed due to 401');
 
       // Check for specific error codes from backend
       const data = error.response?.data;
       if (data?.errorCode) {
         const errorCode = data.errorCode as AuthErrorCode;
         const message = data.message || 'Authentication failed';
-
-        console.log(`🔐 [API Auth Error] Code: ${errorCode}, Message: ${message}`);
 
         // Notify listeners about the auth error
         notifyAuthError(errorCode, message);

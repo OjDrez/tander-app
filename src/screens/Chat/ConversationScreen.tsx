@@ -7,7 +7,15 @@ import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { useChat } from "@/src/hooks/useChat";
 import { useSocketConnection } from "@/src/hooks/useSocket";
-import { getConversationMessages, formatMessageTime, formatMessageDate, getDateLabel } from "@/src/api/chatApi";
+import {
+  getConversationMessages,
+  formatMessageTime,
+  formatMessageDate,
+  getDateLabel,
+  checkMatchStatus,
+  getExpirationWarning,
+  MatchInfo,
+} from "@/src/api/chatApi";
 import { ChatListItem, DateSeparator, MessageDisplay } from "@/src/types/chat";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -19,6 +27,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Animated,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -28,6 +38,87 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Connection status banner component - SENIOR-FRIENDLY: Larger, clearer messaging
+const ConnectionStatusBanner = ({ isOnline, pendingCount }: { isOnline: boolean; pendingCount: number }) => {
+  const slideAnim = useRef(new Animated.Value(isOnline ? -80 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: isOnline && pendingCount === 0 ? -80 : 0,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+  }, [isOnline, pendingCount, slideAnim]);
+
+  if (isOnline && pendingCount === 0) return null;
+
+  return (
+    <Animated.View
+      style={[
+        styles.connectionBanner,
+        { transform: [{ translateY: slideAnim }] },
+        !isOnline ? styles.offlineBanner : styles.pendingBanner,
+      ]}
+      accessibilityRole="alert"
+      accessibilityLabel={!isOnline ? "You are offline. Your messages will be sent when you reconnect to the internet." : `${pendingCount} messages are waiting to be sent.`}
+    >
+      <View style={styles.connectionIconContainer}>
+        <Ionicons
+          name={!isOnline ? "cloud-offline" : "time-outline"}
+          size={28}
+          color={colors.white}
+        />
+      </View>
+      <View style={styles.connectionTextContainer}>
+        <AppText size="body" weight="bold" color={colors.white}>
+          {!isOnline ? "You're offline" : "Sending messages..."}
+        </AppText>
+        <AppText size="body" weight="medium" color={colors.white}>
+          {!isOnline
+            ? "Messages will send when you're back online"
+            : `${pendingCount} message${pendingCount > 1 ? "s" : ""} waiting`}
+        </AppText>
+      </View>
+    </Animated.View>
+  );
+};
+
+// Match expiration warning banner - SENIOR-FRIENDLY: Larger, clearer warning
+const MatchExpirationBanner = ({
+  hoursUntilExpiration,
+  chatStarted,
+}: {
+  hoursUntilExpiration?: number;
+  chatStarted?: boolean;
+}) => {
+  const warningMessage = getExpirationWarning(hoursUntilExpiration);
+
+  // Don't show warning if chat has started (match won't expire)
+  if (chatStarted || !warningMessage) return null;
+
+  const isUrgent = hoursUntilExpiration !== undefined && hoursUntilExpiration <= 6;
+
+  return (
+    <View
+      style={[styles.expirationBanner, isUrgent && styles.expirationBannerUrgent]}
+      accessibilityRole="alert"
+      accessibilityLabel={`Time reminder: ${warningMessage}`}
+    >
+      <View style={[styles.expirationIconContainer, isUrgent && styles.expirationIconUrgent]}>
+        <Ionicons name="time" size={28} color={isUrgent ? colors.white : colors.warning} />
+      </View>
+      <View style={styles.expirationTextContainer}>
+        <AppText size="body" weight="bold" color={isUrgent ? colors.error : colors.textPrimary}>
+          {isUrgent ? "⏰ Time running out!" : "Reminder"}
+        </AppText>
+        <AppText size="body" color={colors.textPrimary} style={styles.expirationText}>
+          {warningMessage}
+        </AppText>
+      </View>
+    </View>
+  );
+};
 
 export default function ConversationScreen({
   route,
@@ -40,11 +131,31 @@ export default function ConversationScreen({
   const [messageText, setMessageText] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [initialMessages, setInitialMessages] = useState<MessageDisplay[]>([]);
+  const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList<ChatListItem>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isOnline = onlineUsers.has(otherUserId);
+  const isUserOnline = onlineUsers.has(otherUserId);
+
+  // Check match status when screen loads
+  useEffect(() => {
+    const validateMatch = async () => {
+      const info = await checkMatchStatus(otherUserId);
+      setMatchInfo(info);
+
+      if (!info.isMatched) {
+        setMatchError("You can only chat with users you have matched with.");
+      } else if (info.status === "EXPIRED") {
+        setMatchError("This match has expired. Keep swiping to find new matches!");
+      } else if (info.status === "UNMATCHED") {
+        setMatchError("This match is no longer active.");
+      }
+    };
+
+    validateMatch();
+  }, [otherUserId]);
 
   // Load message history from API
   const loadMessageHistory = useCallback(async () => {
@@ -84,8 +195,13 @@ export default function ConversationScreen({
     sendMessage,
     setTyping,
     markAsRead,
+    retryMessage,
+    deleteFailedMessage,
     error,
     roomId,
+    isOnline,
+    pendingCount,
+    hasFailedMessages,
   } = useChat({
     conversationId,
     otherUserId,
@@ -217,6 +333,16 @@ export default function ConversationScreen({
     });
   };
 
+  // Handle retry failed message
+  const handleRetryMessage = useCallback(async (messageId: string) => {
+    await retryMessage(messageId);
+  }, [retryMessage]);
+
+  // Handle delete failed message
+  const handleDeleteMessage = useCallback((messageId: string) => {
+    deleteFailedMessage(messageId);
+  }, [deleteFailedMessage]);
+
   const renderItem = ({ item }: { item: ChatListItem }) => {
     if ((item as DateSeparator).type === "date") {
       const dateItem = item as DateSeparator;
@@ -238,6 +364,8 @@ export default function ConversationScreen({
         time={msg.time}
         isOwn={msg.isOwn}
         status={msg.status}
+        onRetry={msg.status === "failed" ? () => handleRetryMessage(msg.id) : undefined}
+        onDelete={msg.status === "failed" ? () => handleDeleteMessage(msg.id) : undefined}
       />
     );
   };
@@ -256,75 +384,130 @@ export default function ConversationScreen({
           keyboardVerticalOffset={insets.top + 8}
         >
           <View style={styles.contentWrapper}>
-            <AppHeader
-              onBackPress={() => navigation.goBack()}
-              centerContent={
-                <TouchableOpacity
-                  style={styles.headerUserRow}
-                  onPress={() => navigation.navigate("DashboardScreen", { userId: otherUserId.toString() })}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${otherUserName}'s profile, ${isOnline ? "online now" : "offline"}`}
-                  accessibilityHint="Double tap to view their profile"
-                >
-                  <View style={styles.avatarContainer}>
-                    <Image
-                      source={{
-                        uri: avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUserName)}&background=random`,
-                      }}
-                      style={styles.avatar}
-                    />
-                    {isOnline && <View style={styles.onlineIndicator} accessibilityLabel="Online now" />}
-                  </View>
-                  <View>
-                    <AppText
-                      weight="bold"
-                      size="h4"
-                      color={colors.textPrimary}
-                    >
-                      {otherUserName}
-                    </AppText>
-                    <AppText size="small" color={isOnline ? colors.success : colors.textSecondary}>
-                      {isTyping ? "Typing..." : isOnline ? "Online" : "Offline"}
-                    </AppText>
-                  </View>
-                </TouchableOpacity>
-              }
-              rightContent={
-                <View style={styles.headerActions}>
-                  <TouchableOpacity
-                    style={styles.headerButton}
-                    onPress={handleVoiceCall}
-                    activeOpacity={0.85}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Voice call ${otherUserName}`}
-                    accessibilityHint="Double tap to start a voice call"
-                  >
-                    <Ionicons name="call" size={22} color={colors.primary} />
-                  </TouchableOpacity>
+            {/* SENIOR-FRIENDLY: Large, clear header with user info */}
+            <View style={styles.chatHeader}>
+              {/* Back button - large and labeled */}
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Go back to messages"
+              >
+                <Ionicons name="arrow-back" size={28} color={colors.textPrimary} />
+                <AppText size="body" weight="semibold" color={colors.textPrimary}>
+                  Back
+                </AppText>
+              </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.headerButton, styles.videoButton]}
-                    onPress={handleVideoCall}
-                    activeOpacity={0.85}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Video call ${otherUserName}`}
-                    accessibilityHint="Double tap to start a video call"
-                  >
-                    <Ionicons name="videocam" size={22} color={colors.white} />
-                  </TouchableOpacity>
+              {/* User info - large avatar and name */}
+              <TouchableOpacity
+                style={styles.headerUserRow}
+                onPress={() => navigation.navigate("ViewProfileScreen", { userId: otherUserId.toString() })}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${otherUserName}'s profile. They are currently ${isUserOnline ? "online" : "offline"}`}
+              >
+                <View style={styles.avatarContainer}>
+                  <Image
+                    source={{
+                      uri: avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUserName)}&background=random`,
+                    }}
+                    style={styles.avatar}
+                  />
+                  {isUserOnline && (
+                    <View style={styles.onlineIndicator}>
+                      <View style={styles.onlineDot} />
+                    </View>
+                  )}
                 </View>
-              }
-            />
+                <View style={styles.userInfoContainer}>
+                  <AppText
+                    weight="bold"
+                    size="h3"
+                    color={colors.textPrimary}
+                    numberOfLines={1}
+                  >
+                    {otherUserName}
+                  </AppText>
+                  <View style={[styles.statusBadge, isUserOnline ? styles.onlineBadge : styles.offlineBadge]}>
+                    <View style={[styles.statusDot, isUserOnline ? styles.statusDotOnline : styles.statusDotOffline]} />
+                    <AppText size="small" weight="semibold" color={isUserOnline ? colors.success : colors.textSecondary}>
+                      {isTyping ? "Typing a message..." : isUserOnline ? "Online now" : "Offline"}
+                    </AppText>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
 
-            {isLoadingHistory ? (
+            {/* Call buttons - large and labeled, in a separate row */}
+            <View style={styles.callActionsRow}>
+              <TouchableOpacity
+                style={styles.callActionButton}
+                onPress={handleVoiceCall}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${otherUserName} on the phone`}
+              >
+                <Ionicons name="call" size={26} color={colors.primary} />
+                <AppText size="body" weight="semibold" color={colors.primary}>
+                  Voice Call
+                </AppText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.callActionButton, styles.videoCallAction]}
+                onPress={handleVideoCall}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Start a video call with ${otherUserName}`}
+              >
+                <Ionicons name="videocam" size={26} color={colors.white} />
+                <AppText size="body" weight="semibold" color={colors.white}>
+                  Video Call
+                </AppText>
+              </TouchableOpacity>
+            </View>
+
+            {/* Match Error State */}
+            {matchError && (
+              <View style={styles.matchErrorContainer}>
+                <Ionicons name="heart-dislike-outline" size={64} color={colors.textMuted} />
+                <AppText size="h4" weight="semibold" color={colors.textPrimary} style={styles.matchErrorTitle}>
+                  Can't Start Chat
+                </AppText>
+                <AppText size="body" color={colors.textSecondary} style={styles.matchErrorText}>
+                  {matchError}
+                </AppText>
+                <TouchableOpacity
+                  style={styles.matchErrorButton}
+                  onPress={() => navigation.goBack()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                >
+                  <AppText size="body" weight="semibold" color={colors.primary}>
+                    Go Back
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Expiration Warning Banner */}
+            {!matchError && matchInfo && (
+              <MatchExpirationBanner
+                hoursUntilExpiration={matchInfo.hoursUntilExpiration}
+                chatStarted={matchInfo.chatStarted}
+              />
+            )}
+
+            {isLoadingHistory && !matchError ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <AppText size="small" color={colors.textSecondary} style={styles.loadingText}>
                   Loading messages...
                 </AppText>
               </View>
-            ) : (
+            ) : !matchError ? (
               <FlatList
                 ref={flatListRef}
                 data={displayMessages}
@@ -337,47 +520,81 @@ export default function ConversationScreen({
                 }}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={48} color={colors.textMuted} />
-                    <AppText size="body" weight="medium" color={colors.textSecondary} style={styles.emptyText}>
-                      Start the conversation!
+                    <View style={styles.emptyIconCircle}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={64} color={colors.accentTeal} />
+                    </View>
+                    <AppText size="h3" weight="bold" color={colors.textPrimary} style={styles.emptyText}>
+                      Say Hello!
                     </AppText>
-                    <AppText size="small" color={colors.textMuted} style={styles.emptySubtext}>
-                      Say hello to {otherUserName}
+                    <AppText size="body" color={colors.textSecondary} style={styles.emptySubtext}>
+                      This is the start of your conversation with {otherUserName}.
+                    </AppText>
+                    <AppText size="body" color={colors.textSecondary} style={styles.emptyHint}>
+                      Type a message below to begin chatting.
                     </AppText>
                   </View>
                 }
               />
-            )}
+            ) : null}
 
+            {/* Connection status banner */}
+            <ConnectionStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
+
+            {/* Typing indicator - SENIOR-FRIENDLY: Larger and clearer */}
             {isTyping && (
-              <View style={styles.typingIndicator}>
-                <AppText size="tiny" color={colors.textSecondary}>
-                  {typingUsername || otherUserName} is typing...
+              <View style={styles.typingIndicatorLarge}>
+                <View style={styles.typingDots}>
+                  <View style={[styles.typingDot, styles.typingDot1]} />
+                  <View style={[styles.typingDot, styles.typingDot2]} />
+                  <View style={[styles.typingDot, styles.typingDot3]} />
+                </View>
+                <AppText size="body" weight="medium" color={colors.textPrimary}>
+                  {typingUsername || otherUserName} is typing a message...
                 </AppText>
               </View>
             )}
 
             {error && (
               <View style={styles.errorBanner}>
-                <AppText size="tiny" color={colors.danger}>
+                <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                <AppText size="small" color={colors.danger} style={styles.errorText}>
                   {error}
+                </AppText>
+                <TouchableOpacity
+                  onPress={() => {/* Could add a dismiss or retry action */}}
+                  style={styles.errorDismiss}
+                >
+                  <Ionicons name="close" size={18} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Failed messages warning */}
+            {hasFailedMessages && (
+              <View style={styles.failedMessagesBanner}>
+                <Ionicons name="warning" size={16} color={colors.warning} />
+                <AppText size="small" color={colors.textPrimary}>
+                  Some messages failed to send. Tap to retry.
                 </AppText>
               </View>
             )}
 
-            <View
-              style={[
-                styles.inputContainer,
-                { paddingBottom: Math.max(insets.bottom, 10) },
-              ]}
-            >
-              <MessageInputBar
-                value={messageText}
-                onChangeText={handleTextChange}
-                onSend={handleSend}
-                placeholder={`Message ${otherUserName}...`}
-              />
-            </View>
+            {/* Only show input if match is valid */}
+            {!matchError && (
+              <View
+                style={[
+                  styles.inputContainer,
+                  { paddingBottom: Math.max(insets.bottom, 10) },
+                ]}
+              >
+                <MessageInputBar
+                  value={messageText}
+                  onChangeText={handleTextChange}
+                  onSend={handleSend}
+                  placeholder={`Message ${otherUserName}...`}
+                />
+              </View>
+            )}
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>
@@ -386,14 +603,16 @@ export default function ConversationScreen({
 }
 
 /**
- * ConversationScreen Styles
+ * ConversationScreen Styles - SENIOR-FRIENDLY VERSION
  *
- * Accessibility Optimizations:
- * - Larger avatar (52px) for better visibility
- * - Minimum 48px touch targets for call buttons
- * - Increased spacing between messages
- * - Larger online indicator (14px)
- * - Enhanced text sizes
+ * Design Principles for Elderly Users:
+ * - Very large avatar (72px) for clear identification
+ * - Minimum 56px touch targets (larger than standard)
+ * - Large, readable text throughout
+ * - Clear visual separation between elements
+ * - Labeled buttons (not just icons)
+ * - High contrast status indicators
+ * - Simple, uncluttered layout
  */
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
@@ -402,19 +621,41 @@ const styles = StyleSheet.create({
   contentWrapper: {
     flex: 1,
     backgroundColor: colors.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     overflow: "hidden",
-    marginTop: 6,
+    marginTop: 8,
+  },
+
+  // Chat header - SENIOR-FRIENDLY
+  chatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.white,
+    gap: 12,
+  },
+
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 16,
+    minHeight: 56,
   },
 
   headerUserRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    // Minimum touch target
-    minHeight: 48,
-    paddingVertical: 4,
+    minHeight: 56,
   },
 
   avatarContainer: {
@@ -422,10 +663,9 @@ const styles = StyleSheet.create({
   },
 
   avatar: {
-    // Larger avatar for better visibility
-    height: 52,
-    width: 52,
-    borderRadius: 26,
+    height: 72,
+    width: 72,
+    borderRadius: 36,
     backgroundColor: colors.borderLight,
   },
 
@@ -433,101 +673,354 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     right: 0,
-    // Larger indicator for visibility
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.success,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 3,
     borderColor: colors.white,
   },
 
-  headerActions: {
+  onlineDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.success,
+  },
+
+  userInfoContainer: {
+    flex: 1,
+    gap: 6,
+  },
+
+  statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingRight: 6,
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
 
-  headerButton: {
-    // Minimum 48px touch target for accessibility
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  onlineBadge: {
+    backgroundColor: colors.successLight,
+  },
+
+  offlineBadge: {
     backgroundColor: colors.backgroundLight,
+  },
+
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+
+  statusDotOnline: {
+    backgroundColor: colors.success,
+  },
+
+  statusDotOffline: {
+    backgroundColor: colors.textMuted,
+  },
+
+  // Call actions row - SENIOR-FRIENDLY: Large labeled buttons
+  callActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.backgroundLight,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+
+  callActionButton: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 10,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
 
-  videoButton: {
+  videoCallAction: {
     backgroundColor: colors.accentTeal,
+    borderColor: colors.accentTeal,
   },
 
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 16,
+    gap: 20,
+    paddingVertical: 60,
   },
 
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
   },
 
   listContent: {
     paddingHorizontal: 16,
-    paddingVertical: 20,
-    gap: 12, // Increased spacing between messages
+    paddingVertical: 24,
+    gap: 16,
     flexGrow: 1,
   },
 
+  // Empty state - SENIOR-FRIENDLY
   emptyContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 60,
-    gap: 12,
+    paddingVertical: 80,
+    gap: 16,
+  },
+
+  emptyIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.accentMint,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   emptyText: {
-    marginTop: 12,
+    marginTop: 16,
+    textAlign: "center",
   },
 
   emptySubtext: {
     textAlign: "center",
     paddingHorizontal: 32,
+    lineHeight: 26,
   },
 
+  emptyHint: {
+    textAlign: "center",
+    paddingHorizontal: 32,
+    lineHeight: 26,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+
+  // Date separator - SENIOR-FRIENDLY
   dateSeparator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    marginVertical: 12, // More spacing around date separators
-    paddingVertical: 8,
+    gap: 16,
+    marginVertical: 20,
+    paddingVertical: 12,
   },
 
   separatorLine: {
     flex: 1,
-    height: 1,
+    height: 2,
     backgroundColor: colors.borderMedium,
   },
 
-  typingIndicator: {
+  // Connection status banner - SENIOR-FRIENDLY
+  connectionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
     paddingHorizontal: 20,
-    paddingVertical: 8,
-    backgroundColor: colors.backgroundLight,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
   },
 
+  connectionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  connectionTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+
+  offlineBanner: {
+    backgroundColor: colors.textSecondary,
+  },
+
+  pendingBanner: {
+    backgroundColor: colors.accentTeal,
+  },
+
+  // Typing indicator - SENIOR-FRIENDLY
+  typingIndicatorLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: colors.accentMint,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.accentTeal,
+  },
+
+  typingDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  typingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.accentTeal,
+  },
+
+  typingDot1: {
+    opacity: 0.4,
+  },
+
+  typingDot2: {
+    opacity: 0.6,
+  },
+
+  typingDot3: {
+    opacity: 0.8,
+  },
+
+  // Error banner - SENIOR-FRIENDLY
   errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.dangerLight,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.danger,
+    gap: 14,
+  },
+
+  errorText: {
+    flex: 1,
+  },
+
+  errorDismiss: {
+    padding: 8,
+  },
+
+  failedMessagesBanner: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: colors.warningLight,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.warning,
   },
 
   inputContainer: {
     backgroundColor: colors.white,
-    paddingTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: colors.borderLight,
+  },
+
+  // Match error styles - SENIOR-FRIENDLY
+  matchErrorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    paddingVertical: 60,
+    gap: 20,
+  },
+
+  matchErrorTitle: {
+    marginTop: 20,
+    textAlign: "center",
+    fontSize: 24,
+  },
+
+  matchErrorText: {
+    textAlign: "center",
+    lineHeight: 28,
+    fontSize: 18,
+  },
+
+  matchErrorButton: {
+    marginTop: 24,
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: colors.primary,
+    minHeight: 64,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Expiration warning styles - SENIOR-FRIENDLY
+  expirationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: colors.warningLight,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.warning,
+  },
+
+  expirationBannerUrgent: {
+    backgroundColor: colors.errorLight,
+    borderColor: colors.error,
+  },
+
+  expirationIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.warningLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  expirationIconUrgent: {
+    backgroundColor: colors.error,
+  },
+
+  expirationTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+
+  expirationText: {
+    lineHeight: 24,
   },
 });

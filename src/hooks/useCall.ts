@@ -29,6 +29,13 @@ import {
   IncomingCallPayload,
   OfferPayload,
 } from '../types/chat';
+import {
+  initializeCallAudio,
+  setAudioToSpeaker,
+  setAudioToEarpiece,
+  cleanupCallAudio,
+  isSpeakerEnabled,
+} from '../utility/audioManager';
 
 // STUN/TURN server configuration for NAT traversal
 // Multiple TURN servers for high reliability (90%+ connection rate)
@@ -213,6 +220,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
   const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iceRestartAttemptRef = useRef(0);
   const maxIceRestartAttempts = 3;
+  const isMountedRef = useRef(true);
 
   // Keep roomIdRef in sync
   useEffect(() => {
@@ -257,13 +265,37 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     try {
       console.log('[useCall] Getting local media for type:', type);
       const isVideo = type === 'video';
+
+      // Initialize audio manager for call
+      await initializeCallAudio(isVideo);
+
+      // Use enhanced constraints for better call quality
+      // Note: react-native-webrtc supports limited audio constraints
       const constraints = {
-        audio: true,
-        video: isVideo ? { facingMode: 'user', width: 640, height: 480 } : false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: isVideo ? {
+          facingMode: 'user',
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
+          frameRate: { ideal: 24, max: 30 },
+        } : false,
       };
       console.log('[useCall] Media constraints:', JSON.stringify(constraints));
+      console.log('[useCall] Enhanced audio: echoCancellation, noiseSuppression, autoGainControl enabled');
 
       const stream = await mediaDevices.getUserMedia(constraints);
+
+      // Check if component is still mounted
+      if (!isMountedRef.current) {
+        console.log('[useCall] Component unmounted during media acquisition, stopping tracks');
+        stream.getTracks().forEach((track) => track.stop());
+        return null;
+      }
+
       const videoTracks = stream.getVideoTracks();
       const audioTracks = stream.getAudioTracks();
       console.log('[useCall] Got local media stream:', stream.id);
@@ -278,7 +310,9 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       return stream;
     } catch (err) {
       console.error('[useCall] Failed to get local media:', err);
-      setError('Failed to access camera/microphone. Please check permissions.');
+      if (isMountedRef.current) {
+        setError('Failed to access camera/microphone. Please check permissions.');
+      }
       return null;
     }
   }, []);
@@ -634,7 +668,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     clearConnectionTimeout();
   }, [clearConnectionTimeout]);
 
-  const cleanup = useCallback((preserveCallData: boolean = false) => {
+  const cleanup = useCallback(async (preserveCallData: boolean = false) => {
     console.log('[useCall] Cleaning up call resources, preserveCallData:', preserveCallData);
 
     clearAllTimeouts();
@@ -647,10 +681,14 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
 
     stopLocalMedia();
 
+    // Clean up audio manager
+    await cleanupCallAudio();
+
     setRemoteStream(null);
     setCallDuration(0);
     setIsMuted(false);
     setIsCameraOn(true);
+    setIsSpeakerOn(true); // Reset speaker state
     setError(null);
     setConnectionQuality('unknown');
     setIsReconnecting(false);
@@ -1005,9 +1043,25 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     }
   }, []);
 
-  const toggleSpeaker = useCallback(() => {
-    setIsSpeakerOn((prev) => !prev);
-    // Note: Actual speaker control requires native module
+  const toggleSpeaker = useCallback(async () => {
+    try {
+      const currentSpeakerState = isSpeakerEnabled();
+      if (currentSpeakerState) {
+        // Currently on speaker, switch to earpiece
+        await setAudioToEarpiece();
+        setIsSpeakerOn(false);
+        console.log('[useCall] Switched to earpiece');
+      } else {
+        // Currently on earpiece, switch to speaker
+        await setAudioToSpeaker();
+        setIsSpeakerOn(true);
+        console.log('[useCall] Switched to speaker');
+      }
+    } catch (error) {
+      console.error('[useCall] Failed to toggle speaker:', error);
+      // Fallback to just updating state
+      setIsSpeakerOn((prev) => !prev);
+    }
   }, []);
 
   const switchCamera = useCallback(() => {
@@ -1390,10 +1444,12 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     };
   }, [callStatus, callType, isCameraOn, onCallDisconnected]);
 
-  // Cleanup on unmount
+  // Track mounted state and cleanup on unmount
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       console.log('[useCall] Component unmounting, cleaning up');
+      isMountedRef.current = false;
       cleanup();
     };
   }, [cleanup]);
