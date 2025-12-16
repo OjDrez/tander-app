@@ -1,11 +1,11 @@
 import colors from "@/src/config/colors";
+import AppText from "@/src/components/inputs/AppText";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,26 +26,30 @@ type PeopleYouMayKnowRowProps = {
 };
 
 /**
- * Format hours remaining into a human-readable countdown
+ * SENIOR-FRIENDLY: Format hours in a clear, readable way
  */
 const formatTimeRemaining = (hours?: number): string => {
   if (hours === undefined || hours < 0) return "";
-  if (hours < 1) return "<1h";
-  if (hours < 24) return `${Math.floor(hours)}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 1) return "Less than 1 hour";
+  if (hours < 2) return "1 hour left";
+  if (hours < 24) return `${Math.floor(hours)} hours left`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day left" : `${days} days left`;
 };
 
 /**
- * Get countdown badge color based on urgency
+ * Get urgency level for styling
  */
-const getCountdownColor = (hours?: number): string => {
-  if (hours === undefined) return colors.primary;
-  if (hours <= 3) return colors.error; // Critical - red
-  if (hours <= 6) return colors.warning; // Warning - orange
-  if (hours <= 12) return colors.accentTeal; // Moderate - teal
-  return colors.primary; // Safe - primary
+const getUrgencyLevel = (hours?: number): "critical" | "warning" | "normal" => {
+  if (hours === undefined) return "normal";
+  if (hours <= 3) return "critical";
+  if (hours <= 6) return "warning";
+  return "normal";
 };
 
+/**
+ * SENIOR-FRIENDLY Match Card Component
+ */
 export default function PeopleYouMayKnowRow({
   people,
   onSelect,
@@ -53,13 +57,17 @@ export default function PeopleYouMayKnowRow({
 }: PeopleYouMayKnowRowProps) {
   return (
     <View style={styles.container}>
+      {/* Header - SENIOR-FRIENDLY: Clear explanation */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Your Matches</Text>
-        <View style={styles.headerRight}>
-          <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-          <Text style={styles.expiryHint}>24h to chat</Text>
-        </View>
+        <AppText size="h4" weight="bold" color={colors.textPrimary}>
+          People Waiting to Chat
+        </AppText>
       </View>
+      <AppText size="body" color={colors.textSecondary} style={styles.subheader}>
+        Tap on a person to start chatting with them
+      </AppText>
+
+      {/* Match cards - SENIOR-FRIENDLY: Large, easy to tap */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -67,38 +75,84 @@ export default function PeopleYouMayKnowRow({
       >
         {people.map((person) => {
           const timeRemaining = formatTimeRemaining(person.hoursUntilExpiration);
-          const countdownColor = getCountdownColor(person.hoursUntilExpiration);
-          const isUrgent = (person.hoursUntilExpiration ?? 24) <= 6;
+          const urgencyLevel = getUrgencyLevel(person.hoursUntilExpiration);
+          const isUrgent = urgencyLevel === "critical" || urgencyLevel === "warning";
 
           return (
             <TouchableOpacity
               key={person.id}
-              style={[styles.item, isUrgent && styles.itemUrgent]}
+              style={[
+                styles.item,
+                urgencyLevel === "critical" && styles.itemCritical,
+                urgencyLevel === "warning" && styles.itemWarning,
+              ]}
               onPress={() => onStartChat ? onStartChat(person.id) : onSelect(person.id)}
-              activeOpacity={0.9}
-              accessibilityLabel={`Match with ${person.name}, ${timeRemaining} remaining to start chat`}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Chat with ${person.name}. ${timeRemaining || "Time available"}`}
+              accessibilityHint="Tap to start a conversation"
             >
+              {/* Large avatar */}
               <View style={styles.avatarContainer}>
                 <Image source={{ uri: person.avatar }} style={styles.avatar} />
-                {/* Countdown badge - Bumble style */}
-                {timeRemaining && !person.chatStarted && (
-                  <View style={[styles.countdownBadge, { backgroundColor: countdownColor }]}>
-                    <Ionicons name="time" size={10} color={colors.white} />
-                    <Text style={styles.countdownText}>{timeRemaining}</Text>
-                  </View>
-                )}
-                {/* Chat started badge */}
+                {/* Chat started indicator */}
                 {person.chatStarted && (
-                  <View style={[styles.countdownBadge, { backgroundColor: colors.success }]}>
-                    <Ionicons name="chatbubble" size={10} color={colors.white} />
+                  <View style={styles.chatStartedBadge}>
+                    <Ionicons name="chatbubble" size={16} color={colors.white} />
                   </View>
                 )}
               </View>
-              <Text style={styles.name} numberOfLines={1}>{person.name}</Text>
+
+              {/* Name - Large and clear */}
+              <AppText size="body" weight="bold" color={colors.textPrimary} numberOfLines={1} style={styles.name}>
+                {person.name}
+              </AppText>
+
+              {/* Time remaining - SENIOR-FRIENDLY: Clear text, not just numbers */}
+              {!person.chatStarted && timeRemaining && (
+                <View style={[
+                  styles.timeContainer,
+                  urgencyLevel === "critical" && styles.timeCritical,
+                  urgencyLevel === "warning" && styles.timeWarning,
+                ]}>
+                  <Ionicons
+                    name="time"
+                    size={16}
+                    color={urgencyLevel === "critical" ? colors.error : urgencyLevel === "warning" ? colors.warning : colors.textSecondary}
+                  />
+                  <AppText
+                    size="small"
+                    weight="semibold"
+                    color={urgencyLevel === "critical" ? colors.error : urgencyLevel === "warning" ? colors.warning : colors.textSecondary}
+                  >
+                    {timeRemaining}
+                  </AppText>
+                </View>
+              )}
+
+              {/* Already chatting indicator */}
+              {person.chatStarted && (
+                <View style={styles.chattingBadge}>
+                  <AppText size="small" weight="semibold" color={colors.success}>
+                    Already chatting
+                  </AppText>
+                </View>
+              )}
+
+              {/* Call to action - SENIOR-FRIENDLY: Clear button */}
               {!person.chatStarted && (
-                <Text style={[styles.tapToChat, isUrgent && { color: countdownColor }]}>
-                  Tap to chat
-                </Text>
+                <View style={[
+                  styles.chatButton,
+                  isUrgent && styles.chatButtonUrgent,
+                ]}>
+                  <AppText
+                    size="small"
+                    weight="bold"
+                    color={isUrgent ? colors.white : colors.accentTeal}
+                  >
+                    Tap to Chat
+                  </AppText>
+                </View>
               )}
             </TouchableOpacity>
           );
@@ -108,93 +162,140 @@ export default function PeopleYouMayKnowRow({
   );
 }
 
+/**
+ * PeopleYouMayKnowRow Styles - SENIOR-FRIENDLY VERSION
+ *
+ * Design Principles for Elderly Users:
+ * - Very large avatars (100px) for clear identification
+ * - Large touch targets (minimum 120px width)
+ * - Clear, readable text (not tiny)
+ * - Full text labels instead of abbreviations
+ * - High contrast urgency indicators
+ * - Clear call-to-action buttons
+ */
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     backgroundColor: colors.white,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    shadowColor: colors.shadowMedium,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+    gap: 12,
   },
+
+  // Header section
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+  subheader: {
+    lineHeight: 22,
+    marginBottom: 8,
   },
-  expiryHint: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: "500",
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
+
+  // Match cards row
   row: {
-    gap: 14,
-    paddingRight: 8,
+    gap: 16,
+    paddingRight: 16,
+    paddingVertical: 8,
   },
+
+  // Individual match card - SENIOR-FRIENDLY: Large, easy to tap
   item: {
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    borderRadius: 12,
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundLight,
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
+    minWidth: 140,
   },
-  itemUrgent: {
-    backgroundColor: "rgba(255, 59, 48, 0.08)",
+  itemWarning: {
+    backgroundColor: colors.warningLight,
+    borderColor: colors.warning,
   },
+  itemCritical: {
+    backgroundColor: colors.errorLight,
+    borderColor: colors.error,
+  },
+
+  // Avatar - SENIOR-FRIENDLY: Much larger
   avatarContainer: {
     position: "relative",
   },
   avatar: {
-    height: 66,
-    width: 66,
-    borderRadius: 33,
+    height: 100,
+    width: 100,
+    borderRadius: 50,
     backgroundColor: colors.borderMedium,
-  },
-  countdownBadge: {
-    position: "absolute",
-    right: -4,
-    bottom: -4,
-    minWidth: 32,
-    height: 20,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.white,
   },
-  countdownText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.white,
+  chatStartedBadge: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: colors.white,
   },
+
+  // Name - SENIOR-FRIENDLY: Larger, readable
   name: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    maxWidth: 70,
+    maxWidth: 120,
     textAlign: "center",
+    fontSize: 17,
   },
-  tapToChat: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.primary,
+
+  // Time remaining - SENIOR-FRIENDLY: Clear text instead of abbreviations
+  timeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundLight,
+  },
+  timeWarning: {
+    backgroundColor: colors.warningLight,
+  },
+  timeCritical: {
+    backgroundColor: colors.errorLight,
+  },
+
+  // Already chatting badge
+  chattingBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: colors.successLight,
+  },
+
+  // Call to action button - SENIOR-FRIENDLY: Clear, tappable
+  chatButton: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: colors.accentMint,
+    borderWidth: 2,
+    borderColor: colors.accentTeal,
+  },
+  chatButtonUrgent: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
   },
 });

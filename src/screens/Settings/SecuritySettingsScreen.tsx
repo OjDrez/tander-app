@@ -4,9 +4,11 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
+  Switch,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -17,27 +19,17 @@ import AppText from "@/src/components/inputs/AppText";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { userApi } from "@/src/api/userApi";
+import { securitySettingsApi, SecuritySettings } from "@/src/api/securitySettingsApi";
 
 type SecurityNav = NativeStackNavigationProp<AppStackParamList>;
 
-/**
- * SecuritySettingsScreen
- *
- * Manages security-related settings including:
- * - ID verification status
- * - Two-factor authentication
- * - Login notifications
- * - Account security
- *
- * Senior-friendly design with clear status indicators.
- */
 export default function SecuritySettingsScreen() {
   const navigation = useNavigation<SecurityNav>();
 
   const [isVerified, setIsVerified] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [loginNotifications, setLoginNotifications] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [settings, setSettings] = useState<SecuritySettings | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -47,11 +39,19 @@ export default function SecuritySettingsScreen() {
 
   const loadSecuritySettings = async () => {
     try {
-      const user = await userApi.getCurrentUser();
+      const [user, secSettings] = await Promise.all([
+        userApi.getCurrentUser(),
+        securitySettingsApi.getSettings(),
+      ]);
       setIsVerified(user.verified);
-      // TODO: Load other security settings from backend
+      setSettings(secSettings);
     } catch (error) {
       console.error("Failed to load security settings:", error);
+      Alert.alert(
+        "Could Not Load Settings",
+        "We had trouble loading your security settings. Please try again.",
+        [{ text: "OK" }]
+      );
     } finally {
       setIsLoading(false);
     }
@@ -63,11 +63,115 @@ export default function SecuritySettingsScreen() {
     navigation.navigate(screen as never);
   };
 
+  const handleToggleTwoFactor = async (enabled: boolean) => {
+    if (isUpdating) return;
+
+    if (enabled) {
+      Alert.alert(
+        "Enable Extra Security?",
+        "Two-factor authentication adds an extra layer of protection to your account.\n\nWhen enabled, you'll need to enter a code sent to your phone or email whenever you sign in.\n\nHow would you like to receive your codes?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Send to My Phone (SMS)",
+            onPress: () => enableTwoFactor("SMS"),
+          },
+          {
+            text: "Send to My Email",
+            onPress: () => enableTwoFactor("EMAIL"),
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "Turn Off Extra Security?",
+        "Are you sure you want to turn off two-factor authentication?\n\nThis will make your account less secure. We recommend keeping it on.",
+        [
+          { text: "Keep It On", style: "cancel" },
+          {
+            text: "Yes, Turn It Off",
+            style: "destructive",
+            onPress: async () => {
+              setIsUpdating(true);
+              try {
+                const updatedSettings = await securitySettingsApi.setTwoFactor(false);
+                setSettings(updatedSettings);
+                Alert.alert(
+                  "Two-Factor Authentication Disabled",
+                  "Your extra security has been turned off. You can turn it back on anytime.",
+                  [{ text: "OK" }]
+                );
+              } catch (error: any) {
+                Alert.alert(
+                  "Could Not Update Setting",
+                  error.message || "Something went wrong. Please try again.",
+                  [{ text: "OK" }]
+                );
+              } finally {
+                setIsUpdating(false);
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const enableTwoFactor = async (method: "SMS" | "EMAIL") => {
+    setIsUpdating(true);
+    try {
+      const updatedSettings = await securitySettingsApi.setTwoFactor(true, method);
+      setSettings(updatedSettings);
+      const methodName = method === "SMS" ? "phone (SMS)" : "email";
+      Alert.alert(
+        "Extra Security Enabled!",
+        `Great! Two-factor authentication is now on.\n\nYou'll receive a verification code via ${methodName} whenever you sign in.`,
+        [{ text: "Got It!" }]
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Could Not Enable",
+        error.message || "Something went wrong. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleToggleLoginNotifications = async (enabled: boolean) => {
+    if (isUpdating) return;
+
+    setIsUpdating(true);
+    try {
+      const updatedSettings = await securitySettingsApi.setLoginNotifications(enabled);
+      setSettings(updatedSettings);
+      Alert.alert(
+        enabled ? "Login Alerts Enabled" : "Login Alerts Disabled",
+        enabled
+          ? "You will now receive a notification whenever someone signs into your account."
+          : "You will no longer receive login notifications. You can turn them back on anytime.",
+        [{ text: "OK" }]
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Could Not Update Setting",
+        error.message || "Something went wrong. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <FullScreen statusBarStyle="dark" style={styles.screen}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
+          <AppText size="h4" color={colors.textSecondary} style={{ marginTop: 20 }}>
+            Loading security settings...
+          </AppText>
         </View>
       </FullScreen>
     );
@@ -76,39 +180,45 @@ export default function SecuritySettingsScreen() {
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            activeOpacity={0.85}
+            style={styles.backButton}
+            onPress={handleGoBack}
+          >
+            <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
+            <AppText size="body" weight="semibold" color={colors.textPrimary}>
+              Back
+            </AppText>
+          </TouchableOpacity>
+
+          <View style={styles.logoRow}>
+            <Image
+              source={require("@/src/assets/icons/tander-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              accessibilityRole="button"
-              activeOpacity={0.85}
-              style={styles.iconButton}
-              onPress={handleGoBack}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={22}
-                color={colors.textPrimary}
-              />
-            </TouchableOpacity>
-
-            <AppText size="h3" weight="bold" style={styles.headerTitle}>
-              Security
-            </AppText>
-
-            <View style={styles.logoRow}>
-              <Image
-                source={require("@/src/assets/icons/tander-logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <AppText weight="bold" color={colors.accentBlue}>
-                TANDER
-              </AppText>
+          {/* Title Section */}
+          <View style={styles.titleSection}>
+            <View style={styles.titleIcon}>
+              <Ionicons name="shield-checkmark" size={40} color={colors.primary} />
             </View>
+            <AppText size="h2" weight="bold" color={colors.textPrimary}>
+              Security Settings
+            </AppText>
+            <AppText size="body" color={colors.textSecondary} style={styles.subtitle}>
+              Keep your account safe with these security options.
+            </AppText>
           </View>
 
           {/* Verification Status Card */}
@@ -118,220 +228,253 @@ export default function SecuritySettingsScreen() {
               isVerified ? styles.statusCardVerified : styles.statusCardUnverified,
             ]}
             onPress={() => handleNavigate("IdVerificationScreen")}
-            activeOpacity={0.9}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={isVerified ? "View verification status" : "Verify your age"}
           >
-            <View style={styles.statusIcon}>
+            <View style={[styles.statusIcon, isVerified ? styles.statusIconVerified : styles.statusIconUnverified]}>
               <Ionicons
                 name={isVerified ? "shield-checkmark" : "shield-outline"}
-                size={32}
+                size={36}
                 color={isVerified ? colors.success : colors.warning}
               />
             </View>
             <View style={styles.statusContent}>
               <AppText size="h4" weight="bold" color={colors.textPrimary}>
-                ID Verification
+                Age Verification
               </AppText>
-              <AppText size="small" color={colors.textSecondary}>
+              <AppText size="body" color={colors.textSecondary}>
                 {isVerified
-                  ? "Your age has been verified"
-                  : "Verify your age to access all features"}
+                  ? "Your age has been verified. Thank you!"
+                  : "Please verify your age (60+) to use all features"}
               </AppText>
             </View>
             <View
               style={[
                 styles.statusBadge,
-                { backgroundColor: isVerified ? colors.successLight || "#E8F5E9" : colors.warningLight || "#FFF8E1" },
+                { backgroundColor: isVerified ? "#E8F5E9" : "#FFF8E1" },
               ]}
             >
               <AppText
-                size="tiny"
+                size="small"
                 weight="bold"
                 color={isVerified ? colors.success : colors.warning}
               >
-                {isVerified ? "Verified" : "Pending"}
+                {isVerified ? "VERIFIED" : "VERIFY NOW"}
               </AppText>
             </View>
           </TouchableOpacity>
 
           {/* Account Security Section */}
           <View style={styles.section}>
-            <AppText size="tiny" weight="semibold" color={colors.textMuted}>
-              Account Security
-            </AppText>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="lock-closed-outline" size={24} color={colors.textMuted} />
+              <AppText size="body" weight="bold" color={colors.textMuted}>
+                ACCOUNT SECURITY
+              </AppText>
+            </View>
 
             <View style={styles.cardGroup}>
               {/* Change Password */}
               <TouchableOpacity
                 style={styles.listCard}
-                activeOpacity={0.9}
+                activeOpacity={0.85}
                 onPress={() => handleNavigate("ChangePasswordScreen")}
+                accessibilityRole="button"
+                accessibilityLabel="Change your password"
               >
                 <View style={styles.itemLeft}>
                   <View style={styles.iconBadge}>
-                    <MaterialCommunityIcons
-                      name="lock-outline"
-                      size={20}
-                      color={colors.accentBlue}
-                    />
+                    <Ionicons name="key-outline" size={26} color={colors.accentBlue} />
                   </View>
-                  <View>
-                    <AppText weight="semibold" color={colors.textPrimary}>
+                  <View style={styles.itemTextContainer}>
+                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
                       Change Password
                     </AppText>
-                    <AppText size="tiny" color={colors.textSecondary}>
+                    <AppText size="small" color={colors.textSecondary}>
                       Update your login password
                     </AppText>
                   </View>
                 </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.textSecondary}
-                />
+                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
 
-              {/* Two-Factor Authentication - Coming Soon */}
-              <View style={[styles.listCard, styles.disabledCard]}>
+              {/* Two-Factor Authentication */}
+              <View style={styles.listCard}>
                 <View style={styles.itemLeft}>
-                  <View style={[styles.iconBadge, styles.disabledIconBadge]}>
-                    <MaterialCommunityIcons
-                      name="cellphone-key"
-                      size={20}
-                      color={colors.textMuted}
+                  <View style={[styles.iconBadge, settings?.twoFactorEnabled && styles.iconBadgeActive]}>
+                    <Ionicons
+                      name="phone-portrait-outline"
+                      size={26}
+                      color={settings?.twoFactorEnabled ? colors.success : colors.accentBlue}
                     />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText weight="semibold" color={colors.textMuted}>
-                      Two-Factor Authentication
+                  <View style={styles.itemTextContainer}>
+                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
+                      Extra Security (2FA)
                     </AppText>
-                    <AppText size="tiny" color={colors.textMuted}>
-                      Coming soon
+                    <AppText size="small" color={colors.textSecondary}>
+                      {settings?.twoFactorEnabled
+                        ? `ON - Codes sent via ${settings.twoFactorMethod === "SMS" ? "phone" : "email"}`
+                        : "OFF - Tap the switch to turn on"}
                     </AppText>
                   </View>
                 </View>
-                <View style={styles.comingSoonBadge}>
-                  <AppText size="tiny" weight="semibold" color={colors.textMuted}>
-                    Soon
-                  </AppText>
-                </View>
+                <Switch
+                  value={settings?.twoFactorEnabled || false}
+                  onValueChange={handleToggleTwoFactor}
+                  trackColor={{ false: colors.borderMedium, true: colors.success }}
+                  thumbColor={colors.white}
+                  disabled={isUpdating}
+                  style={styles.switch}
+                />
               </View>
 
-              {/* Login Notifications - Coming Soon */}
-              <View style={[styles.listCard, styles.disabledCard]}>
+              {/* Login Notifications */}
+              <View style={styles.listCard}>
                 <View style={styles.itemLeft}>
-                  <View style={[styles.iconBadge, styles.disabledIconBadge]}>
+                  <View style={[styles.iconBadge, settings?.loginNotificationsEnabled && styles.iconBadgeActive]}>
                     <Ionicons
                       name="notifications-outline"
-                      size={20}
-                      color={colors.textMuted}
+                      size={26}
+                      color={settings?.loginNotificationsEnabled ? colors.success : colors.accentBlue}
                     />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText weight="semibold" color={colors.textMuted}>
-                      Login Notifications
+                  <View style={styles.itemTextContainer}>
+                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
+                      Login Alerts
                     </AppText>
-                    <AppText size="tiny" color={colors.textMuted}>
-                      Coming soon
+                    <AppText size="small" color={colors.textSecondary}>
+                      {settings?.loginNotificationsEnabled
+                        ? "ON - You'll be notified of new sign-ins"
+                        : "OFF - Tap the switch to turn on"}
                     </AppText>
                   </View>
                 </View>
-                <View style={styles.comingSoonBadge}>
-                  <AppText size="tiny" weight="semibold" color={colors.textMuted}>
-                    Soon
-                  </AppText>
-                </View>
+                <Switch
+                  value={settings?.loginNotificationsEnabled || false}
+                  onValueChange={handleToggleLoginNotifications}
+                  trackColor={{ false: colors.borderMedium, true: colors.success }}
+                  thumbColor={colors.white}
+                  disabled={isUpdating}
+                  style={styles.switch}
+                />
               </View>
             </View>
           </View>
 
-          {/* Privacy Section */}
+          {/* Privacy & Safety Section */}
           <View style={styles.section}>
-            <AppText size="tiny" weight="semibold" color={colors.textMuted}>
-              Privacy & Safety
-            </AppText>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="eye-off-outline" size={24} color={colors.textMuted} />
+              <AppText size="body" weight="bold" color={colors.textMuted}>
+                PRIVACY & SAFETY
+              </AppText>
+            </View>
 
             <View style={styles.cardGroup}>
               {/* Blocked Users */}
               <TouchableOpacity
                 style={styles.listCard}
-                activeOpacity={0.9}
+                activeOpacity={0.85}
                 onPress={() => handleNavigate("BlockedUsersScreen")}
+                accessibilityRole="button"
+                accessibilityLabel="Manage blocked users"
               >
                 <View style={styles.itemLeft}>
                   <View style={styles.iconBadge}>
-                    <Ionicons
-                      name="person-remove-outline"
-                      size={20}
-                      color={colors.accentBlue}
-                    />
+                    <Ionicons name="person-remove-outline" size={26} color={colors.accentBlue} />
                   </View>
-                  <View>
-                    <AppText weight="semibold" color={colors.textPrimary}>
+                  <View style={styles.itemTextContainer}>
+                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
                       Blocked Users
                     </AppText>
-                    <AppText size="tiny" color={colors.textSecondary}>
-                      Manage users you've blocked
+                    <AppText size="small" color={colors.textSecondary}>
+                      View and manage people you've blocked
                     </AppText>
                   </View>
                 </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.textSecondary}
-                />
+                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
 
               {/* Privacy Settings */}
               <TouchableOpacity
                 style={styles.listCard}
-                activeOpacity={0.9}
+                activeOpacity={0.85}
                 onPress={() => handleNavigate("PrivacyScreen")}
+                accessibilityRole="button"
+                accessibilityLabel="Privacy controls"
               >
                 <View style={styles.itemLeft}>
                   <View style={styles.iconBadge}>
-                    <MaterialCommunityIcons
-                      name="shield-outline"
-                      size={20}
-                      color={colors.accentBlue}
-                    />
+                    <Ionicons name="shield-outline" size={26} color={colors.accentBlue} />
                   </View>
-                  <View>
-                    <AppText weight="semibold" color={colors.textPrimary}>
+                  <View style={styles.itemTextContainer}>
+                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
                       Privacy Controls
                     </AppText>
-                    <AppText size="tiny" color={colors.textSecondary}>
+                    <AppText size="small" color={colors.textSecondary}>
                       Control who can see your profile
                     </AppText>
                   </View>
                 </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={colors.textSecondary}
-                />
+                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Security Tips Card */}
+          {/* Security Tips */}
           <View style={styles.tipsCard}>
             <View style={styles.tipsHeader}>
-              <Ionicons name="bulb-outline" size={22} color={colors.warning} />
-              <AppText size="body" weight="semibold" color={colors.textPrimary}>
-                Security Tips
+              <View style={styles.tipsIconBadge}>
+                <Ionicons name="bulb" size={24} color={colors.warning} />
+              </View>
+              <AppText size="h4" weight="bold" color={colors.textPrimary}>
+                Safety Tips
               </AppText>
             </View>
             <View style={styles.tipsList}>
-              <AppText size="small" color={colors.textSecondary}>
-                {"\u2022"} Never share your password with anyone
-              </AppText>
-              <AppText size="small" color={colors.textSecondary}>
-                {"\u2022"} Be cautious of messages asking for personal info
-              </AppText>
-              <AppText size="small" color={colors.textSecondary}>
-                {"\u2022"} Report suspicious activity immediately
-              </AppText>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Never share your password with anyone
+                </AppText>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Be careful of messages asking for personal info
+                </AppText>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Report any suspicious activity right away
+                </AppText>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Keep your email and phone number up to date
+                </AppText>
+              </View>
             </View>
+          </View>
+
+          {/* Help Link */}
+          <View style={styles.helpSection}>
+            <Ionicons name="help-circle-outline" size={24} color={colors.accentBlue} />
+            <AppText size="body" color={colors.textSecondary}>
+              Have questions?{" "}
+              <AppText
+                size="body"
+                weight="semibold"
+                color={colors.primary}
+                onPress={() => handleNavigate("HelpCenterScreen")}
+              >
+                Visit our Help Center
+              </AppText>
+            </AppText>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -346,93 +489,110 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  content: {
-    paddingHorizontal: 18,
-    paddingBottom: 40,
-    gap: 18,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  iconButton: {
-    height: 42,
-    width: 42,
-    borderRadius: 14,
+  backButton: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.white,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "left",
+    gap: 4,
+    paddingVertical: 8,
+    paddingRight: 16,
   },
   logoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
   },
   logo: {
-    width: 34,
-    height: 34,
+    width: 44,
+    height: 44,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 24,
+  },
+  titleSection: {
+    alignItems: "center",
+    gap: 12,
+  },
+  titleIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  subtitle: {
+    textAlign: "center",
+    lineHeight: 24,
   },
   statusCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.white,
-    borderRadius: 18,
-    padding: 16,
-    gap: 14,
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
     borderWidth: 2,
   },
   statusCardVerified: {
     borderColor: colors.success,
-    backgroundColor: colors.successLight || "#E8F5E9",
+    backgroundColor: "#F0FFF4",
   },
   statusCardUnverified: {
     borderColor: colors.warning,
-    backgroundColor: colors.warningLight || "#FFF8E1",
+    backgroundColor: "#FFFBEB",
   },
   statusIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.white,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
   },
+  statusIconVerified: {
+    backgroundColor: "#E8F5E9",
+  },
+  statusIconUnverified: {
+    backgroundColor: "#FFF8E1",
+  },
   statusContent: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   section: {
+    gap: 14,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
+    paddingLeft: 4,
   },
   cardGroup: {
     gap: 12,
   },
   listCard: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -443,49 +603,66 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
-    minHeight: 72,
+    minHeight: 84,
   },
   itemLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
     flex: 1,
   },
+  itemTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
   iconBadge: {
-    height: 40,
-    width: 40,
-    borderRadius: 12,
+    height: 52,
+    width: 52,
+    borderRadius: 16,
     backgroundColor: colors.accentMint,
     alignItems: "center",
     justifyContent: "center",
   },
+  iconBadgeActive: {
+    backgroundColor: "#E8F5E9",
+  },
+  switch: {
+    transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }],
+  },
   tipsCard: {
-    backgroundColor: colors.warningLight || "#FFF8E1",
-    borderRadius: 18,
-    padding: 16,
-    gap: 12,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
     borderWidth: 1,
-    borderColor: colors.warning,
+    borderColor: colors.warning + "40",
   },
   tipsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 14,
+  },
+  tipsIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.warning + "20",
+    alignItems: "center",
+    justifyContent: "center",
   },
   tipsList: {
-    gap: 6,
-    paddingLeft: 4,
+    gap: 12,
   },
-  disabledCard: {
-    opacity: 0.6,
+  tipItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
   },
-  disabledIconBadge: {
-    backgroundColor: colors.borderLight,
-  },
-  comingSoonBadge: {
-    backgroundColor: colors.borderLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  helpSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
   },
 });

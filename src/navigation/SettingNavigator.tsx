@@ -6,10 +6,12 @@ import ChangePasswordScreen from "../screens/Settings/ChangePasswordScreen";
 import EditAboutYouScreen from "../screens/Settings/EditAboutYouScreen";
 import EditBasicInfoScreen from "../screens/Settings/EditBasicInfoScreen";
 import PaymentMethodsScreen from "../screens/Settings/PaymentMethodsScreen";
+import AddPaymentMethodScreen from "../screens/Settings/AddPaymentMethodScreen";
 import PrivacyScreen from "../screens/Settings/PrivacyScreen";
 import SecuritySettingsScreen from "../screens/Settings/SecuritySettingsScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ViewProfileDetailsScreen from "../screens/Settings/ViewProfileDetailsScreen";
+import HelpCenterScreen from "../screens/Settings/HelpCenterScreen";
 // ID Verification uses the Registration screen
 import Step2IdVerification from "../screens/Registration/Step2IdVerification";
 
@@ -19,11 +21,13 @@ type SettingStackParamList = {
   EditAboutYouScreen: undefined;
   ViewProfileDetailsScreen: { userId?: string } | undefined;
   PaymentMethodsScreen: undefined;
+  AddPaymentMethodScreen: undefined;
   PrivacyScreen: undefined;
   ChangePasswordScreen: undefined;
   IdVerificationScreen: undefined;
   BlockedUsersScreen: undefined;
   SecuritySettingsScreen: undefined;
+  HelpCenterScreen: undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingStackParamList>();
@@ -70,6 +74,16 @@ export default function SettingNavigator() {
       <Stack.Screen
         name="SecuritySettingsScreen"
         component={SecuritySettingsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="AddPaymentMethodScreen"
+        component={AddPaymentMethodScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="HelpCenterScreen"
+        component={HelpCenterScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

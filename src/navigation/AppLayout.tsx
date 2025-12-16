@@ -215,6 +215,7 @@ import HomeScreen from "../screens/Home/HomeScreen";
 import InboxScreen from "../screens/Inbox/InboxScreen";
 import MyMatchesScreen from "../screens/Matches/MyMatchesScreen";
 import MyProfileScreen from "../screens/Profile/MyProfileScreen";
+import TandyScreen from "../screens/Tandy/TandyScreen";
 
 // DEEP SCREENS
 import {
@@ -252,6 +253,8 @@ function Tabs({ activeTab }: { activeTab: MainNavigationTab }) {
         return MyMatchesScreen;
       case "Profile":
         return MyProfileScreen;
+      case "Tandy":
+        return TandyScreen;
       default:
         return HomeScreen;
     }

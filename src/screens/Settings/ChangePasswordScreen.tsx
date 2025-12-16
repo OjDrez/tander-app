@@ -2,30 +2,24 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
+  TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 
-import GradientButton from "@/src/components/buttons/GradientButton";
-import OutlineButton from "@/src/components/buttons/OutlineButton";
-import AppHeader from "@/src/components/navigation/AppHeader";
 import FullScreen from "@/src/components/layout/FullScreen";
 import AppText from "@/src/components/inputs/AppText";
-import AppTextInput from "@/src/components/common/AppTextInput";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { userApi } from "@/src/api/userApi";
 import { PasswordErrors } from "@/src/types/settings";
-
-const FIELD_LABELS = {
-  current: "Current Password",
-  new: "New Password",
-  confirm: "Confirm New Password",
-};
 
 type ChangePasswordNav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -37,30 +31,33 @@ export default function ChangePasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<PasswordErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleValidate = () => {
     const validation: PasswordErrors = {};
 
     if (!currentPassword.trim()) {
-      validation.current = `${FIELD_LABELS.current} is required`;
+      validation.current = "Please enter your current password";
     }
 
     if (!newPassword.trim()) {
-      validation.new = `${FIELD_LABELS.new} is required`;
+      validation.new = "Please enter a new password";
     } else if (newPassword.length < 8) {
-      validation.new = "Password must be at least 8 characters";
+      validation.new = "Your new password must be at least 8 characters long";
     }
 
     if (!confirmPassword.trim()) {
-      validation.confirm = `${FIELD_LABELS.confirm} is required`;
+      validation.confirm = "Please confirm your new password";
     }
 
     if (newPassword.trim() && confirmPassword.trim() && newPassword !== confirmPassword) {
-      validation.confirm = "New passwords must match";
+      validation.confirm = "The passwords you entered don't match. Please try again.";
     }
 
     if (newPassword.trim() && currentPassword.trim() && newPassword === currentPassword) {
-      validation.new = "New password must be different from current password";
+      validation.new = "Your new password must be different from your current password";
     }
 
     setErrors(validation);
@@ -81,17 +78,17 @@ export default function ChangePasswordScreen() {
       });
 
       Alert.alert(
-        "Success",
-        "Your password has been changed successfully.",
+        "Password Changed Successfully!",
+        "Your password has been updated. Please use your new password the next time you log in.",
         [
           {
-            text: "OK",
+            text: "OK, Got It",
             onPress: () => navigation.goBack(),
           },
         ]
       );
     } catch (error: any) {
-      // Security: Clear password fields on error to prevent exposure
+      // Clear password fields on error for security
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -99,103 +96,255 @@ export default function ChangePasswordScreen() {
       if (error.message?.toLowerCase().includes("incorrect") ||
           error.message?.toLowerCase().includes("wrong") ||
           error.message?.toLowerCase().includes("invalid")) {
-        setErrors({ current: "Current password is incorrect" });
+        setErrors({ current: "The current password you entered is not correct. Please try again." });
       } else {
-        Alert.alert("Error", error.message || "Failed to change password. Please try again.");
+        Alert.alert(
+          "Could Not Change Password",
+          error.message || "Something went wrong. Please check your information and try again.",
+          [{ text: "OK, I'll Try Again" }]
+        );
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCancel = () => navigation.goBack();
+  const handleCancel = () => {
+    if (currentPassword || newPassword || confirmPassword) {
+      Alert.alert(
+        "Discard Changes?",
+        "You have entered some information. Are you sure you want to go back without saving?",
+        [
+          { text: "Stay Here", style: "cancel" },
+          { text: "Yes, Go Back", style: "destructive", onPress: () => navigation.goBack() },
+        ]
+      );
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const renderPasswordInput = (
+    label: string,
+    value: string,
+    onChange: (text: string) => void,
+    error: string | undefined,
+    errorKey: keyof PasswordErrors,
+    placeholder: string,
+    helpText: string,
+    showPassword: boolean,
+    setShowPassword: (show: boolean) => void
+  ) => (
+    <View style={styles.inputGroup}>
+      <AppText size="body" weight="semibold" color={colors.textPrimary}>
+        {label}
+      </AppText>
+      <AppText size="small" color={colors.textMuted}>
+        {helpText}
+      </AppText>
+      <View style={[styles.inputContainer, error && styles.inputError]}>
+        <TextInput
+          style={styles.input}
+          value={value}
+          onChangeText={(text) => {
+            onChange(text);
+            if (errors[errorKey]) setErrors({ ...errors, [errorKey]: undefined });
+          }}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textMuted}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!isSubmitting}
+        />
+        <TouchableOpacity
+          style={styles.eyeButton}
+          onPress={() => setShowPassword(!showPassword)}
+          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+        >
+          <Ionicons
+            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            size={24}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+      </View>
+      {error && (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={18} color={colors.danger} />
+          <AppText size="small" color={colors.danger} style={styles.errorText}>
+            {error}
+          </AppText>
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
-        <AppHeader title="Change Password" onBackPress={navigation.goBack} />
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            activeOpacity={0.85}
+            style={styles.backButton}
+            onPress={handleCancel}
+          >
+            <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
+            <AppText size="body" weight="semibold" color={colors.textPrimary}>
+              Back
+            </AppText>
+          </TouchableOpacity>
+
+          <View style={styles.logoRow}>
+            <Image
+              source={require("@/src/assets/icons/tander-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.sectionHeader}>
-            <AppText size="h4" weight="bold" color={colors.textPrimary}>
-              Security
+          {/* Title Section */}
+          <View style={styles.titleSection}>
+            <View style={styles.titleIcon}>
+              <Ionicons name="key" size={36} color={colors.primary} />
+            </View>
+            <AppText size="h2" weight="bold" color={colors.textPrimary}>
+              Change Password
             </AppText>
-            <AppText size="small" color={colors.textSecondary}>
-              Keep your account protected by using a strong password.
+            <AppText size="body" color={colors.textSecondary} style={styles.subtitle}>
+              Keep your account safe by using a strong password that you don't use elsewhere.
             </AppText>
           </View>
 
+          {/* Form Card */}
           <View style={styles.card}>
-            <AppTextInput
-              placeholder={FIELD_LABELS.current}
-              value={currentPassword}
-              onChangeText={(text) => {
-                setCurrentPassword(text);
-                if (errors.current) setErrors({ ...errors, current: undefined });
-              }}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              error={errors.current}
-              editable={!isSubmitting}
-            />
+            <AppText size="h4" weight="bold" color={colors.textPrimary}>
+              Enter Your Passwords
+            </AppText>
 
-            <AppTextInput
-              placeholder={FIELD_LABELS.new}
-              value={newPassword}
-              onChangeText={(text) => {
-                setNewPassword(text);
-                if (errors.new) setErrors({ ...errors, new: undefined });
-              }}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              error={errors.new}
-              editable={!isSubmitting}
-            />
+            {renderPasswordInput(
+              "Current Password",
+              currentPassword,
+              setCurrentPassword,
+              errors.current,
+              "current",
+              "Enter your current password",
+              "The password you use to log in now",
+              showCurrentPassword,
+              setShowCurrentPassword
+            )}
 
-            <AppTextInput
-              placeholder={FIELD_LABELS.confirm}
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                if (errors.confirm) setErrors({ ...errors, confirm: undefined });
-              }}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              error={errors.confirm}
-              editable={!isSubmitting}
-            />
+            <View style={styles.divider} />
 
-            <View style={styles.passwordHints}>
-              <AppText size="tiny" color={colors.textMuted}>
-                Password requirements:
-              </AppText>
-              <AppText size="tiny" color={colors.textMuted}>
-                • At least 8 characters long
-              </AppText>
-              <AppText size="tiny" color={colors.textMuted}>
-                • Mix of letters, numbers, and symbols recommended
+            {renderPasswordInput(
+              "New Password",
+              newPassword,
+              setNewPassword,
+              errors.new,
+              "new",
+              "Enter your new password",
+              "Choose a password with at least 8 characters",
+              showNewPassword,
+              setShowNewPassword
+            )}
+
+            {renderPasswordInput(
+              "Confirm New Password",
+              confirmPassword,
+              setConfirmPassword,
+              errors.confirm,
+              "confirm",
+              "Type your new password again",
+              "Make sure it matches what you typed above",
+              showConfirmPassword,
+              setShowConfirmPassword
+            )}
+          </View>
+
+          {/* Password Tips */}
+          <View style={styles.tipsCard}>
+            <View style={styles.tipsHeader}>
+              <Ionicons name="bulb-outline" size={24} color={colors.accentBlue} />
+              <AppText size="body" weight="semibold" color={colors.textPrimary}>
+                Tips for a Strong Password
               </AppText>
             </View>
+            <View style={styles.tipsList}>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Use at least 8 characters
+                </AppText>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Mix letters, numbers, and symbols
+                </AppText>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Don't use personal information
+                </AppText>
+              </View>
+              <View style={styles.tipItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <AppText size="body" color={colors.textSecondary}>
+                  Don't reuse passwords from other sites
+                </AppText>
+              </View>
+            </View>
+          </View>
 
-            <View style={styles.buttonGroup}>
+          {/* Buttons */}
+          <View style={styles.buttonGroup}>
+            <TouchableOpacity
+              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+              activeOpacity={0.85}
+              onPress={handleUpdate}
+              disabled={isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="Save new password"
+            >
               {isSubmitting ? (
-                <View style={styles.loadingButton}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <AppText size="body" color={colors.primary}>Updating...</AppText>
+                <View style={styles.loadingContent}>
+                  <ActivityIndicator size="small" color={colors.white} />
+                  <AppText size="h4" weight="bold" color={colors.white}>
+                    Updating Password...
+                  </AppText>
                 </View>
               ) : (
-                <>
-                  <GradientButton title="Update Password" onPress={handleUpdate} />
-                  <OutlineButton title="Cancel" onPress={handleCancel} style={styles.cancel} />
-                </>
+                <View style={styles.buttonContent}>
+                  <Ionicons name="checkmark-circle" size={26} color={colors.white} />
+                  <AppText size="h4" weight="bold" color={colors.white}>
+                    Update Password
+                  </AppText>
+                </View>
               )}
-            </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              activeOpacity={0.85}
+              onPress={handleCancel}
+              disabled={isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel and go back"
+            >
+              <AppText size="h4" weight="semibold" color={colors.textSecondary}>
+                Cancel
+              </AppText>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -210,49 +359,163 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
+  logoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  logo: {
+    width: 44,
+    height: 44,
+  },
   content: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 14,
+    paddingBottom: 40,
+    gap: 24,
   },
-  sectionHeader: {
-    gap: 6,
-    paddingHorizontal: 2,
+  titleSection: {
+    alignItems: "center",
+    gap: 12,
+  },
+  titleIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtitle: {
+    textAlign: "center",
+    lineHeight: 24,
+    maxWidth: 320,
   },
   card: {
     backgroundColor: colors.white,
     borderRadius: 20,
-    padding: 18,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+    padding: 24,
+    gap: 20,
     shadowColor: colors.shadowLight,
     shadowOpacity: 0.14,
-    shadowRadius: 8,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    elevation: 4,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.borderMedium,
+  },
+  inputError: {
+    borderColor: colors.danger,
+    borderWidth: 2,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    fontSize: 18,
+    color: colors.textPrimary,
+    minHeight: 56,
+  },
+  eyeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: colors.danger + '10',
+    padding: 12,
+    borderRadius: 10,
+  },
+  errorText: {
+    flex: 1,
+    lineHeight: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: 4,
+  },
+  tipsCard: {
+    backgroundColor: colors.accentMint,
+    borderRadius: 18,
+    padding: 20,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.accentBlue + '30',
+  },
+  tipsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  tipsList: {
+    gap: 10,
+  },
+  tipItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   buttonGroup: {
     gap: 12,
-    marginTop: 8,
   },
-  cancel: {
-    backgroundColor: colors.accentBlue,
-    borderColor: colors.accentBlue,
-  },
-  passwordHints: {
-    backgroundColor: colors.backgroundLight,
-    padding: 12,
-    borderRadius: 12,
-    gap: 4,
-  },
-  loadingButton: {
-    flexDirection: "row",
+  primaryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 18,
+    paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 16,
-    backgroundColor: colors.backgroundLight,
-    borderRadius: 16,
+    minHeight: 64,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  secondaryButton: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 64,
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
   },
 });

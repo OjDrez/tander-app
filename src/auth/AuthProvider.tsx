@@ -208,9 +208,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setPhase1Data(null);
       setRegistrationFlow(null);
 
-      // Clear biometric credentials on logout
-      await biometricService.clearCredentials();
-      console.log('[AuthProvider] Biometric credentials cleared on logout');
+      // NOTE: Biometric credentials are NOT cleared on logout
+      // This allows users to use biometric login after logging out
+      // Credentials are only cleared when user disables biometrics in Settings
+      console.log('[AuthProvider] Logged out (biometric credentials preserved for quick login)');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;

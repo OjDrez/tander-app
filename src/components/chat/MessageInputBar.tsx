@@ -13,15 +13,16 @@ import {
 import AppText from "@/src/components/inputs/AppText";
 
 /**
- * MessageInputBar - Accessible message composition component
+ * MessageInputBar - SENIOR-FRIENDLY Message Input Component
  *
- * Accessibility Features:
- * - Minimum 48px touch targets for buttons
- * - Large, readable text input (18px)
- * - Clear button labels for screen readers
- * - Visual disabled state for send button
- * - Character count indicator
- * - Animated send button
+ * Design Principles for Elderly Users:
+ * - Very large touch targets (64px minimum)
+ * - Extra large, readable text input (20px)
+ * - Labeled buttons (icons + text)
+ * - Clear placeholder text
+ * - High contrast colors
+ * - Simple, uncluttered layout
+ * - Clear visual feedback
  */
 type MessageInputBarProps = {
   value: string;
@@ -39,7 +40,7 @@ export default function MessageInputBar({
   value,
   onChangeText,
   onSend,
-  placeholder = "Type a message...",
+  placeholder = "Type your message here...",
   onAttachmentPress,
   onCameraPress,
   disabled = false,
@@ -52,17 +53,17 @@ export default function MessageInputBar({
 
   // Animation for send button
   const sendButtonScale = useRef(new Animated.Value(1)).current;
-  const sendButtonOpacity = useRef(new Animated.Value(isSendDisabled ? 0.5 : 1)).current;
+  const sendButtonOpacity = useRef(new Animated.Value(isSendDisabled ? 0.6 : 1)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.spring(sendButtonScale, {
-        toValue: hasText ? 1 : 0.9,
+        toValue: hasText ? 1 : 0.95,
         useNativeDriver: true,
         friction: 6,
       }),
       Animated.timing(sendButtonOpacity, {
-        toValue: isSendDisabled ? 0.5 : 1,
+        toValue: isSendDisabled ? 0.6 : 1,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -75,7 +76,7 @@ export default function MessageInputBar({
     // Animate button press
     Animated.sequence([
       Animated.timing(sendButtonScale, {
-        toValue: 0.85,
+        toValue: 0.9,
         duration: 100,
         useNativeDriver: true,
       }),
@@ -91,47 +92,25 @@ export default function MessageInputBar({
 
   return (
     <View style={styles.wrapper}>
-      {/* Character count indicator */}
-      {showCharCount && hasText && (
-        <View style={styles.charCountContainer}>
+      {/* Helpful hint for seniors */}
+      <View style={styles.hintContainer}>
+        <AppText size="small" color={colors.textSecondary}>
+          {hasText ? "Tap the Send button when ready" : "Type your message below"}
+        </AppText>
+        {/* Character count - SENIOR-FRIENDLY: Larger text */}
+        {showCharCount && hasText && (
           <AppText
-            size="tiny"
+            size="small"
+            weight="medium"
             color={isNearLimit ? colors.warning : colors.textMuted}
           >
-            {value.length}/{maxLength}
+            {value.length} / {maxLength} characters
           </AppText>
-        </View>
-      )}
+        )}
+      </View>
 
-      <View style={styles.container}>
-        {/* Action buttons on the left */}
-        <View style={styles.leftActions}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Add attachment"
-            accessibilityHint="Double tap to add photos or files"
-            onPress={onAttachmentPress}
-            style={styles.iconButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add-circle" size={26} color={colors.accentTeal} />
-          </TouchableOpacity>
-
-          {onCameraPress && !hasText && (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Take photo"
-              accessibilityHint="Double tap to open camera"
-              onPress={onCameraPress}
-              style={styles.iconButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="camera" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Text input */}
+      {/* Text input area - SENIOR-FRIENDLY: Large and prominent */}
+      <View style={styles.inputArea}>
         <View style={styles.inputWrapper}>
           <TextInput
             value={value}
@@ -141,16 +120,56 @@ export default function MessageInputBar({
             style={styles.input}
             multiline
             maxLength={maxLength}
-            accessibilityLabel="Message input"
-            accessibilityHint="Type your message here"
+            accessibilityLabel="Type your message"
+            accessibilityHint="Enter your message in this text box"
             allowFontScaling={true}
-            maxFontSizeMultiplier={1.3}
+            maxFontSizeMultiplier={1.5}
             returnKeyType="default"
             blurOnSubmit={false}
           />
         </View>
+      </View>
 
-        {/* Send button */}
+      {/* Action buttons - SENIOR-FRIENDLY: Large labeled buttons in a row */}
+      <View style={styles.actionsContainer}>
+        {/* Attachment button */}
+        {onAttachmentPress && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Add a photo"
+            accessibilityHint="Tap to add a photo to your message"
+            onPress={onAttachmentPress}
+            style={styles.actionButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="image" size={26} color={colors.accentTeal} />
+            <AppText size="small" weight="semibold" color={colors.accentTeal}>
+              Photo
+            </AppText>
+          </TouchableOpacity>
+        )}
+
+        {/* Camera button */}
+        {onCameraPress && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Take a photo"
+            accessibilityHint="Tap to open the camera"
+            onPress={onCameraPress}
+            style={styles.actionButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="camera" size={26} color={colors.textSecondary} />
+            <AppText size="small" weight="semibold" color={colors.textSecondary}>
+              Camera
+            </AppText>
+          </TouchableOpacity>
+        )}
+
+        {/* Spacer to push send button to the right */}
+        <View style={styles.spacer} />
+
+        {/* Send button - SENIOR-FRIENDLY: Large with label */}
         <Animated.View
           style={[
             styles.sendButtonWrapper,
@@ -162,8 +181,8 @@ export default function MessageInputBar({
         >
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel={isSendDisabled ? "Send button disabled" : "Send message"}
-            accessibilityHint={isSendDisabled ? "Type a message first" : "Double tap to send your message"}
+            accessibilityLabel={isSendDisabled ? "Send button - type a message first" : "Send your message"}
+            accessibilityHint={isSendDisabled ? "You need to type something before you can send" : "Tap to send your message"}
             accessibilityState={{ disabled: isSendDisabled }}
             onPress={handleSend}
             style={[
@@ -171,15 +190,17 @@ export default function MessageInputBar({
               isSendDisabled && styles.sendButtonDisabled,
               hasText && styles.sendButtonActive,
             ]}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
             disabled={isSendDisabled}
           >
             <Ionicons
               name="send"
-              size={20}
+              size={24}
               color={colors.white}
-              style={styles.sendIcon}
             />
+            <AppText size="body" weight="bold" color={colors.white}>
+              Send
+            </AppText>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -188,86 +209,93 @@ export default function MessageInputBar({
 }
 
 /**
- * MessageInputBar Styles
+ * MessageInputBar Styles - SENIOR-FRIENDLY VERSION
  *
- * Accessibility Optimizations:
- * - 48px minimum touch targets
- * - 18px font size for input
+ * Design Principles for Elderly Users:
+ * - Minimum 56px touch targets (larger than standard)
+ * - 20px font size for input text
  * - High contrast colors
+ * - Labeled buttons (not just icons)
  * - Clear visual feedback
- * - Animated send button
+ * - Simple, vertical layout
+ * - Generous spacing
  */
 const styles = StyleSheet.create({
   wrapper: {
     backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
-  charCountContainer: {
-    alignItems: "flex-end",
-    paddingHorizontal: 20,
-    paddingBottom: 4,
-  },
-  container: {
+
+  // Hint text container
+  hintContainer: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  leftActions: {
-    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 4,
-    paddingBottom: 6,
+    paddingHorizontal: 4,
   },
-  iconButton: {
-    // Minimum 44px touch target
-    height: 44,
-    width: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
+
+  // Input area - SENIOR-FRIENDLY: Large, prominent
+  inputArea: {
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
   },
   inputWrapper: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
-    borderRadius: 24,
-    minHeight: 48,
-    maxHeight: 120,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.shadowLight,
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    minHeight: 80,
+    maxHeight: 160,
   },
   input: {
     flex: 1,
-    paddingHorizontal: 18,
-    paddingTop: Platform.OS === "ios" ? 12 : 10,
-    paddingBottom: Platform.OS === "ios" ? 12 : 10,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 16 : 14,
+    paddingBottom: Platform.OS === "ios" ? 16 : 14,
     color: colors.textPrimary,
-    fontSize: 16,
-    lineHeight: 22,
-    textAlignVertical: "center",
+    fontSize: 20,
+    lineHeight: 28,
+    textAlignVertical: "top",
   },
-  sendButtonWrapper: {
-    paddingBottom: 4,
+
+  // Actions container - SENIOR-FRIENDLY: Large labeled buttons
+  actionsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 4,
   },
-  sendButton: {
-    // Minimum 48px touch target
-    height: 48,
-    width: 48,
-    borderRadius: 24,
+
+  // Action buttons - SENIOR-FRIENDLY: Large with labels
+  actionButton: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    height: 56,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundLight,
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
+  },
+
+  spacer: {
+    flex: 1,
+  },
+
+  // Send button - SENIOR-FRIENDLY: Large, prominent, labeled
+  sendButtonWrapper: {
+    // No extra padding needed
+  },
+  sendButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    height: 64,
+    paddingHorizontal: 28,
+    borderRadius: 20,
     backgroundColor: colors.textMuted,
   },
   sendButtonDisabled: {
@@ -278,16 +306,13 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: colors.accentTeal,
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
       },
       android: {
-        elevation: 4,
+        elevation: 6,
       },
     }),
-  },
-  sendIcon: {
-    marginLeft: 2, // Visual centering for send icon
   },
 });
