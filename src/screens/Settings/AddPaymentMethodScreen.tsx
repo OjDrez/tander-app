@@ -4,7 +4,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -21,6 +20,7 @@ import FullScreen from "@/src/components/layout/FullScreen";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { paymentApi } from "@/src/api/paymentApi";
+import { useToast } from "@/src/context/ToastContext";
 
 type PaymentNav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -64,6 +64,7 @@ const PAYMENT_OPTIONS: PaymentOption[] = [
 
 export default function AddPaymentMethodScreen() {
   const navigation = useNavigation<PaymentNav>();
+  const { success, error, warning, confirm } = useToast();
 
   const [selectedType, setSelectedType] = useState<PaymentMethodType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -78,16 +79,18 @@ export default function AddPaymentMethodScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [accountName, setAccountName] = useState('');
 
-  const handleGoBack = () => {
+  const handleGoBack = async () => {
     if (selectedType && (cardNumber || phoneNumber)) {
-      Alert.alert(
-        'Discard Changes?',
-        'You have unsaved information. Are you sure you want to go back?',
-        [
-          { text: 'Stay Here', style: 'cancel' },
-          { text: 'Yes, Go Back', style: 'destructive', onPress: () => navigation.goBack() },
-        ]
-      );
+      const confirmed = await confirm({
+        title: 'Discard Changes?',
+        message: 'You have unsaved information. Are you sure you want to go back?',
+        type: 'warning',
+        confirmText: 'Yes, Go Back',
+        cancelText: 'Stay Here',
+      });
+      if (confirmed) {
+        navigation.goBack();
+      }
     } else {
       navigation.goBack();
     }
@@ -119,21 +122,13 @@ export default function AddPaymentMethodScreen() {
   const handleAddCard = async () => {
     const cleanedCardNumber = cardNumber.replace(/\s/g, '');
     if (cleanedCardNumber.length < 13 || cleanedCardNumber.length > 19) {
-      Alert.alert(
-        'Card Number Not Valid',
-        'Please check your card number and make sure it is entered correctly.\n\nYour card number should be 13-19 digits long.',
-        [{ text: 'OK, I\'ll Check' }]
-      );
+      warning('Please check your card number and make sure it is entered correctly. Your card number should be 13-19 digits long.');
       return;
     }
 
     const expiry = parseExpiryDate(expiryDate);
     if (!expiry) {
-      Alert.alert(
-        'Expiry Date Not Valid',
-        'Please enter the expiry date from your card.\n\nFormat: MM/YY (for example: 12/25 for December 2025)',
-        [{ text: 'OK, I\'ll Fix It' }]
-      );
+      warning('Please enter the expiry date from your card. Format: MM/YY (for example: 12/25 for December 2025)');
       return;
     }
 
@@ -142,20 +137,12 @@ export default function AddPaymentMethodScreen() {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
     if (expiry.year < currentYear || (expiry.year === currentYear && expiry.month < currentMonth)) {
-      Alert.alert(
-        'Card Has Expired',
-        'This card appears to be expired. Please use a card that has not expired.',
-        [{ text: 'OK' }]
-      );
+      warning('This card appears to be expired. Please use a card that has not expired.');
       return;
     }
 
     if (cvv.length < 3 || cvv.length > 4) {
-      Alert.alert(
-        'CVV Not Valid',
-        'Please enter the 3 or 4 digit security code from the back of your card.\n\nThis is usually found near the signature strip.',
-        [{ text: 'OK, I\'ll Check' }]
-      );
+      warning('Please enter the 3 or 4 digit security code from the back of your card.');
       return;
     }
 
@@ -169,17 +156,10 @@ export default function AddPaymentMethodScreen() {
         setAsDefault: true,
       });
 
-      Alert.alert(
-        'Card Added Successfully!',
-        'Your card has been saved and set as your default payment method.',
-        [{ text: 'Great!', onPress: () => navigation.goBack() }]
-      );
-    } catch (error: any) {
-      Alert.alert(
-        'Could Not Add Card',
-        error.message || 'Something went wrong. Please check your card details and try again.',
-        [{ text: 'OK, I\'ll Try Again' }]
-      );
+      success('Your card has been saved and set as your default payment method.');
+      navigation.goBack();
+    } catch (err: any) {
+      error(err.message || 'Something went wrong. Please check your card details and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -188,11 +168,7 @@ export default function AddPaymentMethodScreen() {
   const handleAddWallet = async (walletType: 'GCASH' | 'PAYMAYA') => {
     const cleanedPhone = phoneNumber.replace(/\D/g, '');
     if (cleanedPhone.length !== 11 || !cleanedPhone.startsWith('09')) {
-      Alert.alert(
-        'Phone Number Not Valid',
-        'Please enter your 11-digit Philippine mobile number.\n\nIt should start with 09 (for example: 09171234567)',
-        [{ text: 'OK, I\'ll Fix It' }]
-      );
+      warning('Please enter your 11-digit Philippine mobile number. It should start with 09 (for example: 09171234567)');
       return;
     }
 
@@ -207,17 +183,10 @@ export default function AddPaymentMethodScreen() {
         setAsDefault: true,
       });
 
-      Alert.alert(
-        `${walletName} Added Successfully!`,
-        `Your ${walletName} account has been linked and set as your default payment method.`,
-        [{ text: 'Great!', onPress: () => navigation.goBack() }]
-      );
-    } catch (error: any) {
-      Alert.alert(
-        `Could Not Add ${walletName}`,
-        error.message || 'Something went wrong. Please check your phone number and try again.',
-        [{ text: 'OK, I\'ll Try Again' }]
-      );
+      success(`Your ${walletName} account has been linked and set as your default payment method.`);
+      navigation.goBack();
+    } catch (err: any) {
+      error(err.message || 'Something went wrong. Please check your phone number and try again.');
     } finally {
       setIsLoading(false);
     }

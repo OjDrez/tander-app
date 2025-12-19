@@ -1,375 +1,112 @@
-import colors from "@/src/config/colors";
-import FullScreen from "@/src/components/layout/FullScreen";
-import AppText from "@/src/components/inputs/AppText";
-import PeopleYouMayKnowRow from "@/src/components/inbox/PeopleYouMayKnowRow";
-import { AppStackParamList } from "@/src/navigation/NavigationTypes";
-import { useSocketConnection } from "@/src/hooks/useSocket";
-import {
-  connectSocket,
-  registerSocketListener,
-} from "@/src/services/socket";
-import { getConversations, getChatUsers, validateChatAccess, getFullPhotoUrl } from "@/src/api/chatApi";
-import { matchingApi } from "@/src/api/matchingApi";
-import { Match } from "@/src/types/matching";
+import colors from '@/src/config/colors';
+import FullScreen from '@/src/components/layout/FullScreen';
+import AppText from '@/src/components/inputs/AppText';
+import LoadingIndicator from '@/src/components/common/LoadingIndicator';
+import PeopleYouMayKnowRow from '@/src/components/inbox/PeopleYouMayKnowRow';
+import AnimatedConversationRow from '@/src/components/inbox/AnimatedConversationRow';
+import { AppStackParamList } from '@/src/navigation/NavigationTypes';
+import { useSocketConnection } from '@/src/hooks/useSocket';
+import { useInboxData } from '@/src/hooks/useInboxData';
+import { registerSocketListener } from '@/src/services/callService';
+import { wsService } from '@/src/services/websocket';
 import {
   ConversationPreview,
   IncomingCallPayload,
   NewMessagePreviewPayload,
-  UserOnlinePayload,
-  UserOfflinePayload,
-} from "@/src/types/chat";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+} from '@/src/types/chat';
+import { useToast } from '@/src/context/ToastContext';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
   FlatList,
-  Image,
   Platform,
   RefreshControl,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
-// Props type for AnimatedConversationRow
-type AnimatedConversationRowProps = {
-  item: ConversationPreview;
-  index: number;
-  onPress: () => void;
-  onAvatarPress: () => void;
-  onVideoCall: () => void;
-  onVoiceCall: () => void;
-  isOnline: boolean;
-};
-
-// Animated conversation row component - memoized for performance
-// SENIOR-FRIENDLY: Large touch targets, clear text, simple layout
-const AnimatedConversationRow = memo(({
-  item,
-  index,
-  onPress,
-  onAvatarPress,
-  onVideoCall,
-  onVoiceCall,
-  isOnline,
-}: AnimatedConversationRowProps) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        delay: index * 50,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        delay: index * 50,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim, index]);
-
-  const hasUnread = (item.unreadCount ?? 0) > 0;
-
-  return (
-    <Animated.View
-      style={[
-        styles.threadCard,
-        hasUnread && styles.threadCardUnread,
-        Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      <TouchableOpacity
-        style={styles.threadTouchable}
-        activeOpacity={0.7}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={`Open chat with ${item.name}${hasUnread ? `. You have ${item.unreadCount} new message${item.unreadCount > 1 ? 's' : ''}` : ""}${isOnline ? ". They are online now" : ""}`}
-        accessibilityHint="Tap to read and reply to messages"
-      >
-        {/* Large avatar with online status */}
-        <TouchableOpacity
-          style={[styles.avatarWrapper, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
-          activeOpacity={0.7}
-          onPress={onAvatarPress}
-          accessibilityRole="button"
-          accessibilityLabel={`View ${item.name}'s profile photo`}
-        >
-          <Image source={{ uri: item.avatar }} style={styles.avatar} />
-          {isOnline && (
-            <View style={styles.onlineIndicator}>
-              <View style={styles.onlineDot} />
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Name and message preview */}
-        <View style={styles.threadBody}>
-          <View style={styles.threadTopRow}>
-            <View style={styles.nameRow}>
-              <AppText size="h3" weight="bold" numberOfLines={1} style={styles.name}>
-                {item.name}
-              </AppText>
-              {isOnline && (
-                <AppText size="small" weight="semibold" color={colors.success} style={styles.onlineText}>
-                  Online
-                </AppText>
-              )}
-            </View>
-            <AppText size="body" color={colors.textSecondary} weight="medium">
-              {item.timestamp}
-            </AppText>
-          </View>
-
-          <AppText
-            size="body"
-            color={hasUnread ? colors.textPrimary : colors.textSecondary}
-            weight={hasUnread ? "bold" : "normal"}
-            numberOfLines={2}
-            style={styles.preview}
-          >
-            {hasUnread ? "● " : ""}{item.message}
-          </AppText>
-
-          {/* Unread count badge - more prominent */}
-          {hasUnread && (
-            <View style={styles.unreadRow}>
-              <View style={styles.unreadBadgeLarge}>
-                <AppText size="body" weight="bold" color={colors.white}>
-                  {item.unreadCount} NEW
-                </AppText>
-              </View>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-
-      {/* Call buttons - larger and clearly labeled */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={styles.callButtonLarge}
-          onPress={onVoiceCall}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Call ${item.name}`}
-          accessibilityHint="Tap to make a voice call"
-        >
-          <Ionicons name="call" size={24} color={colors.primary} />
-          <AppText size="small" weight="semibold" color={colors.primary}>
-            Call
-          </AppText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.callButtonLarge, styles.videoCallButtonLarge]}
-          onPress={onVideoCall}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Video call ${item.name}`}
-          accessibilityHint="Tap to make a video call"
-        >
-          <Ionicons name="videocam" size={24} color={colors.white} />
-          <AppText size="small" weight="semibold" color={colors.white}>
-            Video
-          </AppText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.messageButton}
-          onPress={onPress}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Message ${item.name}`}
-        >
-          <Ionicons name="chatbubble" size={24} color={colors.accentTeal} />
-          <AppText size="small" weight="semibold" color={colors.accentTeal}>
-            Message
-          </AppText>
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-});
-
-AnimatedConversationRow.displayName = "AnimatedConversationRow";
-
-/**
- * Represents a match that can be displayed in the match queue
- * Bumble-style: shows countdown timer for 24-hour expiration
- */
-type MatchQueuePerson = {
-  id: string;
-  name: string;
-  age: number;
-  avatar: string;
-  userId?: number;
-  hoursUntilExpiration?: number;
-  chatStarted?: boolean;
-};
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function InboxScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { isAuthenticated, onlineUsers } = useSocketConnection();
+  const { warning } = useToast();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [conversations, setConversations] = useState<ConversationPreview[]>([]);
-  const [matchQueue, setMatchQueue] = useState<MatchQueuePerson[]>([]);
-  const [urgentMatches, setUrgentMatches] = useState<Match[]>([]);
-  const [matchedUserIds, setMatchedUserIds] = useState<Set<number>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Use the consolidated hook for all inbox data - fixes race condition
+  const {
+    conversations,
+    matchQueue,
+    urgentMatches,
+    matchedUserIds,
+    inboxUserIds,
+    isLoading,
+    isRefreshing,
+    error,
+    loadData,
+    updateConversationPreview,
+    isUserMatched,
+  } = useInboxData();
 
-  // Load conversations from API
-  const loadConversations = useCallback(async (showRefresh = false) => {
-    try {
-      if (showRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-      const data = await getConversations();
-      setConversations(data);
-    } catch (err) {
-      console.error("[InboxScreen] Failed to load conversations:", err);
-      setError("Failed to load conversations");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
+  // Ref to track if we need to reload due to new conversation
+  const needsReloadRef = useRef(false);
 
-  /**
-   * Load matches for the match queue (Bumble-style)
-   * - Only active matches can be chatted with
-   * - Matches expire after 24 hours if no chat is started
-   * - Sort by urgency (expiring soonest first)
-   */
-  const loadMatchQueue = useCallback(async () => {
-    try {
-      const matches = await matchingApi.getMatchesList();
-
-      // Store matched user IDs for validation - only ACTIVE or CHAT_STARTED matches
-      const activeMatchedIds = new Set(
-        matches
-          .filter((m) => m.status === "ACTIVE" || m.status === "CHAT_STARTED")
-          .map((m) => m.matchedUserId)
-      );
-      setMatchedUserIds(activeMatchedIds);
-
-      // Filter matches that haven't started chat yet - these need action
-      const pendingMatches = matches
-        .filter((m) => !m.chatStarted && m.status === "ACTIVE")
-        .sort((a, b) => {
-          // Sort by urgency: expiring soonest first
-          const aHours = a.hoursUntilExpiration ?? 24;
-          const bHours = b.hoursUntilExpiration ?? 24;
-          return aHours - bHours;
-        });
-
-      // Track urgent matches (expiring within 6 hours) for warning banner
-      const urgent = pendingMatches.filter(
-        (m) => m.hoursUntilExpiration !== undefined && m.hoursUntilExpiration <= 6
-      );
-      setUrgentMatches(urgent);
-
-      // Convert to match queue format
-      const queue: MatchQueuePerson[] = pendingMatches.map((match) => {
-        // Convert relative photo URL to full URL, fallback to UI Avatars
-        const fullPhotoUrl = getFullPhotoUrl(match.matchedUserProfilePhotoUrl);
-        return {
-          id: match.matchedUserId.toString(),
-          name: match.matchedUserDisplayName,
-          age: match.matchedUserAge || 0,
-          avatar:
-            fullPhotoUrl ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(match.matchedUserDisplayName)}&background=random`,
-          userId: match.matchedUserId,
-          hoursUntilExpiration: match.hoursUntilExpiration,
-          chatStarted: match.chatStarted,
-        };
-      });
-
-      setMatchQueue(queue);
-    } catch (err) {
-      console.error("[InboxScreen] Failed to load matches:", err);
-      setMatchQueue([]);
-      setMatchedUserIds(new Set());
-    }
-  }, []);
-
-  // Try to connect socket (optional - chat will work via REST API if unavailable)
-  useEffect(() => {
-    connectSocket().catch((err) => {
-      console.warn("[InboxScreen] Socket connection failed (will use REST API):", err.message);
-    });
-  }, []);
+  // WebSocket connection is now handled globally by RealTimeProvider
+  // No need to connect here - wsService is already managed
 
   // Load data when screen is focused
   useFocusEffect(
     useCallback(() => {
-      loadConversations();
-      loadMatchQueue();
-    }, [loadConversations, loadMatchQueue])
+      loadData();
+
+      // If we had a flag for needing reload (from new conversation), clear it
+      if (needsReloadRef.current) {
+        needsReloadRef.current = false;
+      }
+    }, [loadData])
   );
 
-
-  // Socket event listeners
+  // WebSocket event listeners
   useEffect(() => {
-    // New message preview
-    const cleanupPreview = registerSocketListener<NewMessagePreviewPayload>(
-      "message",
-      (payload) => {
-        setConversations((prev) => {
-          // Find existing conversation by room ID
-          const existingIndex = prev.findIndex(
-            (item) => item.roomId === payload.conversationId || item.id === payload.conversationId
-          );
+    // New message preview - update conversation or trigger reload for new conversations
+    // Uses wsService.onMessage for global message listening
+    const cleanupPreview = wsService.onMessage((payload: any) => {
+      if (payload.type !== 'message') return;
 
-          const updatedConversation: Partial<ConversationPreview> = {
-            message: payload.text,
-            timestamp: "Just now",
-            unreadCount: (prev[existingIndex]?.unreadCount || 0) + 1,
-          };
+      const wasUpdated = updateConversationPreview(
+        payload.conversationId,
+        payload.conversationId, // roomId might be same as conversationId
+        payload.text || payload.content
+      );
 
-          if (existingIndex !== -1) {
-            const updated = [...prev];
-            updated[existingIndex] = {
-              ...prev[existingIndex],
-              ...updatedConversation,
-            };
-            // Move to top
-            const [item] = updated.splice(existingIndex, 1);
-            updated.unshift(item);
-            return updated;
-          }
-
-          // New conversation - would need full data from API
-          return prev;
-        });
+      // FIX: If conversation wasn't found, it's a new conversation - trigger reload
+      if (!wasUpdated) {
+        console.log('[InboxScreen] New conversation detected, reloading data');
+        needsReloadRef.current = true;
+        loadData();
       }
-    );
+    });
 
-    // Incoming call
+    // Incoming call - FIX: validate match before navigating
+    // Uses callService.registerSocketListener which maps to wsService.onCall
     const cleanupIncomingCall = registerSocketListener<IncomingCallPayload>(
-      "incoming-call",
+      'incoming-call',
       (payload) => {
-        navigation.navigate("IncomingCallScreen", {
+        // SECURITY FIX: Validate caller is a matched user before showing call UI
+        if (!isUserMatched(payload.callerId)) {
+          console.warn(
+            '[InboxScreen] Incoming call from non-matched user ignored:',
+            payload.callerId
+          );
+          return;
+        }
+
+        navigation.navigate('IncomingCallScreen', {
           callerId: payload.callerId,
           callerName: payload.callerName,
           callerUsername: payload.callerUsername,
@@ -380,61 +117,27 @@ export default function InboxScreen() {
       }
     );
 
-    // User online status
-    const cleanupOnline = registerSocketListener<UserOnlinePayload>(
-      "user_online",
-      (payload) => {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.userId === payload.userId ? { ...conv, isOnline: true } : conv
-          )
-        );
-      }
-    );
-
-    const cleanupOffline = registerSocketListener<UserOfflinePayload>(
-      "user_offline",
-      (payload) => {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.userId === payload.userId ? { ...conv, isOnline: false } : conv
-          )
-        );
-      }
-    );
-
     return () => {
       cleanupPreview();
       cleanupIncomingCall();
-      cleanupOnline();
-      cleanupOffline();
     };
-  }, [navigation]);
+  }, [navigation, updateConversationPreview, loadData, isUserMatched]);
 
-  // Update online status from hook
-  useEffect(() => {
-    setConversations((prev) =>
-      prev.map((conv) => ({
-        ...conv,
-        isOnline: onlineUsers.has(conv.userId),
-      }))
-    );
-  }, [onlineUsers]);
-
-  // Filtered conversations - only show conversations with matched users
+  // Filtered conversations - only show conversations where BOTH users have messaged
   const filteredConversations = useMemo(() => {
-    // First filter by matched users - you can only chat with people you've matched with
-    let filtered = conversations.filter((item) => matchedUserIds.has(item.userId));
+    // Only show conversations for matches where chat is fully started
+    let filtered = conversations.filter((item) => inboxUserIds.has(item.userId));
 
     // Then apply search filter if present
     if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
       filtered = filtered.filter((item) =>
-        item.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+        item.name.toLowerCase().includes(query)
       );
     }
 
     return filtered;
-  }, [conversations, searchQuery, matchedUserIds]);
+  }, [conversations, searchQuery, inboxUserIds]);
 
   // Total unread count - only count from matched conversations
   const totalUnread = useMemo(() => {
@@ -442,293 +145,304 @@ export default function InboxScreen() {
   }, [filteredConversations]);
 
   // Validate match before opening conversation
-  const handlePressConversation = useCallback(async (conversation: ConversationPreview) => {
-    // Quick check using local state
-    if (!matchedUserIds.has(conversation.userId)) {
-      Alert.alert(
-        "Cannot Open Chat",
-        "You can only chat with people you have matched with.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
+  const handlePressConversation = useCallback(
+    (conversation: ConversationPreview) => {
+      // Quick check using local state
+      if (!matchedUserIds.has(conversation.userId)) {
+        warning('You can only chat with people you have matched with.');
+        return;
+      }
 
-    navigation.navigate("ConversationScreen", {
-      conversationId: parseInt(conversation.id, 10),
-      otherUserId: conversation.userId,
-      otherUserName: conversation.name,
-      avatarUrl: conversation.avatar,
-      roomId: conversation.roomId,
-    });
-  }, [navigation, matchedUserIds]);
+      navigation.navigate('ConversationScreen', {
+        conversationId: parseInt(conversation.id, 10),
+        otherUserId: conversation.userId,
+        otherUserName: conversation.name,
+        avatarUrl: conversation.avatar,
+        roomId: conversation.roomId,
+      });
+    },
+    [navigation, matchedUserIds, warning]
+  );
 
-  const handlePressAvatar = useCallback((userId: string) => {
-    navigation.navigate("ViewProfileScreen", { userId });
-  }, [navigation]);
+  const handlePressAvatar = useCallback(
+    (userId: string) => {
+      navigation.navigate('ViewProfileScreen', { userId });
+    },
+    [navigation]
+  );
 
-  /**
-   * Start a chat with a match from the match queue
-   * This is the primary action in Bumble-style matching
-   */
-  const handleStartChat = useCallback(async (userId: string) => {
-    const numericUserId = parseInt(userId, 10);
+  // Start a chat with a match from the match queue
+  const handleStartChat = useCallback(
+    (userId: string) => {
+      const numericUserId = parseInt(userId, 10);
 
-    if (!matchedUserIds.has(numericUserId)) {
-      Alert.alert(
-        "Match Expired",
-        "This match has expired. Keep swiping to find new matches!",
-        [{ text: "OK" }]
-      );
-      loadMatchQueue(); // Refresh the queue
-      return;
-    }
+      if (!matchedUserIds.has(numericUserId)) {
+        warning('This match has expired. Keep swiping to find new matches!');
+        loadData(); // Refresh the queue
+        return;
+      }
 
-    // Find the match in the queue for user details
-    const matchPerson = matchQueue.find((p) => p.id === userId);
+      // Find the match in the queue for user details
+      const matchPerson = matchQueue.find((p) => p.id === userId);
 
-    navigation.navigate("ConversationScreen", {
-      conversationId: 0, // Will be created on first message
-      otherUserId: numericUserId,
-      otherUserName: matchPerson?.name || "Match",
-      avatarUrl: matchPerson?.avatar || "",
-      roomId: undefined,
-    });
-  }, [navigation, matchedUserIds, matchQueue, loadMatchQueue]);
+      navigation.navigate('ConversationScreen', {
+        conversationId: 0, // Will be created on first message
+        otherUserId: numericUserId,
+        otherUserName: matchPerson?.name || 'Match',
+        avatarUrl: matchPerson?.avatar || '',
+        roomId: undefined,
+      });
+    },
+    [navigation, matchedUserIds, matchQueue, loadData, warning]
+  );
 
   // Validate match before video call
-  const handleVideoCall = useCallback(async (conversation: ConversationPreview) => {
-    if (!matchedUserIds.has(conversation.userId)) {
-      Alert.alert(
-        "Cannot Start Call",
-        "You can only call people you have matched with.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
+  const handleVideoCall = useCallback(
+    (conversation: ConversationPreview) => {
+      if (!matchedUserIds.has(conversation.userId)) {
+        warning('You can only call people you have matched with.');
+        return;
+      }
 
-    navigation.navigate("VideoCallScreen", {
-      userId: conversation.userId,
-      username: conversation.name,
-      callType: "video",
-    });
-  }, [navigation, matchedUserIds]);
+      navigation.navigate('VideoCallScreen', {
+        userId: conversation.userId,
+        username: conversation.name,
+        callType: 'video',
+      });
+    },
+    [navigation, matchedUserIds, warning]
+  );
 
   // Validate match before voice call
-  const handleVoiceCall = useCallback(async (conversation: ConversationPreview) => {
-    if (!matchedUserIds.has(conversation.userId)) {
-      Alert.alert(
-        "Cannot Start Call",
-        "You can only call people you have matched with.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
+  const handleVoiceCall = useCallback(
+    (conversation: ConversationPreview) => {
+      if (!matchedUserIds.has(conversation.userId)) {
+        warning('You can only call people you have matched with.');
+        return;
+      }
 
-    navigation.navigate("VoiceCallScreen", {
-      userId: conversation.userId,
-      username: conversation.name,
-      callType: "audio",
-    });
-  }, [navigation, matchedUserIds]);
+      navigation.navigate('VoiceCallScreen', {
+        userId: conversation.userId,
+        username: conversation.name,
+        callType: 'audio',
+      });
+    },
+    [navigation, matchedUserIds, warning]
+  );
 
   const handleRefresh = useCallback(() => {
-    loadConversations(true);
-    loadMatchQueue();
-  }, [loadConversations, loadMatchQueue]);
+    loadData(true);
+  }, [loadData]);
 
-  const renderConversation = useCallback(({ item, index }: { item: ConversationPreview; index: number }) => {
-    const isOnline = item.isOnline || onlineUsers.has(item.userId);
+  const renderConversation = useCallback(
+    ({ item, index }: { item: ConversationPreview; index: number }) => {
+      const isOnline = item.isOnline || onlineUsers.has(item.userId);
 
-    return (
-      <AnimatedConversationRow
-        item={item}
-        index={index}
-        onPress={() => handlePressConversation(item)}
-        onAvatarPress={() => handlePressAvatar(item.userId.toString())}
-        onVideoCall={() => handleVideoCall(item)}
-        onVoiceCall={() => handleVoiceCall(item)}
-        isOnline={isOnline}
-      />
-    );
-  }, [onlineUsers, handlePressConversation, handlePressAvatar, handleVideoCall, handleVoiceCall]);
-
-  const renderHeader = useCallback(() => (
-    <View style={styles.headerSection} accessibilityRole="header">
-      {/* Welcome section - clear and friendly */}
-      <View style={styles.welcomeSection}>
-        <AppText size="h1" weight="bold" style={styles.title}>
-          Your Messages
-        </AppText>
-        <AppText size="h4" color={colors.textSecondary} style={styles.subtitle}>
-          Tap on a person to chat with them
-        </AppText>
-      </View>
-
-      {/* Connection status - very visible */}
-      {!isAuthenticated && (
-        <View style={styles.connectionStatusLarge}>
-          <Ionicons name="cloud-offline" size={28} color={colors.error} />
-          <View style={styles.connectionTextContainer}>
-            <AppText size="h4" weight="bold" color={colors.error}>
-              You are offline
-            </AppText>
-            <AppText size="body" color={colors.textSecondary}>
-              Messages will send when you reconnect
-            </AppText>
-          </View>
-        </View>
-      )}
-
-      {/* Simple search bar */}
-      <View style={styles.searchBar} accessibilityRole="search">
-        <Ionicons name="search" size={26} color={colors.textSecondary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name..."
-          placeholderTextColor={colors.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          selectionColor={colors.primary}
-          accessibilityLabel="Search for a person"
-          accessibilityHint="Type a name to find their conversation"
+      return (
+        <AnimatedConversationRow
+          item={item}
+          index={index}
+          onPress={() => handlePressConversation(item)}
+          onAvatarPress={() => handlePressAvatar(item.userId.toString())}
+          onVideoCall={() => handleVideoCall(item)}
+          onVoiceCall={() => handleVoiceCall(item)}
+          isOnline={isOnline}
         />
-        {searchQuery.length > 0 && (
+      );
+    },
+    [onlineUsers, handlePressConversation, handlePressAvatar, handleVideoCall, handleVoiceCall]
+  );
+
+  const renderHeader = useCallback(
+    () => (
+      <View style={styles.headerSection} accessibilityRole="header">
+        {/* Welcome section - clear and friendly */}
+        <View style={styles.welcomeSection}>
+          <AppText size="h1" weight="bold" style={styles.title}>
+            Your Messages
+          </AppText>
+          <AppText size="h4" color={colors.textSecondary} style={styles.subtitle}>
+            Tap on a person to chat with them
+          </AppText>
+        </View>
+
+        {/* Connection status - very visible */}
+        {!isAuthenticated && (
+          <View style={styles.connectionStatusLarge}>
+            <Ionicons name="cloud-offline" size={28} color={colors.error} />
+            <View style={styles.connectionTextContainer}>
+              <AppText size="h4" weight="bold" color={colors.error}>
+                You are offline
+              </AppText>
+              <AppText size="body" color={colors.textSecondary}>
+                Messages will send when you reconnect
+              </AppText>
+            </View>
+          </View>
+        )}
+
+        {/* Simple search bar */}
+        <View style={styles.searchBar} accessibilityRole="search">
+          <Ionicons name="search" size={26} color={colors.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            selectionColor={colors.primary}
+            accessibilityLabel="Search for a person"
+            accessibilityHint="Type a name to find their conversation"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              style={styles.clearSearchButton}
+              onPress={() => setSearchQuery('')}
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Urgent Matches Warning - very prominent for seniors */}
+        {urgentMatches.length > 0 && (
           <TouchableOpacity
-            style={styles.clearSearchButton}
-            onPress={() => setSearchQuery("")}
-            accessibilityLabel="Clear search"
+            style={styles.urgentWarningLarge}
+            onPress={() => navigation.navigate('MyMatchesScreen')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Important: ${urgentMatches.length} matches expiring soon. Tap to view.`}
           >
-            <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+            <View style={styles.urgentIconContainer}>
+              <Ionicons name="alert-circle" size={36} color={colors.white} />
+            </View>
+            <View style={styles.urgentWarningTextLarge}>
+              <AppText size="h4" weight="bold" color={colors.error}>
+                ⏰ Time is running out!
+              </AppText>
+              <AppText size="body" weight="medium" color={colors.textPrimary}>
+                {urgentMatches.length} {urgentMatches.length > 1 ? 'people are' : 'person is'}{' '}
+                waiting to hear from you
+              </AppText>
+              <AppText size="body" color={colors.textSecondary}>
+                Tap here to start chatting
+              </AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={28} color={colors.error} />
           </TouchableOpacity>
         )}
-      </View>
 
-      {/* Urgent Matches Warning - very prominent for seniors */}
-      {urgentMatches.length > 0 && (
-        <TouchableOpacity
-          style={styles.urgentWarningLarge}
-          onPress={() => navigation.navigate("MyMatchesScreen")}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Important: ${urgentMatches.length} matches expiring soon. Tap to view.`}
-        >
-          <View style={styles.urgentIconContainer}>
-            <Ionicons name="alert-circle" size={36} color={colors.white} />
-          </View>
-          <View style={styles.urgentWarningTextLarge}>
-            <AppText size="h4" weight="bold" color={colors.error}>
-              ⏰ Time is running out!
-            </AppText>
-            <AppText size="body" weight="medium" color={colors.textPrimary}>
-              {urgentMatches.length} {urgentMatches.length > 1 ? "people are" : "person is"} waiting to hear from you
-            </AppText>
-            <AppText size="body" color={colors.textSecondary}>
-              Tap here to start chatting
-            </AppText>
-          </View>
-          <Ionicons name="chevron-forward" size={28} color={colors.error} />
-        </TouchableOpacity>
-      )}
-
-      {/* New Matches Section - clearer for seniors */}
-      {matchQueue.length > 0 && (
-        <View style={styles.newMatchesSection}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Ionicons name="heart" size={24} color={colors.primary} />
-              <AppText size="h3" weight="bold" color={colors.textPrimary}>
-                New Matches
-              </AppText>
-              <View style={styles.matchCountBadgeLarge}>
-                <AppText size="body" weight="bold" color={colors.white}>
-                  {matchQueue.length}
+        {/* New Matches Section - clearer for seniors */}
+        {matchQueue.length > 0 && (
+          <View style={styles.newMatchesSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="heart" size={24} color={colors.primary} />
+                <AppText size="h3" weight="bold" color={colors.textPrimary}>
+                  New Matches
                 </AppText>
+                <View style={styles.matchCountBadgeLarge}>
+                  <AppText size="body" weight="bold" color={colors.white}>
+                    {matchQueue.length}
+                  </AppText>
+                </View>
               </View>
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => navigation.navigate('MyMatchesScreen')}
+                accessibilityRole="button"
+                accessibilityLabel="View all your matches"
+              >
+                <AppText size="body" weight="bold" color={colors.primary}>
+                  See All
+                </AppText>
+                <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.viewAllButton}
-              onPress={() => navigation.navigate("MyMatchesScreen")}
-              accessibilityRole="button"
-              accessibilityLabel="View all your matches"
+            <AppText size="body" color={colors.textSecondary} style={styles.sectionHint}>
+              These people want to talk to you! Tap to start chatting.
+            </AppText>
+            <LinearGradient
+              colors={colors.gradients.registration.array}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.matchQueueCard,
+                Platform.OS === 'ios' ? styles.iosShadow : styles.androidShadow,
+              ]}
             >
-              <AppText size="body" weight="bold" color={colors.primary}>
-                See All
-              </AppText>
-              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-          <AppText size="body" color={colors.textSecondary} style={styles.sectionHint}>
-            These people want to talk to you! Tap to start chatting.
-          </AppText>
-          <LinearGradient
-            colors={colors.gradients.registration.array}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.matchQueueCard, Platform.OS === "ios" ? styles.iosShadow : styles.androidShadow]}
-          >
-            <PeopleYouMayKnowRow
-              people={matchQueue}
-              onSelect={(id) => handlePressAvatar(id)}
-              onStartChat={handleStartChat}
-            />
-          </LinearGradient>
-        </View>
-      )}
-
-      {/* Empty state - friendly and encouraging */}
-      {matchQueue.length === 0 && !isLoading && (
-        <TouchableOpacity
-          style={styles.emptyMatchPromptLarge}
-          onPress={() => navigation.navigate("MatchesScreen")}
-          activeOpacity={0.7}
-          accessibilityLabel="Find new people to match with"
-        >
-          <View style={styles.emptyMatchIconContainer}>
-            <Ionicons name="heart-outline" size={48} color={colors.primary} />
-          </View>
-          <View style={styles.emptyMatchTextLarge}>
-            <AppText size="h4" weight="bold" color={colors.textPrimary}>
-              Looking for someone to chat with?
-            </AppText>
-            <AppText size="body" color={colors.textSecondary}>
-              Tap here to find new people
-            </AppText>
-          </View>
-          <Ionicons name="chevron-forward" size={28} color={colors.primary} />
-        </TouchableOpacity>
-      )}
-
-      {/* Conversations section header */}
-      <View style={styles.conversationsSectionHeader}>
-        <View style={styles.sectionTitleRow}>
-          <Ionicons name="chatbubbles" size={24} color={colors.accentTeal} />
-          <AppText size="h3" weight="bold" color={colors.textPrimary}>
-            Your Conversations
-          </AppText>
-        </View>
-        {totalUnread > 0 && (
-          <View style={styles.unreadCountBadge}>
-            <AppText size="body" weight="bold" color={colors.white}>
-              {totalUnread} new
-            </AppText>
+              <PeopleYouMayKnowRow
+                people={matchQueue}
+                onSelect={(id) => handlePressAvatar(id)}
+                onStartChat={handleStartChat}
+              />
+            </LinearGradient>
           </View>
         )}
+
+        {/* Empty state - friendly and encouraging */}
+        {matchQueue.length === 0 && !isLoading && (
+          <TouchableOpacity
+            style={styles.emptyMatchPromptLarge}
+            onPress={() => navigation.navigate('MatchesScreen')}
+            activeOpacity={0.7}
+            accessibilityLabel="Find new people to match with"
+          >
+            <View style={styles.emptyMatchIconContainer}>
+              <Ionicons name="heart-outline" size={48} color={colors.primary} />
+            </View>
+            <View style={styles.emptyMatchTextLarge}>
+              <AppText size="h4" weight="bold" color={colors.textPrimary}>
+                Looking for someone to chat with?
+              </AppText>
+              <AppText size="body" color={colors.textSecondary}>
+                Tap here to find new people
+              </AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={28} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+
+        {/* Conversations section header */}
+        <View style={styles.conversationsSectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="chatbubbles" size={24} color={colors.accentTeal} />
+            <AppText size="h3" weight="bold" color={colors.textPrimary}>
+              Your Conversations
+            </AppText>
+          </View>
+          {totalUnread > 0 && (
+            <View style={styles.unreadCountBadge}>
+              <AppText size="body" weight="bold" color={colors.white}>
+                {totalUnread} new
+              </AppText>
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  ), [isAuthenticated, searchQuery, urgentMatches, matchQueue, totalUnread, filteredConversations.length, navigation, handlePressAvatar, handleStartChat, isLoading]);
+    ),
+    [
+      isAuthenticated,
+      searchQuery,
+      urgentMatches,
+      matchQueue,
+      totalUnread,
+      navigation,
+      handlePressAvatar,
+      handleStartChat,
+      isLoading,
+    ]
+  );
 
   const renderEmpty = useCallback(() => {
     if (isLoading) {
       return (
-        <View style={styles.loadingStateLarge}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="h4" weight="medium" color={colors.textSecondary} style={styles.loadingText}>
-            Loading your messages...
-          </AppText>
-          <AppText size="body" color={colors.textMuted}>
-            Please wait a moment
-          </AppText>
-        </View>
+        <LoadingIndicator
+          variant="inline"
+          message="Loading your messages..."
+          subtitle="Please wait a moment"
+        />
       );
     }
 
@@ -746,7 +460,7 @@ export default function InboxScreen() {
           </AppText>
           <TouchableOpacity
             style={styles.retryButtonLarge}
-            onPress={() => loadConversations()}
+            onPress={() => loadData()}
             accessibilityLabel="Try loading messages again"
           >
             <Ionicons name="refresh" size={24} color={colors.white} />
@@ -771,7 +485,7 @@ export default function InboxScreen() {
         </AppText>
         <TouchableOpacity
           style={styles.findPeopleButton}
-          onPress={() => navigation.navigate("MatchesScreen")}
+          onPress={() => navigation.navigate('MatchesScreen')}
           accessibilityLabel="Find people to chat with"
         >
           <Ionicons name="heart" size={24} color={colors.white} />
@@ -781,7 +495,7 @@ export default function InboxScreen() {
         </TouchableOpacity>
       </View>
     );
-  }, [isLoading, error, loadConversations, navigation]);
+  }, [isLoading, error, loadData, navigation]);
 
   const keyExtractor = useCallback((item: ConversationPreview) => item.id, []);
 
@@ -795,7 +509,7 @@ export default function InboxScreen() {
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
           <FlatList
             data={filteredConversations}
             keyExtractor={keyExtractor}
@@ -868,8 +582,8 @@ const styles = StyleSheet.create({
 
   // Connection status - very visible for offline state
   connectionStatusLarge: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
     backgroundColor: colors.errorLight,
     padding: 20,
@@ -884,8 +598,8 @@ const styles = StyleSheet.create({
 
   // Search bar - larger and simpler
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.white,
     paddingHorizontal: 20,
     borderRadius: 20,
@@ -901,16 +615,17 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   clearSearchButton: {
-    height: 48,
-    width: 48,
-    alignItems: "center",
-    justifyContent: "center",
+    height: 56,
+    width: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 28,
   },
 
   // Urgent warning - very prominent
   urgentWarningLarge: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
     backgroundColor: colors.errorLight,
     padding: 20,
@@ -923,8 +638,8 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: colors.error,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   urgentWarningTextLarge: {
     flex: 1,
@@ -936,13 +651,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   sectionHint: {
@@ -955,12 +670,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 16,
     backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   viewAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -975,8 +690,8 @@ const styles = StyleSheet.create({
 
   // Empty match prompt - larger and clearer
   emptyMatchPromptLarge: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
     backgroundColor: colors.white,
     padding: 24,
@@ -989,8 +704,8 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: colors.accentPeach,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyMatchTextLarge: {
     flex: 1,
@@ -999,9 +714,9 @@ const styles = StyleSheet.create({
 
   // Conversations section header
   conversationsSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 8,
   },
   unreadCountBadge: {
@@ -1009,137 +724,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: colors.primary,
-  },
-
-  // Thread card - much larger and clearer
-  threadCard: {
-    backgroundColor: colors.white,
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: colors.borderLight,
-    overflow: "hidden",
-    gap: 16,
-  },
-  threadCardUnread: {
-    borderColor: colors.primary,
-    borderWidth: 3,
-    backgroundColor: colors.accentPeach,
-  },
-  threadTouchable: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-  },
-
-  // Avatar - much larger
-  avatarWrapper: {
-    height: 80,
-    width: 80,
-    borderRadius: 40,
-    overflow: "hidden",
-    backgroundColor: colors.borderMedium,
-    position: "relative",
-  },
-  avatar: {
-    height: "100%",
-    width: "100%",
-  },
-  onlineIndicator: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: colors.white,
-  },
-  onlineDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.success,
-  },
-
-  // Thread body - larger text
-  threadBody: {
-    flex: 1,
-    gap: 10,
-  },
-  threadTopRow: {
-    gap: 8,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  name: {
-    fontSize: 22,
-  },
-  onlineText: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: colors.successLight,
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  preview: {
-    lineHeight: 26,
-    fontSize: 17,
-  },
-  unreadRow: {
-    marginTop: 8,
-  },
-  unreadBadgeLarge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-  },
-
-  // Action buttons row - large labeled buttons
-  actionsRow: {
-    flexDirection: "row",
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    paddingTop: 16,
-    marginTop: 4,
-  },
-  callButtonLarge: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.backgroundLight,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  videoCallButtonLarge: {
-    backgroundColor: colors.accentTeal,
-    borderColor: colors.accentTeal,
-  },
-  messageButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.accentMint,
-    borderWidth: 2,
-    borderColor: colors.accentTeal,
   },
 
   // Separator
@@ -1150,8 +734,8 @@ const styles = StyleSheet.create({
   // Loading state
   loadingStateLarge: {
     paddingVertical: 80,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 20,
   },
   loadingText: {
@@ -1161,8 +745,8 @@ const styles = StyleSheet.create({
   // Empty state - large and friendly
   emptyStateLarge: {
     paddingVertical: 80,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 16,
   },
   emptyIconContainer: {
@@ -1170,8 +754,8 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: colors.accentMint,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   errorIconContainer: {
@@ -1179,24 +763,24 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     backgroundColor: colors.errorLight,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   emptyTitle: {
-    textAlign: "center",
+    textAlign: 'center',
     fontSize: 24,
   },
   emptySubtitle: {
-    textAlign: "center",
+    textAlign: 'center',
     paddingHorizontal: 32,
     lineHeight: 28,
     fontSize: 17,
   },
   retryButtonLarge: {
     marginTop: 24,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     paddingHorizontal: 32,
     paddingVertical: 18,
@@ -1206,8 +790,8 @@ const styles = StyleSheet.create({
   },
   findPeopleButton: {
     marginTop: 24,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     paddingHorizontal: 32,
     paddingVertical: 18,

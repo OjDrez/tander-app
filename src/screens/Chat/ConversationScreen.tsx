@@ -1,22 +1,26 @@
 import MessageBubble from "@/src/components/chat/MessageBubble";
 import MessageInputBar from "@/src/components/chat/MessageInputBar";
+import ConnectionStatusBanner from "@/src/components/chat/ConnectionStatusBanner";
+import MatchExpirationBanner from "@/src/components/chat/MatchExpirationBanner";
+import TypingIndicator from "@/src/components/chat/TypingIndicator";
 import AppText from "@/src/components/inputs/AppText";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import Screen from "@/src/components/layout/Screen";
 import AppHeader from "@/src/components/navigation/AppHeader";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { useChat } from "@/src/hooks/useChat";
 import { useSocketConnection } from "@/src/hooks/useSocket";
+import { useKeyboardHeight } from "@/src/hooks/useKeyboardHeight";
 import {
   getConversationMessages,
   formatMessageTime,
   formatMessageDate,
   getDateLabel,
   checkMatchStatus,
-  getExpirationWarning,
   MatchInfo,
 } from "@/src/api/chatApi";
-import { ChatListItem, DateSeparator, MessageDisplay } from "@/src/types/chat";
+import { ChatListItem, DateSeparator, MessageDisplay, ChatMessage } from "@/src/types/chat";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -31,7 +35,7 @@ import {
   Animated,
   FlatList,
   Image,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   StyleSheet,
   TouchableOpacity,
@@ -39,105 +43,41 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// Connection status banner component - SENIOR-FRIENDLY: Larger, clearer messaging
-const ConnectionStatusBanner = ({ isOnline, pendingCount }: { isOnline: boolean; pendingCount: number }) => {
-  const slideAnim = useRef(new Animated.Value(isOnline ? -80 : 0)).current;
-
-  useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: isOnline && pendingCount === 0 ? -80 : 0,
-      useNativeDriver: true,
-      friction: 8,
-    }).start();
-  }, [isOnline, pendingCount, slideAnim]);
-
-  if (isOnline && pendingCount === 0) return null;
-
-  return (
-    <Animated.View
-      style={[
-        styles.connectionBanner,
-        { transform: [{ translateY: slideAnim }] },
-        !isOnline ? styles.offlineBanner : styles.pendingBanner,
-      ]}
-      accessibilityRole="alert"
-      accessibilityLabel={!isOnline ? "You are offline. Your messages will be sent when you reconnect to the internet." : `${pendingCount} messages are waiting to be sent.`}
-    >
-      <View style={styles.connectionIconContainer}>
-        <Ionicons
-          name={!isOnline ? "cloud-offline" : "time-outline"}
-          size={28}
-          color={colors.white}
-        />
-      </View>
-      <View style={styles.connectionTextContainer}>
-        <AppText size="body" weight="bold" color={colors.white}>
-          {!isOnline ? "You're offline" : "Sending messages..."}
-        </AppText>
-        <AppText size="body" weight="medium" color={colors.white}>
-          {!isOnline
-            ? "Messages will send when you're back online"
-            : `${pendingCount} message${pendingCount > 1 ? "s" : ""} waiting`}
-        </AppText>
-      </View>
-    </Animated.View>
-  );
-};
-
-// Match expiration warning banner - SENIOR-FRIENDLY: Larger, clearer warning
-const MatchExpirationBanner = ({
-  hoursUntilExpiration,
-  chatStarted,
-}: {
-  hoursUntilExpiration?: number;
-  chatStarted?: boolean;
-}) => {
-  const warningMessage = getExpirationWarning(hoursUntilExpiration);
-
-  // Don't show warning if chat has started (match won't expire)
-  if (chatStarted || !warningMessage) return null;
-
-  const isUrgent = hoursUntilExpiration !== undefined && hoursUntilExpiration <= 6;
-
-  return (
-    <View
-      style={[styles.expirationBanner, isUrgent && styles.expirationBannerUrgent]}
-      accessibilityRole="alert"
-      accessibilityLabel={`Time reminder: ${warningMessage}`}
-    >
-      <View style={[styles.expirationIconContainer, isUrgent && styles.expirationIconUrgent]}>
-        <Ionicons name="time" size={28} color={isUrgent ? colors.white : colors.warning} />
-      </View>
-      <View style={styles.expirationTextContainer}>
-        <AppText size="body" weight="bold" color={isUrgent ? colors.error : colors.textPrimary}>
-          {isUrgent ? "⏰ Time running out!" : "Reminder"}
-        </AppText>
-        <AppText size="body" color={colors.textPrimary} style={styles.expirationText}>
-          {warningMessage}
-        </AppText>
-      </View>
-    </View>
-  );
-};
-
 export default function ConversationScreen({
   route,
 }: NativeStackScreenProps<AppStackParamList, "ConversationScreen">) {
   const { conversationId, otherUserId, otherUserName, avatarUrl, roomId: providedRoomId } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { onlineUsers } = useSocketConnection();
+  // Use centralized online presence from useSocketConnection hook (single source of truth)
+  const { isConnected, onlineUsers } = useSocketConnection();
 
   const [messageText, setMessageText] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [initialMessages, setInitialMessages] = useState<MessageDisplay[]>([]);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
   const [matchError, setMatchError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null); // Message load error state
+  const [chatError, setChatError] = useState<string | null>(null); // Dismissable chat error
+
+  // Online status derived from centralized hook - no duplicate listeners needed
+  const isUserOnline = useMemo(() => onlineUsers.has(otherUserId), [onlineUsers, otherUserId]);
 
   const flatListRef = useRef<FlatList<ChatListItem>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markAsReadCalledRef = useRef(false); // Prevent multiple markAsRead calls
+  const markAsReadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isUserOnline = onlineUsers.has(otherUserId);
+  // FIXED: Use custom keyboard hook with improved animation and LayoutAnimation
+  const { keyboardHeight, isKeyboardVisible, animatedKeyboardHeight } = useKeyboardHeight({
+    bottomInset: insets.bottom,
+    onKeyboardShow: () => {
+      // Scroll to end when keyboard opens
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    },
+  });
 
   // Check match status when screen loads
   useEffect(() => {
@@ -157,13 +97,14 @@ export default function ConversationScreen({
     validateMatch();
   }, [otherUserId]);
 
-  // Load message history from API
+  // Load message history from API with error handling and retry support
   const loadMessageHistory = useCallback(async () => {
     try {
       setIsLoadingHistory(true);
+      setLoadError(null); // Clear any previous error
       const messages = await getConversationMessages(conversationId);
 
-      // Get current user ID from the first message comparison or default to checking isOwn
+      // Convert API messages to display format with numeric timestamp for reliable sorting
       const history: MessageDisplay[] = messages.map((msg) => ({
         id: msg.id.toString(),
         text: msg.content,
@@ -172,11 +113,13 @@ export default function ConversationScreen({
         date: formatMessageDate(msg.sentAt),
         status: msg.status === 'READ' ? 'read' : msg.status === 'DELIVERED' ? 'delivered' : 'sent',
         senderId: msg.senderId,
+        timestamp: new Date(msg.sentAt).getTime(), // Numeric timestamp for sorting
       }));
 
       setInitialMessages(history);
     } catch (err) {
       console.error("[ConversationScreen] Failed to load messages:", err);
+      setLoadError("Couldn't load your messages. Tap to try again.");
     } finally {
       setIsLoadingHistory(false);
     }
@@ -228,9 +171,8 @@ export default function ConversationScreen({
       messageMap.set(msg.id, msg);
     });
 
-    return Array.from(messageMap.values()).sort(
-      (a, b) => new Date(a.date + ' ' + a.time).getTime() - new Date(b.date + ' ' + b.time).getTime()
-    );
+    // Sort by numeric timestamp for reliable ordering
+    return Array.from(messageMap.values()).sort((a, b) => a.timestamp - b.timestamp);
   }, [initialMessages, messages]);
 
   // Format messages with date separators
@@ -262,12 +204,38 @@ export default function ConversationScreen({
     }
   }, [displayMessages.length]);
 
-  // Mark messages as read when viewing
+  // FIXED: Reset markAsRead ref when conversation changes
   useEffect(() => {
-    if (!isLoadingHistory && allMessages.length > 0) {
-      markAsRead();
+    markAsReadCalledRef.current = false;
+  }, [conversationId]);
+
+  // Mark messages as read when viewing - debounced to prevent multiple API calls
+  // FIXED: Also mark as read when new messages arrive (not just initial load)
+  useEffect(() => {
+    // Check if there are unread messages from the other user
+    const hasUnreadMessages = allMessages.some(
+      (msg) => !msg.isOwn && msg.status !== 'read'
+    );
+
+    if (!isLoadingHistory && allMessages.length > 0 && hasUnreadMessages) {
+      // Clear any pending timeout
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+      }
+
+      // Small delay ensures socket listeners are fully set up before marking as read
+      markAsReadTimeoutRef.current = setTimeout(() => {
+        markAsRead();
+        console.log('[ConversationScreen] Marked messages as read');
+      }, 500);
+
+      return () => {
+        if (markAsReadTimeoutRef.current) {
+          clearTimeout(markAsReadTimeoutRef.current);
+        }
+      };
     }
-  }, [isLoadingHistory, markAsRead]);
+  }, [isLoadingHistory, allMessages, markAsRead]);
 
   // Cleanup typing timeout on unmount
   useEffect(() => {
@@ -306,16 +274,23 @@ export default function ConversationScreen({
 
     setMessageText("");
     setTyping(false);
+    setChatError(null); // Clear any previous error
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     const success = await sendMessage(text);
-    if (!success) {
-      console.error("[ConversationScreen] Failed to send message");
+    if (!success && error) {
+      setChatError(error);
+      console.error("[ConversationScreen] Failed to send message:", error);
     }
   };
+
+  // Dismiss chat error handler
+  const dismissChatError = useCallback(() => {
+    setChatError(null);
+  }, []);
 
   const handleVideoCall = () => {
     navigation.navigate("VideoCallScreen", {
@@ -378,10 +353,11 @@ export default function ConversationScreen({
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={insets.top + 8}
+        <Animated.View
+          style={[
+            styles.flex,
+            { paddingBottom: animatedKeyboardHeight },
+          ]}
         >
           <View style={styles.contentWrapper}>
             {/* SENIOR-FRIENDLY: Large, clear header with user info */}
@@ -432,7 +408,7 @@ export default function ConversationScreen({
                   </AppText>
                   <View style={[styles.statusBadge, isUserOnline ? styles.onlineBadge : styles.offlineBadge]}>
                     <View style={[styles.statusDot, isUserOnline ? styles.statusDotOnline : styles.statusDotOffline]} />
-                    <AppText size="small" weight="semibold" color={isUserOnline ? colors.success : colors.textSecondary}>
+                    <AppText size="body" weight="bold" color={isUserOnline ? colors.success : colors.textPrimary}>
                       {isTyping ? "Typing a message..." : isUserOnline ? "Online now" : "Offline"}
                     </AppText>
                   </View>
@@ -474,7 +450,7 @@ export default function ConversationScreen({
               <View style={styles.matchErrorContainer}>
                 <Ionicons name="heart-dislike-outline" size={64} color={colors.textMuted} />
                 <AppText size="h4" weight="semibold" color={colors.textPrimary} style={styles.matchErrorTitle}>
-                  Can't Start Chat
+                  Cannot Start Chat
                 </AppText>
                 <AppText size="body" color={colors.textSecondary} style={styles.matchErrorText}>
                   {matchError}
@@ -501,11 +477,32 @@ export default function ConversationScreen({
             )}
 
             {isLoadingHistory && !matchError ? (
+              <LoadingIndicator
+                variant="inline"
+                message="Loading your messages"
+                subtitle="Please wait a moment..."
+              />
+            ) : loadError && !matchError ? (
+              // FIXED: Show error state with retry button
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <AppText size="small" color={colors.textSecondary} style={styles.loadingText}>
-                  Loading messages...
+                <Ionicons name="cloud-offline-outline" size={64} color={colors.textMuted} />
+                <AppText size="h4" weight="medium" color={colors.textPrimary} style={styles.loadingText}>
+                  Couldn't Load Messages
                 </AppText>
+                <AppText size="body" color={colors.textSecondary} style={styles.loadErrorText}>
+                  {loadError}
+                </AppText>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={loadMessageHistory}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tap to try loading messages again"
+                >
+                  <Ionicons name="refresh" size={24} color={colors.white} />
+                  <AppText size="body" weight="semibold" color={colors.white}>
+                    Try Again
+                  </AppText>
+                </TouchableOpacity>
               </View>
             ) : !matchError ? (
               <FlatList
@@ -540,31 +537,27 @@ export default function ConversationScreen({
             {/* Connection status banner */}
             <ConnectionStatusBanner isOnline={isOnline} pendingCount={pendingCount} />
 
-            {/* Typing indicator - SENIOR-FRIENDLY: Larger and clearer */}
-            {isTyping && (
-              <View style={styles.typingIndicatorLarge}>
-                <View style={styles.typingDots}>
-                  <View style={[styles.typingDot, styles.typingDot1]} />
-                  <View style={[styles.typingDot, styles.typingDot2]} />
-                  <View style={[styles.typingDot, styles.typingDot3]} />
-                </View>
-                <AppText size="body" weight="medium" color={colors.textPrimary}>
-                  {typingUsername || otherUserName} is typing a message...
-                </AppText>
-              </View>
-            )}
+            {/* Typing indicator - extracted to separate component */}
+            <TypingIndicator
+              isTyping={isTyping}
+              typingUsername={typingUsername}
+              otherUserName={otherUserName}
+            />
 
-            {error && (
+            {/* FIXED: Chat error banner with working dismiss button */}
+            {(chatError || error) && (
               <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle" size={16} color={colors.danger} />
-                <AppText size="small" color={colors.danger} style={styles.errorText}>
-                  {error}
+                <Ionicons name="alert-circle" size={20} color={colors.danger} />
+                <AppText size="body" color={colors.danger} style={styles.errorText}>
+                  {chatError || error}
                 </AppText>
                 <TouchableOpacity
-                  onPress={() => {/* Could add a dismiss or retry action */}}
+                  onPress={dismissChatError}
                   style={styles.errorDismiss}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss error message"
                 >
-                  <Ionicons name="close" size={18} color={colors.danger} />
+                  <Ionicons name="close-circle" size={24} color={colors.danger} />
                 </TouchableOpacity>
               </View>
             )}
@@ -584,7 +577,7 @@ export default function ConversationScreen({
               <View
                 style={[
                   styles.inputContainer,
-                  { paddingBottom: Math.max(insets.bottom, 10) },
+                  { paddingBottom: isKeyboardVisible ? 10 : Math.max(insets.bottom, 10) },
                 ]}
               >
                 <MessageInputBar
@@ -596,7 +589,7 @@ export default function ConversationScreen({
               </View>
             )}
           </View>
-        </KeyboardAvoidingView>
+        </Animated.View>
       </LinearGradient>
     </Screen>
   );
@@ -768,6 +761,25 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
+  loadErrorText: {
+    textAlign: "center",
+    paddingHorizontal: 24,
+    marginTop: 8,
+  },
+
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    minHeight: 56,
+  },
+
   listContent: {
     paddingHorizontal: 16,
     paddingVertical: 24,
@@ -828,79 +840,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderMedium,
   },
 
-  // Connection status banner - SENIOR-FRIENDLY
-  connectionBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
-  },
-
-  connectionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  connectionTextContainer: {
-    flex: 1,
-    gap: 4,
-  },
-
-  offlineBanner: {
-    backgroundColor: colors.textSecondary,
-  },
-
-  pendingBanner: {
-    backgroundColor: colors.accentTeal,
-  },
-
-  // Typing indicator - SENIOR-FRIENDLY
-  typingIndicatorLarge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: colors.accentMint,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: colors.accentTeal,
-  },
-
-  typingDots: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-
-  typingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accentTeal,
-  },
-
-  typingDot1: {
-    opacity: 0.4,
-  },
-
-  typingDot2: {
-    opacity: 0.6,
-  },
-
-  typingDot3: {
-    opacity: 0.8,
-  },
+  // NOTE: Connection status banner styles moved to ConnectionStatusBanner.tsx
+  // NOTE: Typing indicator styles moved to TypingIndicator.tsx
+  // NOTE: Match expiration banner styles moved to MatchExpirationBanner.tsx
 
   // Error banner - SENIOR-FRIENDLY
   errorBanner: {
@@ -980,47 +922,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // Expiration warning styles - SENIOR-FRIENDLY
-  expirationBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    backgroundColor: colors.warningLight,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: colors.warning,
-  },
-
-  expirationBannerUrgent: {
-    backgroundColor: colors.errorLight,
-    borderColor: colors.error,
-  },
-
-  expirationIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.warningLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  expirationIconUrgent: {
-    backgroundColor: colors.error,
-  },
-
-  expirationTextContainer: {
-    flex: 1,
-    gap: 4,
-  },
-
-  expirationText: {
-    lineHeight: 24,
-  },
+  // NOTE: Expiration warning styles moved to MatchExpirationBanner.tsx
 });

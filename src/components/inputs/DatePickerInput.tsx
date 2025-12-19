@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import colors from "../../config/colors";
 
 interface DatePickerInputProps {
   label: string;
@@ -27,7 +28,7 @@ export default function DatePickerInput({
   onBlur,
   error,
   touched,
-  placeholder = "mm/dd/yyyy",
+  placeholder = "Select your birthday",
 }: DatePickerInputProps) {
   const [showPicker, setShowPicker] = useState(false);
 
@@ -40,7 +41,9 @@ export default function DatePickerInput({
         const month = parseInt(parts[0], 10) - 1;
         const day = parseInt(parts[1], 10);
         const year = parseInt(parts[2], 10);
-        return new Date(year, month, day);
+        if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+          return new Date(year, month, day);
+        }
       }
     }
     // Default to 65 years ago for senior citizens
@@ -78,7 +81,7 @@ export default function DatePickerInput({
     }
   }, [error, touched]);
 
-  const borderColor = touched && error ? "#D9534F" : "#E5E5E5";
+  const borderColor = touched && error ? colors.errorBorder : colors.borderMedium;
 
   const handleDateChange = async (event: any, selectedDate?: Date) => {
     if (Platform.OS === "android") {
@@ -100,6 +103,7 @@ export default function DatePickerInput({
     setShowPicker(false);
   };
 
+  // Format date as MM/DD/YYYY to match validation schema
   const formatDate = (date: Date): string => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -107,20 +111,43 @@ export default function DatePickerInput({
     return `${month}/${day}/${year}`;
   };
 
-  const displayValue = value || "";
+  // Format for display (user-friendly format)
+  const formatDisplayDate = (dateStr: string): string => {
+    if (!dateStr) return "";
+    const parts = dateStr.split("/");
+    if (parts.length === 3) {
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      const month = parseInt(parts[0], 10) - 1;
+      const day = parseInt(parts[1], 10);
+      const year = parts[2];
+      if (month >= 0 && month < 12) {
+        return `${monthNames[month]} ${day}, ${year}`;
+      }
+    }
+    return dateStr;
+  };
+
+  const displayValue = value ? formatDisplayDate(value) : "";
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
+      <Text style={styles.helper}>Tap to select your birth date</Text>
 
       <Pressable
         style={[styles.inputWrapper, { borderColor }]}
         onPress={() => setShowPicker(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`Select ${label}`}
+        accessibilityHint="Opens date picker"
       >
         <Text
           style={[
             styles.input,
-            !displayValue && { color: "#BDBDBD" },
+            !displayValue && styles.placeholder,
           ]}
         >
           {displayValue || placeholder}
@@ -147,11 +174,24 @@ export default function DatePickerInput({
           >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Pressable onPress={() => setShowPicker(false)}>
-                  <Text style={styles.cancelBtn}>Cancel</Text>
+                <Text style={styles.modalTitle}>Select Your Birthday</Text>
+              </View>
+              <View style={styles.modalActions}>
+                <Pressable
+                  onPress={() => setShowPicker(false)}
+                  style={styles.cancelButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
                 </Pressable>
-                <Pressable onPress={handleConfirm}>
-                  <Text style={styles.doneBtn}>Done</Text>
+                <Pressable
+                  onPress={handleConfirm}
+                  style={styles.doneButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Confirm date selection"
+                >
+                  <Text style={styles.doneBtnText}>Confirm</Text>
                 </Pressable>
               </View>
 
@@ -162,7 +202,7 @@ export default function DatePickerInput({
                 onChange={handleDateChange}
                 minimumDate={minDate}
                 maximumDate={maxDate}
-                textColor="#000"
+                textColor={colors.black}
               />
             </View>
           </Pressable>
@@ -186,57 +226,99 @@ export default function DatePickerInput({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 18,
+    marginBottom: 20,
   },
   label: {
-    fontWeight: "600",
-    marginBottom: 6,
+    fontWeight: "700",
+    marginBottom: 4,
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  helper: {
     fontSize: 14,
-    color: "#333",
+    color: colors.textSecondary,
+    marginBottom: 8,
+    fontWeight: "500",
   },
   inputWrapper: {
-    backgroundColor: "#F5F5F5",
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 2,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    minHeight: 60,
+    justifyContent: "center",
   },
   input: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: 18,
+    color: colors.textPrimary,
+    fontWeight: "600",
+  },
+  placeholder: {
+    color: colors.placeholder,
   },
   errorText: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "#D9534F",
-    fontWeight: "500",
+    marginTop: 8,
+    fontSize: 15,
+    color: colors.errorBorder,
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 30,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
   },
   modalHeader: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderMedium,
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  modalActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5E5",
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: 16,
+    alignItems: "center",
+    minHeight: 56,
+    justifyContent: "center",
   },
-  cancelBtn: {
-    fontSize: 16,
-    color: "#999",
-  },
-  doneBtn: {
-    fontSize: 16,
-    color: "#007AFF",
+  cancelBtnText: {
+    fontSize: 17,
+    color: colors.textSecondary,
     fontWeight: "600",
+  },
+  doneButton: {
+    flex: 1,
+    paddingVertical: 16,
+    backgroundColor: colors.accentTeal,
+    borderRadius: 16,
+    alignItems: "center",
+    minHeight: 56,
+    justifyContent: "center",
+  },
+  doneBtnText: {
+    fontSize: 17,
+    color: colors.white,
+    fontWeight: "700",
   },
 });

@@ -1,3 +1,19 @@
+/**
+ * AppButton - Primary Action Button Component
+ *
+ * SENIOR-FRIENDLY FEATURES:
+ * - Minimum touch target of 56-72px (exceeds 48px standard)
+ * - Large, readable text (18-22px responsive)
+ * - Clear visual feedback on press
+ * - High contrast gradient background
+ * - Supports screen readers with accessibility labels
+ * - Loading state with activity indicator
+ *
+ * RESPONSIVE DESIGN:
+ * - Scales appropriately across all device sizes
+ * - Uses seniorResponsive for consistent sizing
+ */
+
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
@@ -8,24 +24,23 @@ import {
   ViewStyle,
 } from "react-native";
 import colors from "../../config/colors";
+import typography from "../../config/typography";
+import { seniorResponsive } from "../../utility/responsive";
 
-/**
- * AppButton - Primary action button
- *
- * Accessibility Features:
- * - Minimum touch target of 56px height (exceeds 48px minimum)
- * - Large, readable text (20px)
- * - Clear visual feedback on press
- * - Disabled state is clearly visible
- * - Supports screen readers with accessibilityLabel and accessibilityHint
- */
 interface AppButtonProps {
+  /** Button label text */
   title: string;
+  /** Press handler */
   onPress?: () => void;
+  /** Additional container styles */
   style?: ViewStyle;
+  /** Disabled state */
   disabled?: boolean;
+  /** Loading state - shows activity indicator */
   loading?: boolean;
+  /** Accessibility label for screen readers */
   accessibilityLabel?: string;
+  /** Accessibility hint for screen readers */
   accessibilityHint?: string;
 }
 
@@ -40,37 +55,71 @@ export default function AppButton({
 }: AppButtonProps) {
   const [pressed, setPressed] = useState(false);
 
+  // Dynamic gradient colors based on press state
   const gradientColors = pressed
     ? ([colors.pressed.primary, colors.pressed.teal] as const)
     : colors.gradients.brandStrong.array;
 
+  // Button should be disabled when loading or explicitly disabled
+  const isDisabled = disabled || loading;
+
+  // Responsive styles
+  const buttonHeight = seniorResponsive.buttonHeight();
+  const borderRadius = seniorResponsive.radiusButton();
+  const paddingV = seniorResponsive.buttonPaddingV();
+  const paddingH = seniorResponsive.buttonPaddingH();
+  const fontSize = seniorResponsive.fontSizeLarge();
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      style={[styles.button, disabled && styles.buttonDisabled, style]}
+      style={[
+        styles.button,
+        { minHeight: buttonHeight, borderRadius },
+        isDisabled && styles.buttonDisabled,
+        style,
+      ]}
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={isDisabled}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{
-        disabled: disabled || loading,
+        disabled: isDisabled,
         busy: loading,
       }}
     >
       <LinearGradient
-        colors={disabled ? [colors.textMuted, colors.textMuted] : gradientColors}
-        style={styles.gradient}
+        colors={isDisabled ? colors.gradients.disabled.array : gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[
+          styles.gradient,
+          {
+            minHeight: buttonHeight,
+            borderRadius,
+            paddingVertical: paddingV,
+            paddingHorizontal: paddingH,
+          },
+        ]}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={colors.white} />
+          <ActivityIndicator
+            size="small"
+            color={colors.white}
+            accessibilityLabel="Loading"
+          />
         ) : (
           <Text
-            style={[styles.text, disabled && styles.textDisabled]}
+            style={[
+              styles.text,
+              { fontSize },
+              isDisabled && styles.textDisabled,
+            ]}
             allowFontScaling={true}
-            maxFontSizeMultiplier={1.3}
+            maxFontSizeMultiplier={typography.accessibility.maxFontSizeMultiplier}
           >
             {title}
           </Text>
@@ -83,29 +132,27 @@ export default function AppButton({
 const styles = StyleSheet.create({
   button: {
     width: "100%",
-    borderRadius: 30,
     overflow: "hidden",
-    // Minimum touch target size for accessibility
-    minHeight: 56,
   },
+
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
+
   gradient: {
-    paddingVertical: 18, // Increased from 15 for larger touch target
-    paddingHorizontal: 24,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 30,
-    minHeight: 56,
   },
+
   text: {
     color: colors.white,
-    fontSize: 20, // Increased from 18 for better readability
-    fontWeight: "600",
-    letterSpacing: 0.3,
+    fontWeight: typography.weights.semibold,
+    letterSpacing: typography.letterSpacing.wide,
+    fontFamily: typography.fontFamily.medium,
   },
+
   textDisabled: {
     color: colors.white,
+    opacity: 0.9,
   },
 });

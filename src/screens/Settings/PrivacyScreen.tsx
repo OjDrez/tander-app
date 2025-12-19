@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -15,10 +14,12 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import AppText from "@/src/components/inputs/AppText";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { privacySettingsApi } from "@/src/api/privacySettingsApi";
+import { useToast } from "@/src/context/ToastContext";
 
 type PrivacyNav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -36,6 +37,7 @@ const DEFAULT_SETTINGS: PrivacySettings = {
 
 export default function PrivacyScreen() {
   const navigation = useNavigation<PrivacyNav>();
+  const { success, error } = useToast();
   const [settings, setSettings] = useState<PrivacySettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,13 +57,9 @@ export default function PrivacyScreen() {
         allowLocation: serverSettings.locationEnabled,
         showApproximateDistance: serverSettings.showApproximateDistance,
       });
-    } catch (error: any) {
-      console.error("Failed to load privacy settings:", error);
-      Alert.alert(
-        "Could Not Load Settings",
-        "We had trouble loading your privacy settings. Please try again.",
-        [{ text: "OK" }]
-      );
+    } catch (err: any) {
+      console.error("Failed to load privacy settings:", err);
+      error("Couldn't load settings. Check connection.");
     } finally {
       setIsLoading(false);
     }
@@ -80,14 +78,11 @@ export default function PrivacyScreen() {
       if (key === "showApproximateDistance") updateData.showApproximateDistance = value;
 
       await privacySettingsApi.updatePrivacySettings(updateData);
-    } catch (error: any) {
-      console.error("Failed to save privacy settings:", error);
+      success("✓ Setting saved");
+    } catch (err: any) {
+      console.error("Failed to save privacy settings:", err);
       setSettings(previousSettings);
-      Alert.alert(
-        "Could Not Save Setting",
-        "We had trouble saving your change. Please try again.",
-        [{ text: "OK, I'll Try Again" }]
-      );
+      error("Couldn't save. Try again.");
     } finally {
       setIsSaving(false);
     }
@@ -99,269 +94,257 @@ export default function PrivacyScreen() {
     navigation.navigate("BlockedUsersScreen" as never);
   };
 
-  const renderToggleSetting = (
-    icon: keyof typeof Ionicons.glyphMap,
-    iconColor: string,
-    title: string,
-    description: string,
-    settingKey: keyof PrivacySettings
-  ) => {
-    const isEnabled = settings[settingKey];
-
-    return (
-      <View style={styles.settingCard}>
-        <View style={styles.settingHeader}>
-          <View style={[styles.settingIcon, { backgroundColor: iconColor + '15' }]}>
-            <Ionicons name={icon} size={28} color={iconColor} />
-          </View>
-          <View style={styles.settingTitleArea}>
-            <AppText size="h4" weight="semibold" color={colors.textPrimary}>
-              {title}
-            </AppText>
-            <View style={[
-              styles.statusBadge,
-              isEnabled ? styles.statusOn : styles.statusOff
-            ]}>
-              <AppText size="small" weight="bold" color={isEnabled ? colors.success : colors.textMuted}>
-                {isEnabled ? "ON" : "OFF"}
-              </AppText>
-            </View>
-          </View>
-        </View>
-
-        <AppText size="body" color={colors.textSecondary} style={styles.settingDescription}>
-          {description}
-        </AppText>
-
-        <View style={styles.toggleRow}>
-          <AppText size="body" weight="medium" color={colors.textPrimary}>
-            {isEnabled ? "This setting is turned on" : "This setting is turned off"}
-          </AppText>
-          <Switch
-            value={isEnabled}
-            onValueChange={(value) => handleSettingChange(settingKey, value)}
-            trackColor={{
-              false: colors.borderMedium,
-              true: colors.success,
-            }}
-            thumbColor={colors.white}
-            disabled={isSaving}
-            style={{ transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }] }}
-          />
-        </View>
-      </View>
-    );
-  };
-
   if (isLoading) {
     return (
-      <FullScreen statusBarStyle="dark" style={styles.screen}>
-        <SafeAreaView edges={["top"]} style={styles.safeArea}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              activeOpacity={0.85}
-              style={styles.backButton}
-              onPress={handleGoBack}
-            >
-              <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
-              <AppText size="body" weight="semibold" color={colors.textPrimary}>
-                Back
-              </AppText>
-            </TouchableOpacity>
-
-            <View style={styles.logoRow}>
-              <Image
-                source={require("@/src/assets/icons/tander-logo.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-          </View>
-
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <AppText size="h4" color={colors.textSecondary}>
-              Loading your privacy settings...
-            </AppText>
-          </View>
-        </SafeAreaView>
-      </FullScreen>
+      <LoadingIndicator
+        variant="fullscreen"
+        message="Loading privacy settings..."
+      />
     );
   }
 
   return (
     <FullScreen statusBarStyle="dark" style={styles.screen}>
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
-        {/* Header */}
+        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            activeOpacity={0.85}
+            activeOpacity={0.7}
             style={styles.backButton}
             onPress={handleGoBack}
           >
             <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
-            <AppText size="body" weight="semibold" color={colors.textPrimary}>
+            <AppText size="h4" weight="bold" color={colors.textPrimary}>
               Back
             </AppText>
           </TouchableOpacity>
 
-          <View style={styles.logoRow}>
-            <Image
-              source={require("@/src/assets/icons/tander-logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
+          <Image
+            source={require("@/src/assets/icons/tander-logo.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
-          {/* Title Section */}
+          {/* PAGE TITLE */}
           <View style={styles.titleSection}>
-            <View style={styles.titleIcon}>
-              <Ionicons name="shield-checkmark" size={36} color={colors.primary} />
-            </View>
-            <AppText size="h2" weight="bold" color={colors.textPrimary}>
-              Privacy Settings
+            <AppText size="h1" weight="bold" color={colors.textPrimary}>
+              Privacy
             </AppText>
-            <AppText size="body" color={colors.textSecondary} style={styles.subtitle}>
-              Control who can see your profile and how your information is shared.
+            <AppText size="h4" color={colors.textSecondary}>
+              Control who can see your profile
             </AppText>
           </View>
 
-          {/* Profile Visibility Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="eye-outline" size={24} color={colors.primary} />
-              <AppText size="h4" weight="bold" color={colors.textPrimary}>
-                Profile Visibility
-              </AppText>
-            </View>
+          {/* PROFILE VISIBILITY */}
+          <View style={styles.section}>
+            <AppText size="h3" weight="bold" color={colors.textPrimary} style={styles.sectionTitle}>
+              Profile Visibility
+            </AppText>
 
-            {renderToggleSetting(
-              "person-circle-outline",
-              colors.accentBlue,
-              "Show My Profile",
-              "When this is ON, other people can find and view your profile. When OFF, your profile is hidden from searches and recommendations.",
-              "isProfilePublic"
-            )}
+            <View style={styles.settingCard}>
+              <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons
+                  name={settings.isProfilePublic ? "eye" : "eye-off"}
+                  size={32}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={styles.settingTextWithToggle}>
+                <View style={styles.titleWithBadge}>
+                  <AppText size="h3" weight="bold" color={colors.textPrimary}>
+                    Show My Profile
+                  </AppText>
+                  <View style={[
+                    styles.statusBadge,
+                    settings.isProfilePublic ? styles.badgeOn : styles.badgeOff
+                  ]}>
+                    <AppText size="small" weight="bold" color={settings.isProfilePublic ? colors.success : colors.textMuted}>
+                      {settings.isProfilePublic ? "ON" : "OFF"}
+                    </AppText>
+                  </View>
+                </View>
+                <AppText size="body" color={colors.textSecondary}>
+                  {settings.isProfilePublic
+                    ? "Others can find and view your profile"
+                    : "Your profile is hidden"}
+                </AppText>
+              </View>
+              <View style={styles.switchContainer}>
+                <Switch
+                  value={settings.isProfilePublic}
+                  onValueChange={(value) => handleSettingChange("isProfilePublic", value)}
+                  trackColor={{ false: colors.borderMedium, true: colors.success }}
+                  thumbColor={colors.white}
+                  disabled={isSaving}
+                  style={styles.switch}
+                />
+              </View>
+            </View>
           </View>
 
-          {/* Location Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="location-outline" size={24} color={colors.primary} />
-              <AppText size="h4" weight="bold" color={colors.textPrimary}>
-                Location Settings
-              </AppText>
+          {/* LOCATION SETTINGS */}
+          <View style={styles.section}>
+            <AppText size="h3" weight="bold" color={colors.textPrimary} style={styles.sectionTitle}>
+              Location Settings
+            </AppText>
+
+            <View style={styles.settingCard}>
+              <View style={[styles.iconCircle, { backgroundColor: colors.accentTeal + '15' }]}>
+                <Ionicons
+                  name={settings.allowLocation ? "location" : "location-off"}
+                  size={32}
+                  color={colors.accentTeal}
+                />
+              </View>
+              <View style={styles.settingTextWithToggle}>
+                <View style={styles.titleWithBadge}>
+                  <AppText size="h3" weight="bold" color={colors.textPrimary}>
+                    Location Access
+                  </AppText>
+                  <View style={[
+                    styles.statusBadge,
+                    settings.allowLocation ? styles.badgeOn : styles.badgeOff
+                  ]}>
+                    <AppText size="small" weight="bold" color={settings.allowLocation ? colors.success : colors.textMuted}>
+                      {settings.allowLocation ? "ON" : "OFF"}
+                    </AppText>
+                  </View>
+                </View>
+                <AppText size="body" color={colors.textSecondary}>
+                  {settings.allowLocation
+                    ? "See people nearby"
+                    : "Location disabled"}
+                </AppText>
+              </View>
+              <View style={styles.switchContainer}>
+                <Switch
+                  value={settings.allowLocation}
+                  onValueChange={(value) => handleSettingChange("allowLocation", value)}
+                  trackColor={{ false: colors.borderMedium, true: colors.success }}
+                  thumbColor={colors.white}
+                  disabled={isSaving}
+                  style={styles.switch}
+                />
+              </View>
             </View>
 
-            {renderToggleSetting(
-              "navigate-circle-outline",
-              colors.success,
-              "Allow Location Access",
-              "When ON, we can show you people nearby. When OFF, you won't see distance information for potential matches.",
-              "allowLocation"
-            )}
-
-            {renderToggleSetting(
-              "map-outline",
-              colors.accentPurple,
-              "Show Approximate Distance",
-              "When ON, others see a general distance like '5-10 miles away' instead of your exact distance. This helps protect your privacy.",
-              "showApproximateDistance"
-            )}
+            <View style={styles.settingCard}>
+              <View style={[styles.iconCircle, { backgroundColor: colors.accentBlue + '15' }]}>
+                <Ionicons name="map" size={32} color={colors.accentBlue} />
+              </View>
+              <View style={styles.settingTextWithToggle}>
+                <View style={styles.titleWithBadge}>
+                  <AppText size="h3" weight="bold" color={colors.textPrimary}>
+                    Approximate Distance
+                  </AppText>
+                  <View style={[
+                    styles.statusBadge,
+                    settings.showApproximateDistance ? styles.badgeOn : styles.badgeOff
+                  ]}>
+                    <AppText size="small" weight="bold" color={settings.showApproximateDistance ? colors.success : colors.textMuted}>
+                      {settings.showApproximateDistance ? "ON" : "OFF"}
+                    </AppText>
+                  </View>
+                </View>
+                <AppText size="body" color={colors.textSecondary}>
+                  {settings.showApproximateDistance
+                    ? "Show general distance (5-10 miles)"
+                    : "Show exact distance"}
+                </AppText>
+              </View>
+              <View style={styles.switchContainer}>
+                <Switch
+                  value={settings.showApproximateDistance}
+                  onValueChange={(value) => handleSettingChange("showApproximateDistance", value)}
+                  trackColor={{ false: colors.borderMedium, true: colors.success }}
+                  thumbColor={colors.white}
+                  disabled={isSaving}
+                  style={styles.switch}
+                />
+              </View>
+            </View>
           </View>
 
-          {/* Blocked Users Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="hand-left-outline" size={24} color={colors.primary} />
-              <AppText size="h4" weight="bold" color={colors.textPrimary}>
-                Blocked Users
-              </AppText>
-            </View>
+          {/* BLOCKED USERS */}
+          <View style={styles.section}>
+            <AppText size="h3" weight="bold" color={colors.textPrimary} style={styles.sectionTitle}>
+              Blocked Users
+            </AppText>
 
             <TouchableOpacity
-              style={styles.blockedUsersCard}
-              activeOpacity={0.85}
+              style={styles.settingCard}
+              activeOpacity={0.7}
               onPress={handleBlockedUsersPress}
-              accessibilityRole="button"
-              accessibilityLabel="View blocked users"
             >
-              <View style={styles.blockedUsersLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: colors.danger + '15' }]}>
-                  <Ionicons name="person-remove" size={28} color={colors.danger} />
-                </View>
-                <View style={styles.blockedUsersText}>
-                  <AppText size="h4" weight="semibold" color={colors.textPrimary}>
-                    Manage Blocked Users
-                  </AppText>
-                  <AppText size="body" color={colors.textSecondary}>
-                    View and unblock people you've blocked
-                  </AppText>
-                </View>
+              <View style={[styles.iconCircle, { backgroundColor: colors.danger + '15' }]}>
+                <Ionicons name="person-remove" size={32} color={colors.danger} />
               </View>
-              <Ionicons name="chevron-forward" size={28} color={colors.textSecondary} />
+              <View style={styles.settingText}>
+                <AppText size="h3" weight="bold" color={colors.textPrimary}>
+                  Manage Blocked Users
+                </AppText>
+                <AppText size="body" color={colors.textSecondary}>
+                  View and unblock people
+                </AppText>
+              </View>
+              <Ionicons name="chevron-forward" size={28} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          {/* Privacy Tips */}
+          {/* PRIVACY TIPS */}
           <View style={styles.tipsCard}>
             <View style={styles.tipsHeader}>
-              <Ionicons name="information-circle" size={28} color={colors.accentBlue} />
-              <AppText size="h4" weight="semibold" color={colors.textPrimary}>
+              <Ionicons name="shield-checkmark" size={28} color={colors.accentTeal} />
+              <AppText size="h3" weight="bold" color={colors.textPrimary}>
                 Privacy Tips
               </AppText>
             </View>
             <View style={styles.tipsList}>
               <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-                <AppText size="body" color={colors.textSecondary} style={styles.tipText}>
-                  Use approximate distance to protect your exact location
+                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <AppText size="body" color={colors.textPrimary} style={styles.tipText}>
+                  Use approximate distance to protect your location
                 </AppText>
               </View>
               <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-                <AppText size="body" color={colors.textSecondary} style={styles.tipText}>
-                  Block users who make you feel uncomfortable
+                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <AppText size="body" color={colors.textPrimary} style={styles.tipText}>
+                  Block users who make you uncomfortable
                 </AppText>
               </View>
               <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-                <AppText size="body" color={colors.textSecondary} style={styles.tipText}>
-                  Hide your profile when you need a break from dating
+                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <AppText size="body" color={colors.textPrimary} style={styles.tipText}>
+                  Hide your profile when you need a break
                 </AppText>
               </View>
             </View>
           </View>
 
-          {/* Sync Status */}
-          <View style={styles.syncCard}>
+          {/* AUTO-SAVE MESSAGE */}
+          <View style={styles.autoSaveCard}>
             <Ionicons name="cloud-done" size={24} color={colors.success} />
-            <AppText size="body" color={colors.textSecondary} style={styles.syncText}>
-              Your privacy settings are automatically saved and synced to your account.
+            <AppText size="body" color={colors.textSecondary}>
+              Changes are saved automatically
             </AppText>
           </View>
 
-          {/* Help Link */}
+          {/* HELP LINK */}
           <TouchableOpacity
-            style={styles.helpLink}
-            activeOpacity={0.85}
+            style={styles.helpButton}
+            activeOpacity={0.7}
             onPress={() => navigation.navigate("HelpCenterScreen" as never)}
-            accessibilityRole="button"
-            accessibilityLabel="Get help with privacy settings"
           >
-            <Ionicons name="help-circle-outline" size={24} color={colors.primary} />
-            <AppText size="body" weight="medium" color={colors.primary}>
-              Need help with privacy settings?
+            <Ionicons name="help-circle" size={24} color={colors.primary} />
+            <AppText size="h4" weight="bold" color={colors.primary}>
+              Need help with privacy?
             </AppText>
           </TouchableOpacity>
         </ScrollView>
@@ -377,148 +360,119 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  // HEADER
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingRight: 16,
-  },
-  logoRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
   },
   logo: {
     width: 44,
     height: 44,
   },
+  // LOADING
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     gap: 16,
   },
+  // CONTENT
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    gap: 24,
+    paddingVertical: 24,
+    gap: 32,
   },
+  // TITLE
   titleSection: {
-    alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
-  titleIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subtitle: {
-    textAlign: "center",
-    lineHeight: 24,
-    maxWidth: 320,
-  },
-  sectionContainer: {
+  // SECTION
+  section: {
     gap: 16,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 4,
+  sectionTitle: {
+    marginBottom: 4,
   },
+  // SETTING CARD
   settingCard: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 20,
-    gap: 16,
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  settingHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-  },
-  settingIcon: {
-    width: 52,
-    height: 52,
+    backgroundColor: colors.white,
     borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  settingTitleArea: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  statusOn: {
-    backgroundColor: colors.success + '20',
-  },
-  statusOff: {
-    backgroundColor: colors.borderLight,
-  },
-  settingDescription: {
-    lineHeight: 24,
-    paddingLeft: 4,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.backgroundLight,
-    padding: 16,
-    borderRadius: 14,
-  },
-  blockedUsersCard: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    shadowColor: colors.shadowLight,
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    minHeight: 90,
-  },
-  blockedUsersLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    flex: 1,
-  },
-  blockedUsersText: {
-    flex: 1,
-    gap: 4,
-  },
-  tipsCard: {
-    backgroundColor: colors.accentMint,
-    borderRadius: 18,
     padding: 20,
     gap: 16,
     borderWidth: 1,
-    borderColor: colors.accentBlue + '30',
+    borderColor: colors.borderLight,
+    minHeight: 88,
+  },
+  iconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingText: {
+    flex: 1,
+    gap: 4,
+  },
+  settingTextWithToggle: {
+    flex: 1,
+    gap: 4,
+    marginRight: 12,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeOn: {
+    backgroundColor: colors.success + '20',
+  },
+  badgeOff: {
+    backgroundColor: colors.borderLight,
+  },
+  switchContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  switch: {
+    transform: [{ scaleX: 1.5 }, { scaleY: 1.5 }],
+  },
+  // TIPS CARD
+  tipsCard: {
+    backgroundColor: colors.accentMint,
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: colors.accentTeal + '30',
   },
   tipsHeader: {
     flexDirection: "row",
@@ -535,25 +489,25 @@ const styles = StyleSheet.create({
   },
   tipText: {
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 24,
   },
-  syncCard: {
+  // AUTO-SAVE CARD
+  autoSaveCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.success + '10',
+    backgroundColor: colors.success + '15',
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     gap: 12,
   },
-  syncText: {
-    flex: 1,
-    lineHeight: 22,
-  },
-  helpLink: {
+  // HELP BUTTON
+  helpButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.primary + '15',
+    padding: 16,
+    borderRadius: 12,
     gap: 8,
-    paddingVertical: 16,
   },
 });

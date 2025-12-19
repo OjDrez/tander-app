@@ -9,7 +9,6 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -20,6 +19,7 @@ import FullScreen from "@/src/components/layout/FullScreen";
 import AppText from "@/src/components/inputs/AppText";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
+import { useToast } from "@/src/context/ToastContext";
 
 // Enable layout animations on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -102,36 +102,32 @@ export default function HelpCenterScreen() {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
 
-  const handleEmailSupport = () => {
-    Alert.alert(
-      "Send Us an Email",
-      `This will open your email app to send a message to ${SUPPORT_EMAIL}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Open Email",
-          onPress: () => {
-            Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Help Request from Tander App`);
-          },
-        },
-      ]
-    );
+  const toast = useToast();
+
+  const handleEmailSupport = async () => {
+    const shouldOpen = await toast.confirm({
+      title: "Send Us an Email",
+      message: `This will open your email app to send a message to ${SUPPORT_EMAIL}`,
+      type: "info",
+      confirmText: "Open Email",
+      cancelText: "Cancel",
+    });
+    if (shouldOpen) {
+      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Help Request from Tander App`);
+    }
   };
 
-  const handleCallSupport = () => {
-    Alert.alert(
-      "Call Our Support Team",
-      `This will open your phone app to call ${SUPPORT_PHONE}. Our team is available Monday-Friday, 9am-5pm.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Make Call",
-          onPress: () => {
-            Linking.openURL(`tel:${SUPPORT_PHONE.replace(/-/g, "")}`);
-          },
-        },
-      ]
-    );
+  const handleCallSupport = async () => {
+    const shouldCall = await toast.confirm({
+      title: "Call Our Support Team",
+      message: `This will open your phone app to call ${SUPPORT_PHONE}. Our team is available Monday-Friday, 9am-5pm.`,
+      type: "info",
+      confirmText: "Make Call",
+      cancelText: "Cancel",
+    });
+    if (shouldCall) {
+      Linking.openURL(`tel:${SUPPORT_PHONE.replace(/-/g, "")}`);
+    }
   };
 
   return (

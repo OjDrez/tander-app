@@ -89,7 +89,7 @@ export default function AccountIntroScreen() {
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={["#C8E6E2", "#FFE2C1"]}
+        colors={colors.gradients.main.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -201,14 +201,21 @@ export default function AccountIntroScreen() {
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.iconCircle}>
-                      <Ionicons name="person-add" size={20} color={colors.accentBlue} />
+                      <Ionicons name="person-add" size={24} color={colors.accentBlue} />
                     </View>
                     <View style={styles.cardHeaderText}>
-                      <Text style={styles.cardTitle}>Sign up to get started</Text>
+                      <Text style={styles.cardTitle}>Create Your Account</Text>
                       <Text style={styles.cardSubtitle}>
-                        We keep your information private and secure.
+                        Simple and secure. We protect your privacy.
                       </Text>
                     </View>
+                  </View>
+
+                  <View style={styles.helpBox}>
+                    <Ionicons name="help-circle" size={20} color={colors.accentTeal} />
+                    <Text style={styles.helpText}>
+                      Choose a username you'll remember. This is how you'll log in.
+                    </Text>
                   </View>
 
                   <AppTextInput
@@ -425,7 +432,7 @@ export default function AccountIntroScreen() {
                   <Ionicons
                     name="chevron-forward"
                     size={20}
-                    color={isValid && dirty && !isSubmitting ? colors.white : "#9CA3AF"}
+                    color={isValid && dirty && !isSubmitting ? colors.white : colors.disabledText}
                   />
                 </TouchableOpacity>
 
@@ -479,15 +486,15 @@ const styles = StyleSheet.create({
     height: 36,
   },
   title: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 28,
+    lineHeight: 34,
     color: colors.textPrimary,
     marginTop: 10,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: 4,
@@ -528,14 +535,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   cardSubtitle: {
-    fontSize: 13,
+    fontSize: 16,
     color: colors.textSecondary,
     marginTop: 2,
+    lineHeight: 22,
   },
   biometricRow: {
     flexDirection: "row",
@@ -552,14 +560,15 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   biometricTitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "600",
     color: colors.textPrimary,
   },
   biometricSubtitle: {
-    fontSize: 12,
+    fontSize: 15,
     color: colors.textSecondary,
     marginTop: 2,
+    lineHeight: 20,
   },
   bottomNav: {
     position: "absolute",
@@ -594,24 +603,24 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   submitButtonDisabled: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: colors.disabled,
     shadowOpacity: 0.05,
     elevation: 0,
   },
   submitText: {
     color: colors.white,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "700",
   },
   submitTextDisabled: {
-    color: "#9CA3AF",
+    color: colors.disabledText,
   },
   footerLink: {
     marginTop: 14,
     alignItems: "center",
   },
   footerText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   footerAction: {
@@ -644,19 +653,19 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#E5E5E5",
+    backgroundColor: colors.borderMedium,
   },
   strengthWeak: {
-    backgroundColor: "#EF4444",
+    backgroundColor: colors.error,
   },
   strengthMedium: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: colors.warningBulb,
   },
   strengthStrong: {
-    backgroundColor: "#22C55E",
+    backgroundColor: colors.successBright,
   },
   strengthText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
     color: colors.textSecondary,
     marginBottom: 8,
@@ -670,8 +679,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   requirementText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textMuted,
+    lineHeight: 22,
   },
   requirementMet: {
     color: colors.success,
@@ -686,13 +696,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   matchText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 16,
+    fontWeight: "600",
   },
   matchSuccess: {
     color: colors.success,
   },
   matchError: {
     color: colors.error,
+  },
+  // Help box for guidance
+  helpBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.infoLight,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accentTeal,
+  },
+  helpText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.info,
+    lineHeight: 21,
   },
 });

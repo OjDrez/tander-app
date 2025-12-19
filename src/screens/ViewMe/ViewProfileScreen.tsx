@@ -1,6 +1,7 @@
 import colors from "@/src/config/colors";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import MainNavigationBar, {
   MainNavigationTab,
 } from "@/src/components/navigation/MainNavigationBar";
@@ -16,7 +17,6 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Alert,
   RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,6 +29,7 @@ import { matchingApi } from "@/src/api/matchingApi";
 import { photoApi } from "@/src/api/photoApi";
 import { startConversation } from "@/src/api/chatApi";
 import { DiscoveryProfile, SwipeResponse } from "@/src/types/matching";
+import { useToast } from "@/src/context/ToastContext";
 
 type ViewProfileRouteProp = RouteProp<AppStackParamList, "ViewProfileScreen">;
 
@@ -53,6 +54,7 @@ export default function ViewProfileScreen() {
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<ViewProfileRouteProp>();
   const { userId } = route.params;
+  const toast = useToast();
 
   const [profile, setProfile] = useState<ProfileState>({
     data: null,
@@ -185,29 +187,22 @@ export default function ViewProfileScreen() {
           data: prev.data ? { ...prev.data, isMatched: true, hasLikedMe: false } : null,
         }));
 
-        Alert.alert(
-          "It's a Match! 🎉",
-          `You and ${profile.data.displayName} have liked each other!`,
-          [
-            {
-              text: "Send Message",
-              onPress: () => handleStartConversation(),
-            },
-            {
-              text: "Keep Browsing",
-              style: "cancel",
-            },
-          ]
-        );
+        const shouldMessage = await toast.confirm({
+          title: "It's a Match!",
+          message: `You and ${profile.data.displayName} have liked each other!`,
+          type: "success",
+          confirmText: "Send Message",
+          cancelText: "Keep Browsing",
+        });
+        if (shouldMessage) {
+          handleStartConversation();
+        }
       } else {
-        Alert.alert(
-          "Liked! ❤️",
-          `You liked ${profile.data.displayName}. If they like you back, you'll match!`,
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
+        toast.success(`You liked ${profile.data.displayName}. If they like you back, you'll match!`);
+        setTimeout(() => navigation.goBack(), 1500);
       }
     } catch (error: any) {
-      Alert.alert("Oops!", error.message || "Failed to send like. Please try again.");
+      toast.error(error.message || "Failed to send like. Please try again.");
     } finally {
       setActionState((prev) => ({ ...prev, isLiking: false }));
     }
@@ -224,7 +219,7 @@ export default function ViewProfileScreen() {
       await matchingApi.pass(profile.data.userId);
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert("Oops!", error.message || "Something went wrong. Please try again.");
+      toast.error(error.message || "Something went wrong. Please try again.");
     } finally {
       setActionState((prev) => ({ ...prev, isPassing: false }));
     }
@@ -241,11 +236,7 @@ export default function ViewProfileScreen() {
       const matchCheck = await matchingApi.checkMatch(profile.data.userId);
 
       if (!matchCheck.isMatched) {
-        Alert.alert(
-          "Not Matched Yet",
-          "You need to match with this person before you can message them. Like their profile first!",
-          [{ text: "OK" }]
-        );
+        toast.info("You need to match with this person before you can message them. Like their profile first!");
         return;
       }
 
@@ -260,7 +251,7 @@ export default function ViewProfileScreen() {
         roomId: conversation.roomId,
       });
     } catch (error: any) {
-      Alert.alert("Oops!", error.message || "Failed to start conversation. Please try again.");
+      toast.error(error.message || "Failed to start conversation. Please try again.");
     } finally {
       setActionState((prev) => ({ ...prev, isMessaging: false }));
     }
@@ -293,12 +284,10 @@ export default function ViewProfileScreen() {
     return (
       <FullScreen statusBarStyle="dark" style={styles.screen}>
         <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <AppText size="body" color={colors.textSecondary} style={styles.loadingText}>
-              Loading profile...
-            </AppText>
-          </View>
+          <LoadingIndicator
+            variant="inline"
+            message="Loading profile..."
+          />
         </SafeAreaView>
         <MainNavigationBar activeTab="Matches" onTabPress={handleTabPress} />
       </FullScreen>

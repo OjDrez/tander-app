@@ -9,7 +9,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -81,7 +80,7 @@ export default function Step3Upload({ navigation }: Props) {
   const handleTakeProfilePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Please enable camera access to take photos.");
+      toast.warning("Please enable camera access to take photos.");
       return;
     }
 
@@ -205,7 +204,7 @@ export default function Step3Upload({ navigation }: Props) {
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={["#C8E6E2", "#FFE2C1"]}
+        colors={colors.gradients.main.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -228,7 +227,7 @@ export default function Step3Upload({ navigation }: Props) {
             <Text style={styles.title}>Add Your Photos</Text>
           </View>
           <Text style={styles.subtitle}>
-            Show others who you are! This step is optional.
+            Add your photos so others can see you. You can skip this for now.
           </Text>
         </Animated.View>
 
@@ -380,7 +379,7 @@ export default function Step3Upload({ navigation }: Props) {
 
               {/* Tips */}
               <View style={styles.tipContainer}>
-                <Ionicons name="bulb" size={18} color="#F59E0B" />
+                <Ionicons name="bulb" size={18} color={colors.warningBulb} />
                 <Text style={styles.tipText}>
                   Tip: Add photos of your hobbies, travel, or with friends!
                 </Text>
@@ -482,14 +481,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 24,
   },
   skipButton: {
     flexDirection: "row",
@@ -501,8 +500,8 @@ const styles = StyleSheet.create({
   },
   skipButtonText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 16,
+    fontWeight: "600",
   },
 
   // Card styles
@@ -529,14 +528,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   cardSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 16,
+    lineHeight: 22,
   },
   optionalBadge: {
     backgroundColor: colors.accentMint,
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     paddingVertical: 24,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: colors.backgroundCard,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: colors.borderLight,
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   uploadOptionText: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: "600",
     color: colors.textPrimary,
   },
@@ -625,7 +625,8 @@ const styles = StyleSheet.create({
   },
   uploadDividerText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: "600",
   },
 
   // Default preview
@@ -640,7 +641,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   defaultPreviewText: {
-    fontSize: 13,
+    fontSize: 15,
     color: colors.textSecondary,
   },
   defaultAvatar: {
@@ -680,7 +681,7 @@ const styles = StyleSheet.create({
     width: "30%",
     aspectRatio: 1,
     borderRadius: 12,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: colors.backgroundLight,
     borderWidth: 2,
     borderColor: colors.borderLight,
     borderStyle: "dashed",
@@ -706,8 +707,9 @@ const styles = StyleSheet.create({
   },
   tipText: {
     flex: 1,
-    fontSize: 13,
-    color: "#92400E",
+    fontSize: 15,
+    color: colors.warningDark,
+    lineHeight: 21,
   },
 
   // Bottom Navigation
@@ -735,7 +737,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -751,7 +753,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 30,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
@@ -759,7 +761,7 @@ const styles = StyleSheet.create({
   },
   skipButton2Text: {
     color: colors.textSecondary,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "600",
   },
   nextButton: {
@@ -790,7 +792,7 @@ const styles = StyleSheet.create({
   },
   nextText: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "700",
   },
   nextTextSecondary: {

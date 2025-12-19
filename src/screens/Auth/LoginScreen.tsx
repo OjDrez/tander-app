@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
 import AppTextInput from "../../components/common/AppTextInput";
 import FormCard from "../../components/common/FormCard";
@@ -39,10 +40,12 @@ export default function LoginScreen() {
   // 🎉 Import toast handler
   const toast = useToast();
 
-  // Check biometric availability on mount
-  useEffect(() => {
-    checkBiometricStatus();
-  }, []);
+  // Check biometric availability on mount and when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      checkBiometricStatus();
+    }, [])
+  );
 
   const checkBiometricStatus = async () => {
     const available = await biometricService.isAvailable();
@@ -123,7 +126,7 @@ export default function LoginScreen() {
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={["#C8E6E2", "#FFE2C1"]}
+        colors={colors.gradients.main.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}

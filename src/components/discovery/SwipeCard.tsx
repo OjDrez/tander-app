@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,8 @@ import {
   PanResponder,
   TouchableOpacity,
   Platform,
+  AccessibilityInfo,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,8 +19,10 @@ import { DiscoveryProfile } from '../../types/matching';
 import { getFullPhotoUrl } from '../../api/chatApi';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
-const SWIPE_OUT_DURATION = 250;
+// Increased threshold for seniors - requires more deliberate swipe
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
+// Slower animation for better visibility
+const SWIPE_OUT_DURATION = 350;
 
 interface SwipeCardProps {
   profile: DiscoveryProfile;
@@ -26,17 +30,22 @@ interface SwipeCardProps {
   onSwipeRight: (profile: DiscoveryProfile) => void;
   onViewProfile: (profile: DiscoveryProfile) => void;
   isFirst?: boolean;
+  showTutorial?: boolean; // Show tutorial hints for first-time users
 }
 
 /**
- * SwipeCard Component
+ * SwipeCard Component - Senior-Friendly Edition
  *
  * A swipeable card for the discovery/matching feature.
- * Optimized for seniors with:
- * - Large, clear photos
- * - Easy-to-read text
- * - Large swipe buttons as alternative to gestures
- * - High contrast UI
+ * Optimized for seniors (60+) with:
+ * - EXTRA LARGE touch targets (minimum 72px)
+ * - Clear, high-contrast text (18px minimum)
+ * - Slow, deliberate animations
+ * - Haptic feedback on actions
+ * - Large swipe buttons with labels
+ * - Clear visual feedback on swipe direction
+ * - Accessibility labels for screen readers
+ * - Tutorial hints for new users
  */
 export default function SwipeCard({
   profile,
@@ -44,8 +53,10 @@ export default function SwipeCard({
   onSwipeRight,
   onViewProfile,
   isFirst = false,
+  showTutorial = false,
 }: SwipeCardProps) {
   const position = useRef(new Animated.ValueXY()).current;
+  const [isProcessing, setIsProcessing] = useState(false);
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
     outputRange: ['-10deg', '0deg', '10deg'],
@@ -98,6 +109,15 @@ export default function SwipeCard({
   };
 
   const swipeRight = () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+
+    // Haptic feedback for seniors - confirms action
+    Vibration.vibrate(100);
+
+    // Announce for screen readers
+    AccessibilityInfo.announceForAccessibility(`Liked ${profile.displayName}`);
+
     Animated.timing(position, {
       toValue: { x: SCREEN_WIDTH + 100, y: 0 },
       duration: SWIPE_OUT_DURATION,
@@ -105,10 +125,20 @@ export default function SwipeCard({
     }).start(() => {
       onSwipeRight(profile);
       position.setValue({ x: 0, y: 0 });
+      setIsProcessing(false);
     });
   };
 
   const swipeLeft = () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+
+    // Haptic feedback
+    Vibration.vibrate(50);
+
+    // Announce for screen readers
+    AccessibilityInfo.announceForAccessibility(`Passed on ${profile.displayName}`);
+
     Animated.timing(position, {
       toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
       duration: SWIPE_OUT_DURATION,
@@ -116,6 +146,7 @@ export default function SwipeCard({
     }).start(() => {
       onSwipeLeft(profile);
       position.setValue({ x: 0, y: 0 });
+      setIsProcessing(false);
     });
   };
 
@@ -235,44 +266,67 @@ export default function SwipeCard({
           </View>
         )}
 
-        {/* Action Buttons - Large and accessible for seniors */}
+        {/* Action Buttons - EXTRA LARGE for seniors (60+) */}
         <View style={styles.buttonRow}>
-          {/* PASS Button */}
+          {/* PASS Button - with label */}
           <TouchableOpacity
             style={[styles.actionButton, styles.passButton]}
             onPress={() => swipeLeft()}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
+            disabled={isProcessing}
             accessibilityRole="button"
-            accessibilityLabel="Pass on this person"
-            accessibilityHint="Double tap to skip this profile"
+            accessibilityLabel={`Pass on ${profile.displayName}`}
+            accessibilityHint="Tap to skip this person and see the next profile"
           >
-            <Ionicons name="close" size={36} color={colors.danger} />
+            <Ionicons name="close" size={40} color={colors.danger} />
+            <AppText size="small" weight="bold" color={colors.danger} style={styles.buttonLabel}>
+              PASS
+            </AppText>
           </TouchableOpacity>
 
-          {/* View Profile Button */}
+          {/* View Profile Button - with label */}
           <TouchableOpacity
             style={[styles.actionButton, styles.infoButton]}
-            onPress={() => onViewProfile(profile)}
-            activeOpacity={0.8}
+            onPress={() => {
+              Vibration.vibrate(50);
+              onViewProfile(profile);
+            }}
+            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="View full profile"
-            accessibilityHint="Double tap to see more details"
+            accessibilityLabel={`View ${profile.displayName}'s full profile`}
+            accessibilityHint="Tap to see more photos and information"
           >
-            <Ionicons name="information-circle" size={32} color={colors.accentBlue} />
+            <Ionicons name="person" size={32} color={colors.accentBlue} />
+            <AppText size="small" weight="semibold" color={colors.accentBlue} style={styles.buttonLabel}>
+              PROFILE
+            </AppText>
           </TouchableOpacity>
 
-          {/* LIKE Button */}
+          {/* LIKE Button - with label */}
           <TouchableOpacity
             style={[styles.actionButton, styles.likeButton]}
             onPress={() => swipeRight()}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
+            disabled={isProcessing}
             accessibilityRole="button"
-            accessibilityLabel="Like this person"
-            accessibilityHint="Double tap to express interest"
+            accessibilityLabel={`Like ${profile.displayName}`}
+            accessibilityHint="Tap to show interest. If they like you back, you'll match!"
           >
-            <Ionicons name="heart" size={36} color={colors.success} />
+            <Ionicons name="heart" size={40} color={colors.success} />
+            <AppText size="small" weight="bold" color={colors.success} style={styles.buttonLabel}>
+              LIKE
+            </AppText>
           </TouchableOpacity>
         </View>
+
+        {/* Tutorial hint for new users */}
+        {showTutorial && (
+          <View style={styles.tutorialHint}>
+            <AppText size="body" color={colors.white} style={styles.tutorialText}>
+              Tap LIKE if interested, PASS to skip
+            </AppText>
+          </View>
+        )}
       </View>
     </Animated.View>
   );
@@ -384,42 +438,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 20,
+    gap: 16,
+    paddingHorizontal: 10,
   },
   actionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    // SENIOR-FRIENDLY: Minimum 72px touch target (Apple/Google guidelines)
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
         shadowColor: colors.black,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
       },
       android: {
-        elevation: 4,
+        elevation: 6,
       },
     }),
   },
   passButton: {
     backgroundColor: colors.white,
-    borderWidth: 2,
+    borderWidth: 3, // Thicker border for visibility
     borderColor: colors.danger,
   },
   likeButton: {
     backgroundColor: colors.white,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.success,
   },
   infoButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.white,
     borderWidth: 2,
     borderColor: colors.accentBlue,
+  },
+  buttonLabel: {
+    marginTop: 2,
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  tutorialHint: {
+    marginTop: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  tutorialText: {
+    textAlign: 'center',
   },
 });

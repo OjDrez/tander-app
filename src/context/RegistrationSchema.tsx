@@ -104,13 +104,16 @@ export default Yup.object().shape({
       return !isNaN(age) && age <= 120;
     }),
 
-  country: Yup.string().required("Country is required"),
+  // Country is auto-set to Philippines (PH-only app)
+  country: Yup.string(),
 
-  civilStatus: Yup.string().required("Civil status is required"),
+  // Civil status moved to Step 4 (About You) - optional in schema, validated in Step4
+  civilStatus: Yup.string(),
 
   city: Yup.string().required("City/Province is required"),
 
-  hobby: Yup.string().required("Please select a hobby"),
+  // Hobby removed - replaced by interests in Step 4
+  hobby: Yup.string(),
 
   // Step 2: ID Verification (optional - verified separately)
   idPhotoFront: Yup.string(),

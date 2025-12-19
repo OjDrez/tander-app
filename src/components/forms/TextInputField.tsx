@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import colors from "../../config/colors";
 
 interface TextInputFieldProps {
   label: string;
@@ -31,7 +32,7 @@ export default function TextInputField({
   onBlur,
   error,
   touched,
-  placeholder,
+  placeholder = `Enter your ${label.toLowerCase()}`,
   keyboardType,
   autoCapitalize = "sentences",
   autoCorrect = true,
@@ -74,9 +75,9 @@ export default function TextInputField({
   };
 
   const getBorderColor = () => {
-    if (touched && error) return "#D9534F";
-    if (isFocused) return "#F5A14B";
-    return "#E5E5E5";
+    if (touched && error) return colors.errorBorder;
+    if (isFocused) return colors.accentTeal;
+    return colors.borderMedium;
   };
 
   return (
@@ -100,7 +101,7 @@ export default function TextInputField({
           ]}
           value={value}
           placeholder={placeholder}
-          placeholderTextColor="#BDBDBD"
+          placeholderTextColor={colors.placeholder}
           onChangeText={onChangeText}
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -125,43 +126,45 @@ export default function TextInputField({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 18,
+    marginBottom: 20,
   },
   label: {
-    fontWeight: "600",
-    marginBottom: 6,
-    fontSize: 14,
-    color: "#333",
+    fontWeight: "700",
+    marginBottom: 8,
+    fontSize: 16,
+    color: colors.textPrimary,
   },
 
   inputWrapper: {
-    backgroundColor: "#F5F5F5",
-    borderWidth: 1.4,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === "android" ? 8 : 14, // 🔥 IMPORTANT
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 2,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "android" ? 10 : 18,
+    minHeight: 60,
   },
 
   input: {
-    fontSize: Platform.OS === "android" ? 15 : 16, // 🔥 iPhone = true size; Android = scaled
-    color: "#333",
-    padding: 0, // Remove Android default padding
+    fontSize: Platform.OS === "android" ? 17 : 18,
+    color: colors.textPrimary,
+    padding: 0,
+    fontWeight: "600",
   },
 
   androidAdjust: {
     paddingVertical: 2,
-    includeFontPadding: false, // removes extra height in Android fonts
+    includeFontPadding: false,
   },
 
   multilineInput: {
-    minHeight: 90,
-    paddingTop: 8,
+    minHeight: 100,
+    paddingTop: 10,
   },
 
   errorText: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "#D9534F",
-    fontWeight: "500",
+    marginTop: 8,
+    fontSize: 15,
+    color: colors.errorBorder,
+    fontWeight: "600",
   },
 });

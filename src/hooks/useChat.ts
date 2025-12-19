@@ -6,17 +6,16 @@ import {
   joinRoom,
   leaveRoom,
   markMessagesAsRead,
-  registerSocketListener,
-  sendMessage as socketSendMessage,
+  sendMessage as chatServiceSendMessage,
   sendTypingIndicator,
-  socket,
-} from '../services/socket';
+  subscribeToRoom,
+  isConnected as chatIsConnected,
+  onConnectionStateChange,
+} from '../services/chatService';
 import {
   ChatListItem,
   DateSeparator,
   MessageDisplay,
-  MessageReceivedPayload,
-  UserTypingPayload,
 } from '../types/chat';
 import { formatMessageDate, formatMessageTime, getDateLabel } from '../api/chatApi';
 
@@ -88,11 +87,18 @@ export const useChat = ({
   const isFlushingRef = useRef(false);
   const pendingMessagesRef = useRef<QueuedMessage[]>([]);
   const isMountedRef = useRef(true);
+  const isSendingRef = useRef(false); // Prevent double-send race condition
+  const onNewMessageRef = useRef(onNewMessage); // Stable ref to avoid listener accumulation
+  const flushPendingMessagesRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
-  // Keep ref in sync with state for use in callbacks
+  // Keep refs in sync with their values for use in callbacks
   useEffect(() => {
     pendingMessagesRef.current = pendingMessages;
   }, [pendingMessages]);
+
+  useEffect(() => {
+    onNewMessageRef.current = onNewMessage;
+  }, [onNewMessage]);
 
   // Use provided room ID from backend, or generate one
   const roomId = useMemo(() => {
@@ -160,25 +166,17 @@ export const useChat = ({
    * Monitor socket connectivity (used as proxy for network status)
    */
   useEffect(() => {
-    // Set initial state based on socket connection
-    setIsOnline(socket.connected);
+    // Set initial state based on connection
+    setIsOnline(chatIsConnected());
 
-    const handleConnect = () => {
-      console.log('[useChat] Socket connected - online');
-      setIsOnline(true);
-    };
-
-    const handleDisconnect = () => {
-      console.log('[useChat] Socket disconnected - offline');
-      setIsOnline(false);
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
+    const unsubscribe = onConnectionStateChange((state) => {
+      const connected = state === 'connected' || state === 'authenticated';
+      console.log('[useChat] Connection state changed:', state, '- online:', connected);
+      setIsOnline(connected);
+    });
 
     return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
+      unsubscribe();
     };
   }, []);
 
@@ -205,7 +203,7 @@ export const useChat = ({
       }
 
       try {
-        const result = await socketSendMessage(msg.roomId, msg.text, msg.receiverId);
+        const result = await chatServiceSendMessage(msg.roomId, msg.text, msg.receiverId);
 
         if (!isMountedRef.current) {
           remaining.push(msg);
@@ -249,27 +247,54 @@ export const useChat = ({
     isFlushingRef.current = false;
   }, [savePendingMessages]);
 
+  // Keep ref in sync with the latest flushPendingMessages
+  useEffect(() => {
+    flushPendingMessagesRef.current = flushPendingMessages;
+  }, [flushPendingMessages]);
+
+  // Store roomId in a ref for use in reconnection handler
+  const roomIdRef = useRef(roomId);
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
   /**
-   * Flush pending messages when socket reconnects
-   * Uses refs to avoid recreating listeners
+   * Flush pending messages and rejoin room when socket reconnects
+   * Uses refs to avoid recreating listeners (prevents accumulation)
    */
   useEffect(() => {
-    const handleReconnect = () => {
-      console.log('[useChat] Socket reconnected, checking for pending messages');
-      // Use ref to check current pending count
+    const handleReconnect = async () => {
+      console.log('[useChat] Reconnected, rejoining room and checking pending messages');
+
+      // Rejoin the room after reconnection to ensure we receive messages
+      const currentRoomId = roomIdRef.current;
+      if (currentRoomId) {
+        try {
+          await joinRoom(currentRoomId);
+          console.log('[useChat] Rejoined room after reconnect:', currentRoomId);
+        } catch (err) {
+          console.error('[useChat] Failed to rejoin room:', err);
+        }
+      }
+
+      // Flush any pending messages
       if (pendingMessagesRef.current.length > 0) {
-        flushPendingMessages();
+        flushPendingMessagesRef.current();
       }
     };
 
-    socket.on('reconnect', handleReconnect);
-    socket.on('authenticated', handleReconnect);
+    // Subscribe to connection state changes for reconnection handling
+    const unsubscribe = onConnectionStateChange((state) => {
+      if (state === 'connected' || state === 'authenticated') {
+        handleReconnect();
+      }
+    });
 
     return () => {
-      socket.off('reconnect', handleReconnect);
-      socket.off('authenticated', handleReconnect);
+      unsubscribe();
     };
-  }, [flushPendingMessages]);
+    // Empty deps - listeners are stable via refs
+  }, []);
 
   // Format messages with date separators
   const formattedMessages = useMemo<ChatListItem[]>(() => {
@@ -298,66 +323,129 @@ export const useChat = ({
     // Join the chat room
     joinRoom(roomId).catch(console.error);
 
-    // Listen for incoming messages
-    const cleanupMessage = registerSocketListener<MessageReceivedPayload>(
-      'message',
-      (payload) => {
-        if (payload.roomId !== roomId) return;
-
-        const newMessage: MessageDisplay = {
-          id: payload.messageId || `msg_${payload.timestamp}`,
-          text: payload.text,
-          time: formatMessageTime(payload.timestamp),
-          isOwn: payload.senderId === currentUserId,
-          date: formatMessageDate(payload.timestamp),
-          status: 'delivered',
-          senderId: payload.senderId,
-        };
-
-        // Avoid duplicates
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === newMessage.id)) {
-            return prev;
-          }
-          return [...prev, newMessage];
-        });
-
-        onNewMessage?.(newMessage);
-      }
-    );
-
-    // Listen for typing indicators
-    const cleanupTyping = registerSocketListener<UserTypingPayload>(
-      'user_typing',
-      (payload) => {
-        if (payload.userId === otherUserId) {
+    // Subscribe to room messages using unified chat service
+    const unsubscribeRoom = subscribeToRoom(roomId, (payload: any) => {
+      // Handle different message types from STOMP/Socket.IO
+      if (payload.type === 'typing') {
+        // Typing indicator
+        if (payload.senderId === otherUserId || payload.userId === otherUserId) {
           setIsTyping(payload.isTyping);
           setTypingUsername(payload.isTyping ? payload.username : null);
 
-          // Auto-clear typing after 5 seconds
           if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
           }
           if (payload.isTyping) {
             typingTimeoutRef.current = setTimeout(() => {
-              setIsTyping(false);
-              setTypingUsername(null);
-            }, 5000);
+              if (isMountedRef.current) {
+                setIsTyping(false);
+                setTypingUsername(null);
+              }
+            }, 7000);
           }
         }
+        return;
       }
-    );
+
+      if (payload.type === 'messages_read') {
+        // Read receipt
+        if (payload.readBy !== currentUserId) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.isOwn && (m.status === 'sent' || m.status === 'delivered')) {
+                if (payload.messageIds && payload.messageIds.length > 0) {
+                  const mId = String(m.id);
+                  const msgIdMatch = payload.messageIds.includes(mId) ||
+                    payload.messageIds.includes(mId.replace('msg_', ''));
+                  if (msgIdMatch) {
+                    return { ...m, status: 'read' };
+                  }
+                } else {
+                  return { ...m, status: 'read' };
+                }
+              }
+              return m;
+            })
+          );
+        }
+        return;
+      }
+
+      if (payload.type === 'message_delivered') {
+        // Delivery receipt
+        setMessages((prev) =>
+          prev.map((m) => {
+            const mId = String(m.id);
+            const payloadMsgId = String(payload.messageId);
+            if ((mId === payloadMsgId || mId === `msg_${payloadMsgId}`) &&
+                m.isOwn && m.status === 'sent') {
+              return { ...m, status: 'delivered' };
+            }
+            return m;
+          })
+        );
+        return;
+      }
+
+      // Regular chat message - ensure ID is always a string
+      const messageId = payload.messageId || payload.id || `msg_${payload.timestamp}`;
+      const newMessage: MessageDisplay = {
+        id: String(messageId),
+        text: payload.text || payload.content,
+        time: formatMessageTime(payload.timestamp || Date.now()),
+        isOwn: payload.senderId === currentUserId,
+        date: formatMessageDate(payload.timestamp || Date.now()),
+        status: 'delivered',
+        senderId: payload.senderId,
+        timestamp: payload.timestamp || Date.now(),
+      };
+
+      // Robust deduplication
+      setMessages((prev) => {
+        const isDuplicate = prev.some((m) => {
+          const mId = String(m.id);
+          if (mId === newMessage.id) return true;
+          if (mId.startsWith('temp_') &&
+              m.senderId === newMessage.senderId &&
+              m.text === newMessage.text) {
+            return true;
+          }
+          if (m.senderId === newMessage.senderId &&
+              m.text === newMessage.text &&
+              m.timestamp && newMessage.timestamp &&
+              Math.abs(newMessage.timestamp - m.timestamp) < 2000) {
+            return true;
+          }
+          return false;
+        });
+
+        if (isDuplicate) {
+          return prev.map((m) => {
+            const mId = String(m.id);
+            if (mId.startsWith('temp_') &&
+                m.senderId === newMessage.senderId &&
+                m.text === newMessage.text) {
+              return { ...m, id: newMessage.id, status: 'delivered' };
+            }
+            return m;
+          });
+        }
+
+        return [...prev, newMessage];
+      });
+
+      onNewMessageRef.current?.(newMessage);
+    });
 
     return () => {
-      cleanupMessage();
-      cleanupTyping();
+      unsubscribeRoom();
       leaveRoom(roomId);
 
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [roomId, currentUserId, otherUserId, onNewMessage]);
+  }, [roomId, currentUserId, otherUserId]);
 
   // Send message
   const sendMessage = useCallback(
@@ -365,6 +453,13 @@ export const useChat = ({
       if (!text.trim() || !currentUserId) {
         return false;
       }
+
+      // Prevent double-send race condition (rapid button taps)
+      if (isSendingRef.current) {
+        console.log('[useChat] Send already in progress, ignoring duplicate');
+        return false;
+      }
+      isSendingRef.current = true;
 
       const timestamp = Date.now();
       const tempId = `temp_${timestamp}`;
@@ -379,13 +474,14 @@ export const useChat = ({
         date: formatMessageDate(timestamp),
         status: 'sending',
         senderId: currentUserId,
+        timestamp, // Numeric timestamp for reliable sorting
       };
 
       setMessages((prev) => [...prev, optimisticMessage]);
       setError(null);
 
-      // If offline or socket not connected, queue the message
-      if (!isOnline || !socket.connected) {
+      // If offline or not connected, queue the message
+      if (!isOnline || !chatIsConnected()) {
         console.log('[useChat] Offline - queuing message for later');
         const queuedMessage: QueuedMessage = {
           id: tempId,
@@ -405,11 +501,12 @@ export const useChat = ({
           prev.map((m) => (m.id === tempId ? { ...m, status: 'sending' } : m))
         );
 
+        isSendingRef.current = false;
         return true; // Return true because the message is queued
       }
 
       try {
-        const result = await socketSendMessage(roomId, trimmedText, otherUserId);
+        const result = await chatServiceSendMessage(roomId, trimmedText, otherUserId);
 
         if (result.success) {
           // Update message status
@@ -439,6 +536,8 @@ export const useChat = ({
         );
         setError('Failed to send message');
         return false;
+      } finally {
+        isSendingRef.current = false;
       }
     },
     [roomId, currentUserId, otherUserId, isOnline, pendingMessages, savePendingMessages]
@@ -450,14 +549,14 @@ export const useChat = ({
       if (typing === lastTypingRef.current) return;
       lastTypingRef.current = typing;
 
-      sendTypingIndicator(conversationId.toString(), otherUserId, typing);
+      sendTypingIndicator(roomId, conversationId, otherUserId, typing);
     },
-    [conversationId, otherUserId]
+    [roomId, conversationId, otherUserId]
   );
 
   // Mark messages as read
   const markAsRead = useCallback(() => {
-    markMessagesAsRead(conversationId.toString());
+    markMessagesAsRead(conversationId);
   }, [conversationId]);
 
   /**
@@ -488,7 +587,7 @@ export const useChat = ({
 
       while (attempts < maxAttempts) {
         try {
-          const result = await socketSendMessage(roomId, failedMessage.text, otherUserId);
+          const result = await chatServiceSendMessage(roomId, failedMessage.text, otherUserId);
 
           if (result.success) {
             setMessages((prev) =>

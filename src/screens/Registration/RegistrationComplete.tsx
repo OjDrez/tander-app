@@ -59,7 +59,7 @@ export default function RegistrationComplete() {
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={["#C8E6E2", "#FFE2C1"]}
+        colors={colors.gradients.main.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -213,17 +213,17 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "800",
     color: colors.textPrimary,
     textAlign: "center",
     marginBottom: 12,
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 19,
     color: colors.textSecondary,
     textAlign: "center",
-    lineHeight: 26,
+    lineHeight: 28,
   },
   card: {
     backgroundColor: colors.white,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
     marginBottom: 20,
@@ -250,16 +250,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   stepNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
   },
   stepNumberText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.white,
   },
@@ -267,15 +267,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepTitle: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: "600",
     color: colors.textPrimary,
     marginBottom: 2,
   },
   stepDesc: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 23,
   },
   buttonContainer: {
     width: "100%",
@@ -298,13 +298,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   loginButtonText: {
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.white,
   },
   footerText: {
     marginTop: 20,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     textAlign: "center",
   },

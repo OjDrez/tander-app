@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { userApi, UserProfile } from "@/src/api/userApi";
@@ -94,14 +95,10 @@ export default function ViewProfileDetailsScreen() {
 
   if (isLoading) {
     return (
-      <FullScreen statusBarStyle="dark" style={styles.screen}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="body" color={colors.textSecondary} style={{ marginTop: 16 }}>
-            Loading profile...
-          </AppText>
-        </View>
-      </FullScreen>
+      <LoadingIndicator
+        variant="fullscreen"
+        message="Loading profile..."
+      />
     );
   }
 

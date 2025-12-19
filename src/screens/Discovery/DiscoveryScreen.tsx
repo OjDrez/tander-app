@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
-  ActivityIndicator,
   TouchableOpacity,
   Platform,
   RefreshControl,
   ScrollView,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,23 +17,30 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import AppText from '@/src/components/inputs/AppText';
 import FullScreen from '@/src/components/layout/FullScreen';
+import LoadingIndicator from '@/src/components/common/LoadingIndicator';
 import SwipeCard from '@/src/components/discovery/SwipeCard';
 import MatchCelebrationModal from '@/src/components/modals/MatchCelebrationModal';
+import MatchingTutorial from '@/src/components/discovery/MatchingTutorial';
 import colors from '@/src/config/colors';
 import { AppStackParamList } from '@/src/navigation/NavigationTypes';
 import { discoveryApi } from '@/src/api/discoveryApi';
 import { matchingApi } from '@/src/api/matchingApi';
 import { DiscoveryProfile, SwipeResponse, MatchStats } from '@/src/types/matching';
+import { useRealtimeMatching } from '@/src/hooks/useRealtimeMatching';
+import { notificationService } from '@/src/services/notificationService';
 
 /**
- * DiscoveryScreen
+ * DiscoveryScreen - Senior Friendly Edition
  *
  * The main swipe screen for discovering potential matches.
  * Optimized for seniors (60+) with:
- * - Large, clear UI elements
+ * - Large, clear UI elements (minimum 56px touch targets)
  * - Both gesture and button-based swiping
- * - Clear feedback on actions
- * - Accessible labels
+ * - Clear feedback on actions with haptic
+ * - Accessible labels for screen readers
+ * - Real-time match notifications
+ * - Tutorial for first-time users
+ * - Encouraging messages
  */
 export default function DiscoveryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -43,10 +51,32 @@ export default function DiscoveryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<MatchStats | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [isFirstProfile, setIsFirstProfile] = useState(true);
 
   // Match celebration modal
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchData, setMatchData] = useState<SwipeResponse | null>(null);
+
+  // Real-time matching hook for instant notifications
+  const {
+    isConnected: isRealtimeConnected,
+    newMatchAlert,
+    clearNewMatchAlert,
+    expiringMatches,
+  } = useRealtimeMatching({
+    onNewMatch: (match) => {
+      // Handle real-time match notification (from other user's swipe)
+      console.log('[Discovery] Real-time match received:', match);
+      setMatchData(match);
+      setShowMatchModal(true);
+    },
+  });
+
+  // Request notification permissions on mount
+  useEffect(() => {
+    notificationService.requestPermissions();
+  }, []);
 
   // Load profiles
   const loadProfiles = useCallback(async (showRefresh = false) => {
@@ -176,19 +206,10 @@ export default function DiscoveryScreen() {
   // Render loading state
   if (isLoading) {
     return (
-      <FullScreen statusBarStyle="dark" style={styles.fullScreen}>
-        <LinearGradient
-          colors={colors.gradients.softAqua.array}
-          style={styles.gradient}
-        >
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <AppText size="body" color={colors.textSecondary} style={styles.loadingText}>
-              Finding people near you...
-            </AppText>
-          </View>
-        </LinearGradient>
-      </FullScreen>
+      <LoadingIndicator
+        variant="fullscreen"
+        message="Finding people near you..."
+      />
     );
   }
 
@@ -366,16 +387,43 @@ export default function DiscoveryScreen() {
                 onSwipeRight={handleSwipeRight}
                 onViewProfile={handleViewProfile}
                 isFirst={true}
+                showTutorial={isFirstProfile && currentIndex === 0}
               />
             )}
           </View>
 
-          {/* Instructions */}
+          {/* Instructions - Senior Friendly */}
           <View style={styles.instructions}>
-            <AppText size="small" color={colors.textSecondary} style={styles.instructionText}>
-              Swipe right to like, left to pass, or use the buttons below
+            <AppText size="body" color={colors.textSecondary} style={styles.instructionText}>
+              Tap the buttons below, or swipe the card left or right
             </AppText>
           </View>
+
+          {/* Real-time connection indicator */}
+          {!isRealtimeConnected && (
+            <View style={styles.connectionBanner}>
+              <Ionicons name="wifi-outline" size={16} color={colors.warning} />
+              <AppText size="small" color={colors.warning}>
+                Connecting...
+              </AppText>
+            </View>
+          )}
+
+          {/* Expiring matches warning */}
+          {expiringMatches.length > 0 && (
+            <TouchableOpacity
+              style={styles.expiringBanner}
+              onPress={() => navigation.navigate('MyMatchesScreen')}
+              accessibilityRole="button"
+              accessibilityLabel={`You have ${expiringMatches.length} match${expiringMatches.length > 1 ? 'es' : ''} expiring soon. Tap to view.`}
+            >
+              <Ionicons name="time" size={20} color={colors.white} />
+              <AppText size="body" weight="semibold" color={colors.white}>
+                {expiringMatches.length} match{expiringMatches.length > 1 ? 'es' : ''} expiring soon!
+              </AppText>
+              <Ionicons name="chevron-forward" size={20} color={colors.white} />
+            </TouchableOpacity>
+          )}
         </SafeAreaView>
       </LinearGradient>
 
@@ -386,6 +434,9 @@ export default function DiscoveryScreen() {
         onSendMessage={handleSendMessage}
         onKeepBrowsing={handleKeepBrowsing}
       />
+
+      {/* Tutorial for first-time users */}
+      <MatchingTutorial onComplete={() => setIsFirstProfile(false)} />
     </FullScreen>
   );
 }
@@ -399,15 +450,6 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    marginTop: 12,
   },
   emptyScrollContent: {
     flexGrow: 1,
@@ -531,5 +573,42 @@ const styles = StyleSheet.create({
   instructionText: {
     textAlign: 'center',
     paddingHorizontal: 40,
+    fontSize: 16, // Larger text for seniors
+    lineHeight: 24,
+  },
+  connectionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 165, 0, 0.1)',
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 12,
+  },
+  expiringBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: colors.warning,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.warning,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
 });

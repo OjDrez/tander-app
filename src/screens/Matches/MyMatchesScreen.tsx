@@ -6,7 +6,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
-  Alert,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -14,11 +14,15 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
+import MatchExpirationBanner from "@/src/components/matches/MatchExpirationBanner";
 import colors from "@/src/config/colors";
 import NavigationService from "@/src/navigation/NavigationService";
 import { matchingApi } from "@/src/api/matchingApi";
 import { getFullPhotoUrl } from "@/src/api/chatApi";
 import { Match, MatchStats } from "@/src/types/matching";
+import { useRealtimeMatching } from "@/src/hooks/useRealtimeMatching";
+import { useToast } from "@/src/context/ToastContext";
 
 import MatchCard, { MatchItem } from "./MatchCard";
 
@@ -61,6 +65,16 @@ export default function MyMatchesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dismissedBanners, setDismissedBanners] = useState<Set<number>>(new Set());
+  const { warning, error: toastError, confirm } = useToast();
+
+  // Real-time matching for instant updates
+  const { isConnected, newMatchAlert, expiringMatches, clearNewMatchAlert } = useRealtimeMatching({
+    onNewMatch: (match) => {
+      // Refresh the list when a new match comes in
+      loadMatches(false);
+    },
+  });
 
   // Load matches from API
   const loadMatches = useCallback(async (showRefresh = false) => {
@@ -105,11 +119,7 @@ export default function MyMatchesScreen() {
   const handleActionPress = useCallback((item: MatchItem) => {
     // Check if match is expired
     if (item.status === "EXPIRED") {
-      Alert.alert(
-        "Match Expired",
-        "This match has expired because no conversation was started. Keep swiping to find new matches!",
-        [{ text: "OK" }]
-      );
+      warning("This match has expired because no conversation was started. Keep swiping to find new matches!");
       return;
     }
 
@@ -128,37 +138,34 @@ export default function MyMatchesScreen() {
       username: item.name,
       callType: "video",
     });
-  }, []);
+  }, [warning]);
 
   // Handle unmatch
   const handleUnmatch = useCallback(
     async (matchId: number, userName: string) => {
-      Alert.alert(
-        "Unmatch",
-        `Are you sure you want to unmatch with ${userName}? This cannot be undone.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Unmatch",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await matchingApi.unmatch(matchId);
-                // Remove from local state
-                setMatches((prev) => prev.filter((m) => m.id !== matchId));
-                // Update stats
-                if (stats) {
-                  setStats({ ...stats, activeMatches: stats.activeMatches - 1 });
-                }
-              } catch (err: any) {
-                Alert.alert("Error", err.message || "Failed to unmatch");
-              }
-            },
-          },
-        ]
-      );
+      const confirmed = await confirm({
+        title: "Unmatch",
+        message: `Are you sure you want to unmatch with ${userName}? This cannot be undone.`,
+        type: "danger",
+        confirmText: "Unmatch",
+        cancelText: "Cancel",
+      });
+
+      if (confirmed) {
+        try {
+          await matchingApi.unmatch(matchId);
+          // Remove from local state
+          setMatches((prev) => prev.filter((m) => m.id !== matchId));
+          // Update stats
+          if (stats) {
+            setStats({ ...stats, activeMatches: stats.activeMatches - 1 });
+          }
+        } catch (err: any) {
+          toastError(err.message || "Failed to unmatch");
+        }
+      }
     },
-    [stats]
+    [stats, confirm, toastError]
   );
 
   // Count matches expiring soon (within 24 hours) - only those without chat started
@@ -173,12 +180,10 @@ export default function MyMatchesScreen() {
   const renderEmpty = () => {
     if (isLoading) {
       return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="h4" color={colors.textSecondary} style={styles.emptyText}>
-            Loading your matches...
-          </AppText>
-        </View>
+        <LoadingIndicator
+          variant="inline"
+          message="Loading your matches..."
+        />
       );
     }
 
@@ -233,12 +238,47 @@ export default function MyMatchesScreen() {
     );
   };
 
+  // Get the most urgent expiring match (less than 6 hours)
+  const urgentMatch = matches.find(
+    (m) =>
+      !m.chatStarted &&
+      m.hoursUntilExpiration !== undefined &&
+      m.hoursUntilExpiration < 6 &&
+      m.status !== "EXPIRED" &&
+      !dismissedBanners.has(m.id)
+  );
+
+  // Handle banner dismiss
+  const handleDismissBanner = (matchId: number) => {
+    setDismissedBanners((prev) => new Set([...prev, matchId]));
+  };
+
+  // Handle banner action (go to chat)
+  const handleBannerAction = (match: Match) => {
+    NavigationService.navigate("ConversationScreen", {
+      conversationId: match.conversationId || 0,
+      otherUserId: match.matchedUserId,
+      otherUserName: match.matchedUserDisplayName,
+      avatarUrl: getFullPhotoUrl(match.matchedUserProfilePhotoUrl),
+    });
+  };
+
   // Render header with helpful info
   const renderHeader = () => {
     if (matches.length === 0) return null;
 
     return (
       <View style={styles.listHeader}>
+        {/* URGENT: Show banner for match expiring soon */}
+        {urgentMatch && (
+          <MatchExpirationBanner
+            matchedUserName={urgentMatch.matchedUserDisplayName}
+            hoursRemaining={urgentMatch.hoursUntilExpiration || 0}
+            onPress={() => handleBannerAction(urgentMatch)}
+            onDismiss={() => handleDismissBanner(urgentMatch.id)}
+          />
+        )}
+
         {/* Helpful instruction for seniors */}
         <View style={styles.instructionCard}>
           <Ionicons name="information-circle" size={24} color={colors.accentTeal} />
@@ -248,7 +288,7 @@ export default function MyMatchesScreen() {
         </View>
 
         {/* Warning for expiring matches */}
-        {expiringCount > 0 && (
+        {expiringCount > 0 && !urgentMatch && (
           <View style={styles.warningCard}>
             <Ionicons name="time" size={28} color={colors.warning} />
             <View style={styles.warningTextContainer}>
@@ -259,6 +299,16 @@ export default function MyMatchesScreen() {
                 Start a conversation before they expire
               </AppText>
             </View>
+          </View>
+        )}
+
+        {/* Real-time connection status */}
+        {!isConnected && (
+          <View style={styles.connectionCard}>
+            <Ionicons name="wifi-outline" size={20} color={colors.textMuted} />
+            <AppText size="small" color={colors.textMuted}>
+              Connecting for instant updates...
+            </AppText>
           </View>
         )}
       </View>
@@ -464,6 +514,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 5,
+  },
+  connectionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 12,
+    marginTop: 8,
   },
 });
 

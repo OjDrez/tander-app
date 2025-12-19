@@ -39,6 +39,11 @@ export type CallScreenParams = {
 };
 
 /**
+ * Breathing exercise pattern types
+ */
+export type BreathingPattern = 'calm' | 'sleep' | 'anxiety';
+
+/**
  * MAIN APP STACK (after onboarding/auth)
  */
 export type AppStackParamList = {
@@ -47,6 +52,7 @@ export type AppStackParamList = {
   TabRoot: undefined;
   HomeScreen: undefined;
   TandyScreen: undefined;
+  BreathingExerciseScreen: { initialPattern?: BreathingPattern } | undefined;
   DiscoveryScreen: undefined;
   InboxScreen: undefined;
   InboxEmptyScreen: undefined;

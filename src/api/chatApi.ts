@@ -1,6 +1,6 @@
 import { ChatUser, ConversationPreview } from '../types/chat';
 import apiClient, { API_BASE_URL, getCurrentUsernameFromToken } from './config';
-import { getCurrentUserId, getCurrentUsername } from '../services/socket';
+import { getCurrentUserId, getCurrentUsername } from '../services/chatService';
 import { matchingApi } from './matchingApi';
 
 /**
@@ -211,11 +211,22 @@ export const startConversation = async (targetUserId: number): Promise<Normalize
 // ==================== MESSAGE API ====================
 
 /**
- * Get messages for a conversation
+ * Get messages for a conversation with pagination support
+ * @param conversationId - The conversation ID
+ * @param page - Page number (0-indexed), defaults to 0
+ * @param size - Number of messages per page, defaults to 50
+ * @returns Array of messages for the requested page
  */
-export const getConversationMessages = async (conversationId: number): Promise<MessageResponse[]> => {
+export const getConversationMessages = async (
+  conversationId: number,
+  page: number = 0,
+  size: number = 50
+): Promise<MessageResponse[]> => {
   try {
-    const response = await apiClient.get<MessageResponse[]>(`/chat/conversations/${conversationId}/messages`);
+    const response = await apiClient.get<MessageResponse[]>(
+      `/chat/conversations/${conversationId}/messages`,
+      { params: { page, size } }
+    );
     return response.data;
   } catch (error) {
     console.error('[ChatAPI] Failed to get messages:', error);

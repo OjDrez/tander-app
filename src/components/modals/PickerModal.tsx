@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import colors from "../../config/colors";
 
 interface PickerModalProps {
   visible: boolean;
@@ -126,7 +127,7 @@ export default function PickerModal({
         </Text>
         {isSelected && (
           <View style={styles.checkmarkContainer}>
-            <Ionicons name="checkmark-circle" size={24} color="#F5A14B" />
+            <Ionicons name="checkmark-circle" size={24} color={colors.accentOrange} />
           </View>
         )}
       </Pressable>
@@ -157,18 +158,18 @@ export default function PickerModal({
               accessibilityRole="button"
               accessibilityLabel="Close picker"
             >
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color={colors.textPrimary} />
             </Pressable>
           </View>
 
           {/* Search Bar - Larger for elderly users */}
           {enableSearch && (
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={22} color="#666" style={styles.searchIcon} />
+              <Ionicons name="search" size={22} color={colors.textSecondary} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={searchPlaceholder}
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.placeholder}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCorrect={false}
@@ -180,7 +181,7 @@ export default function PickerModal({
                   style={styles.clearButton}
                   accessibilityLabel="Clear search"
                 >
-                  <Ionicons name="close-circle" size={22} color="#999" />
+                  <Ionicons name="close-circle" size={22} color={colors.placeholder} />
                 </Pressable>
               )}
             </View>
@@ -208,7 +209,7 @@ export default function PickerModal({
                 stickySectionHeadersEnabled={true}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
-                    <Ionicons name="search-outline" size={48} color="#CCC" />
+                    <Ionicons name="search-outline" size={48} color={colors.disabled} />
                     <Text style={styles.emptyText}>No results found</Text>
                   </View>
                 }
@@ -229,7 +230,7 @@ export default function PickerModal({
                 renderItem={renderOption}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
-                    <Ionicons name="search-outline" size={48} color="#CCC" />
+                    <Ionicons name="search-outline" size={48} color={colors.disabled} />
                     <Text style={styles.emptyText}>No results found</Text>
                   </View>
                 }
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContainer: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "85%",
@@ -296,19 +297,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5E5",
+    borderBottomColor: colors.borderMedium,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#333",
+    color: colors.textPrimary,
   },
   // Increased close button size for elderly users (48x48 minimum)
   closeButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5E5",
+    borderBottomColor: colors.borderMedium,
   },
   searchIcon: {
     position: "absolute",
@@ -327,13 +328,13 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: 12,
     paddingLeft: 44,
     paddingRight: 44,
     paddingVertical: 14,
     fontSize: 18,
-    color: "#333",
+    color: colors.textPrimary,
   },
   clearButton: {
     position: "absolute",
@@ -343,11 +344,11 @@ const styles = StyleSheet.create({
   resultsCount: {
     paddingHorizontal: 20,
     paddingVertical: 8,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: colors.backgroundCard,
   },
   resultsCountText: {
     fontSize: 14,
-    color: "#666",
+    color: colors.textSecondary,
     fontWeight: "500",
   },
   contentRow: {
@@ -370,22 +371,22 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: colors.borderLight,
     minHeight: 60,
   },
   selectedOption: {
-    backgroundColor: "#FFF5ED",
+    backgroundColor: colors.backgroundOrange,
     borderRadius: 12,
     borderBottomColor: "transparent",
     marginVertical: 2,
   },
   optionText: {
     fontSize: 18,
-    color: "#333",
+    color: colors.textPrimary,
     flex: 1,
   },
   selectedOptionText: {
-    color: "#F5A14B",
+    color: colors.accentOrange,
     fontWeight: "600",
   },
   checkmarkContainer: {
@@ -393,26 +394,26 @@ const styles = StyleSheet.create({
   },
   // Section headers for alphabetical grouping
   sectionHeader: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5E5",
+    borderBottomColor: colors.borderMedium,
   },
   sectionHeaderText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#666",
+    color: colors.textSecondary,
   },
   // Alphabet navigation sidebar
   alphabetNav: {
     width: 28,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: colors.backgroundCard,
     paddingVertical: 4,
     alignItems: "center",
     justifyContent: "center",
     borderLeftWidth: 1,
-    borderLeftColor: "#E5E5E5",
+    borderLeftColor: colors.borderMedium,
   },
   alphabetLetter: {
     paddingVertical: 2,
@@ -424,10 +425,10 @@ const styles = StyleSheet.create({
   alphabetLetterText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#F5A14B",
+    color: colors.accentOrange,
   },
   alphabetLetterTextDisabled: {
-    color: "#999",
+    color: colors.placeholder,
   },
   emptyContainer: {
     paddingVertical: 60,
@@ -436,6 +437,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: "#999",
+    color: colors.placeholder,
   },
 });

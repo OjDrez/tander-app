@@ -3,7 +3,6 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -15,10 +14,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { paymentApi, PaymentMethod } from "@/src/api/paymentApi";
+import { useToast } from "@/src/context/ToastContext";
 
 type PaymentNav = NativeStackNavigationProp<AppStackParamList>;
 
@@ -55,6 +56,7 @@ const getPaymentTypeLabel = (type: string) => {
 
 export default function PaymentMethodsScreen() {
   const navigation = useNavigation<PaymentNav>();
+  const { success, error, info, confirm } = useToast();
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,62 +95,53 @@ export default function PaymentMethodsScreen() {
 
   const handleSetDefault = async (method: PaymentMethod) => {
     if (method.isDefault) {
-      Alert.alert(
-        'Already Default',
-        'This is already your default payment method.',
-        [{ text: 'OK' }]
-      );
+      info('This is already your default payment method.');
       return;
     }
 
-    Alert.alert(
-      'Set as Default?',
-      `Do you want to make "${method.displayName}" your default payment method?\n\nThis will be used for all future payments.`,
-      [
-        { text: 'No, Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Set Default',
-          onPress: async () => {
-            setProcessingId(method.id);
-            try {
-              await paymentApi.setDefault(method.id);
-              loadPaymentMethods();
-              Alert.alert('Success!', 'Your default payment method has been updated.');
-            } catch (error: any) {
-              Alert.alert('Something Went Wrong', error.message || 'Failed to set default payment method. Please try again.');
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirm({
+      title: 'Set as Default?',
+      message: `Do you want to make "${method.displayName}" your default payment method? This will be used for all future payments.`,
+      type: 'info',
+      confirmText: 'Yes, Set Default',
+      cancelText: 'No, Cancel',
+    });
+
+    if (confirmed) {
+      setProcessingId(method.id);
+      try {
+        await paymentApi.setDefault(method.id);
+        loadPaymentMethods();
+        success('Your default payment method has been updated.');
+      } catch (err: any) {
+        error(err.message || 'Failed to set default payment method. Please try again.');
+      } finally {
+        setProcessingId(null);
+      }
+    }
   };
 
   const handleRemove = async (method: PaymentMethod) => {
-    Alert.alert(
-      'Remove Payment Method?',
-      `Are you sure you want to remove "${method.displayName}"?\n\nThis action cannot be undone.`,
-      [
-        { text: 'No, Keep It', style: 'cancel' },
-        {
-          text: 'Yes, Remove',
-          style: 'destructive',
-          onPress: async () => {
-            setProcessingId(method.id);
-            try {
-              await paymentApi.remove(method.id);
-              loadPaymentMethods();
-              Alert.alert('Removed', 'The payment method has been removed.');
-            } catch (error: any) {
-              Alert.alert('Something Went Wrong', error.message || 'Failed to remove payment method. Please try again.');
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirm({
+      title: 'Remove Payment Method?',
+      message: `Are you sure you want to remove "${method.displayName}"? This action cannot be undone.`,
+      type: 'danger',
+      confirmText: 'Yes, Remove',
+      cancelText: 'No, Keep It',
+    });
+
+    if (confirmed) {
+      setProcessingId(method.id);
+      try {
+        await paymentApi.remove(method.id);
+        loadPaymentMethods();
+        success('The payment method has been removed.');
+      } catch (err: any) {
+        error(err.message || 'Failed to remove payment method. Please try again.');
+      } finally {
+        setProcessingId(null);
+      }
+    }
   };
 
   const renderPaymentMethod = (method: PaymentMethod) => {
@@ -237,14 +230,10 @@ export default function PaymentMethodsScreen() {
 
   if (isLoading) {
     return (
-      <FullScreen statusBarStyle="dark" style={styles.screen}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="h4" color={colors.textSecondary} style={{ marginTop: 20 }}>
-            Loading your payment methods...
-          </AppText>
-        </View>
-      </FullScreen>
+      <LoadingIndicator
+        variant="fullscreen"
+        message="Loading your payment methods..."
+      />
     );
   }
 

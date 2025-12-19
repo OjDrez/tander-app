@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
   Dimensions,
-  Alert,
   ActivityIndicator,
   StatusBar,
 } from "react-native";
@@ -131,10 +130,7 @@ export default function Step2IdVerification({ navigation, isSettings = false }: 
     if (!permission?.granted) {
       const { granted } = await requestPermission();
       if (!granted) {
-        Alert.alert(
-          "Camera Permission",
-          "Please enable camera access in your device settings to scan your ID."
-        );
+        toast.warning("Please enable camera access in your device settings to scan your ID.");
         return;
       }
     }
@@ -376,7 +372,7 @@ export default function Step2IdVerification({ navigation, isSettings = false }: 
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={["#C8E6E2", "#FFE2C1"]}
+        colors={colors.gradients.main.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -400,7 +396,7 @@ export default function Step2IdVerification({ navigation, isSettings = false }: 
             <Text style={styles.title}>ID Verification</Text>
           </View>
           <Text style={styles.subtitle}>
-            Upload a clear photo of your government-issued ID to verify your age.
+            We need to verify you're 60 or older. Take a photo of your ID card.
           </Text>
         </Animated.View>
 
@@ -542,7 +538,7 @@ export default function Step2IdVerification({ navigation, isSettings = false }: 
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color={canProceed ? colors.white : "#9CA3AF"}
+                  color={canProceed ? colors.white : colors.disabledText}
                 />
               </>
             )}
@@ -578,14 +574,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 24,
   },
   helpButton: {
     flexDirection: "row",
@@ -604,7 +600,7 @@ const styles = StyleSheet.create({
   },
   helpButtonText: {
     color: colors.accentTeal,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
   },
 
@@ -624,7 +620,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   uploadCardTitle: {
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: "700",
     color: colors.textPrimary,
   },
@@ -650,12 +646,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   uploadOptionText: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: "600",
     color: colors.textPrimary,
   },
   uploadOptionHint: {
-    fontSize: 11,
+    fontSize: 14,
     color: colors.textSecondary,
     marginTop: -4,
   },
@@ -664,7 +660,8 @@ const styles = StyleSheet.create({
   },
   uploadDividerText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: "600",
   },
   photoPreview: {
     position: "relative",
@@ -676,7 +673,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     resizeMode: "contain",
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
   },
   removePhotoButton: {
     position: "absolute",
@@ -689,7 +686,7 @@ const styles = StyleSheet.create({
   // Info Card
   infoCard: {
     flexDirection: "row",
-    backgroundColor: "#E0F2FE",
+    backgroundColor: colors.infoLight,
     borderRadius: 12,
     padding: 16,
     gap: 12,
@@ -697,9 +694,9 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 13,
-    color: "#0369A1",
-    lineHeight: 18,
+    fontSize: 15,
+    color: colors.info,
+    lineHeight: 22,
   },
 
   // Bottom Navigation
@@ -727,7 +724,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -749,17 +746,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   nextButtonDisabled: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: colors.disabled,
     shadowOpacity: 0.05,
     elevation: 0,
   },
   nextText: {
     color: colors.white,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "700",
   },
   nextTextDisabled: {
-    color: "#9CA3AF",
+    color: colors.disabledText,
   },
 
   // Guide Modal
@@ -782,7 +779,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   guideTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
     marginTop: 12,
@@ -800,7 +797,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#D1FAE5",
+    backgroundColor: colors.successLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -808,15 +805,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   guideItemTitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "600",
     color: colors.textPrimary,
     marginBottom: 2,
   },
   guideItemDesc: {
-    fontSize: 13,
+    fontSize: 15,
     color: colors.textSecondary,
-    lineHeight: 18,
+    lineHeight: 21,
   },
   guideButton: {
     backgroundColor: colors.primary,
@@ -826,7 +823,7 @@ const styles = StyleSheet.create({
   },
   guideButtonText: {
     color: colors.white,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
   },
 

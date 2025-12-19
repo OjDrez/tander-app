@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 import colors from '@/src/config/colors';
 import { blockReportApi, REPORT_REASONS, ReportReason } from '@/src/api/blockReportApi';
 import AppText from '../inputs/AppText';
+import { useToast } from '@/src/context/ToastContext';
 
 interface ReportUserModalProps {
   visible: boolean;
@@ -40,32 +40,22 @@ export default function ReportUserModal({
   const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { success, error, warning } = useToast();
 
   const handleSubmit = async () => {
     if (!selectedReason) {
-      Alert.alert('Select a Reason', 'Please select a reason for your report.');
+      warning('Please select a reason for your report.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await blockReportApi.reportUser(userId, selectedReason, details);
-
-      Alert.alert(
-        'Report Submitted',
-        'Thank you for helping keep Tander safe. Our team will review your report.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              handleClose();
-              onReported?.();
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit report. Please try again.');
+      success('Thank you for helping keep Tander safe. Our team will review your report.');
+      handleClose();
+      onReported?.();
+    } catch (err: any) {
+      error(err.message || 'Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

@@ -15,9 +15,12 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import FullScreen from "@/src/components/layout/FullScreen";
 import PillSelector from "@/src/components/forms/PillSelector";
+import SelectField from "@/src/components/forms/SelectField";
 import TextInputField from "@/src/components/forms/TextInputField";
+import PickerModal from "@/src/components/modals/PickerModal";
 import ProgressBar from "@/src/components/ui/ProgressBar";
 import colors from "@/src/config/colors";
+import { CIVIL_STATUS_OPTIONS } from "@/src/constants/formData";
 import { useSlideUp } from "@/src/hooks/useFadeIn";
 import { useToast } from "@/src/context/ToastContext";
 import { Step4Nav } from "@/src/navigation/NavigationTypes";
@@ -28,58 +31,102 @@ interface Props {
   navigation: Step4Nav;
 }
 
+// Curated interest options for seniors
 const INTEREST_OPTIONS = [
-  "Travel",
-  "Music",
-  "Sports",
-  "Art",
-  "Cooking",
-  "Fitness",
+  // Social & Community
+  "Socializing",
+  "Church/Faith",
+  "Volunteer Work",
+  "Community Events",
+
+  // Relaxing
   "Reading",
+  "TV/Movies",
+  "Music",
   "Gardening",
-  "Dancing",
-  "Photography",
-  "Movies",
   "Walking",
+
+  // Creative
+  "Painting",
+  "Photography",
+  "Writing",
+  "Crafts",
+  "Singing",
+  "Dancing",
+
+  // Food
+  "Cooking",
+  "Baking",
+  "Dining Out",
+
+  // Games
+  "Mahjong",
+  "Card Games",
+  "Chess",
+  "Puzzles",
+
+  // Physical
+  "Swimming",
+  "Yoga",
+  "Tai Chi",
+  "Golf",
+  "Bowling",
+  "Exercise",
+
+  // Travel
+  "Travel",
+  "Day Trips",
+  "Nature Walks",
+
+  // Popular activities
+  "Karaoke",
+  "Pet Care",
+  "Watching Dramas",
 ];
 
 const LOOKING_FOR_OPTIONS = [
-  "Connect",
-  "Companionship",
-  "Dating",
-  "Socialize",
+  "Someone to Talk To",
+  "Travel Companion",
   "Friendship",
+  "Dating",
   "Activity Partner",
+  "Life Partner",
 ];
 
-const MIN_SELECTIONS = 2;
+const MIN_INTERESTS = 2;
+const MIN_LOOKING_FOR = 2;
 
 export default function Step4AboutYou({ navigation }: Props) {
   const { values, setFieldValue, handleSubmit } = useFormikContext<any>();
   const toast = useToast();
   const { phase1Data, registrationFlow } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [civilStatusPickerVisible, setCivilStatusPickerVisible] = useState(false);
 
   // Animations
   const headerAnim = useSlideUp(500, 0, 30);
   const cardAnim = useSlideUp(600, 100, 40);
   const bottomNavAnim = useSlideUp(600, 200, 30);
 
-  // Check if minimum selections are met
+  // Validation checks
   const interestsCount = values.interests?.length || 0;
   const lookingForCount = values.lookingFor?.length || 0;
-  const hasMinInterests = interestsCount >= MIN_SELECTIONS;
-  const hasMinLookingFor = lookingForCount >= MIN_SELECTIONS;
-  const isFormComplete = hasMinInterests && hasMinLookingFor;
+  const hasCivilStatus = !!values.civilStatus;
+  const hasMinInterests = interestsCount >= MIN_INTERESTS;
+  const hasMinLookingFor = lookingForCount >= MIN_LOOKING_FOR;
+  const isFormComplete = hasCivilStatus && hasMinInterests && hasMinLookingFor;
 
   const handleComplete = async () => {
-    // Validate minimum selections
+    if (!hasCivilStatus) {
+      toast.error("Please select your civil status.");
+      return;
+    }
     if (!hasMinInterests) {
-      toast.error(`Please select at least ${MIN_SELECTIONS} interests.`);
+      toast.error(`Please select at least ${MIN_INTERESTS} interests.`);
       return;
     }
     if (!hasMinLookingFor) {
-      toast.error(`Please select at least ${MIN_SELECTIONS} options for what you're looking for.`);
+      toast.error(`Please select at least ${MIN_LOOKING_FOR} options for what you're looking for.`);
       return;
     }
 
@@ -92,26 +139,26 @@ export default function Step4AboutYou({ navigation }: Props) {
 
     setIsSubmitting(true);
     try {
-      // Save About You data to backend
+      // Save About You data including civil status
       const response = await authApi.updateAboutYou(
         username,
         values.bio || undefined,
         values.interests || [],
-        values.lookingFor || []
+        values.lookingFor || [],
+        values.civilStatus || undefined
       );
 
-      if (response.status === 'success') {
-        toast.success("About You saved successfully!");
+      if (response.status === "success") {
+        toast.success("Profile saved successfully!");
       } else {
-        console.warn('About You save returned error status:', response.message);
-        toast.warning("About You data will be saved later.");
+        console.warn("About You save returned error:", response.message);
+        toast.warning("There was a problem saving. Please try again.");
       }
 
-      // Continue with Formik submit to complete registration
       await handleSubmit();
     } catch (error: any) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Failed to save About You. Please try again.");
+      toast.error(error.message || "Failed to save. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -119,7 +166,7 @@ export default function Step4AboutYou({ navigation }: Props) {
   return (
     <FullScreen statusBarStyle="dark">
       <LinearGradient
-        colors={["#C8E6E2", "#FFE2C1"]}
+        colors={colors.gradients.main.array}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -138,38 +185,67 @@ export default function Step4AboutYou({ navigation }: Props) {
           ]}
         >
           <View style={styles.titleRow}>
-            <Ionicons name="person-circle" size={28} color={colors.primary} />
+            <Ionicons name="heart-circle" size={28} color={colors.primary} />
             <Text style={styles.title}>About You</Text>
           </View>
           <Text style={styles.subtitle}>
-            Tell others a bit about yourself. Select at least 2 options in each section.
+            Final step! Help us introduce you to others.
           </Text>
         </Animated.View>
 
         {/* Completion Status */}
         <Animated.View
           style={[
-            styles.completionIndicator,
+            styles.progressCard,
             {
               opacity: headerAnim.opacity,
               transform: [{ translateY: headerAnim.translateY }],
             },
           ]}
         >
-          <View style={styles.completionRow}>
+          <View style={styles.progressRow}>
             <Ionicons
-              name={isFormComplete ? "checkmark-circle" : "information-circle-outline"}
-              size={18}
+              name={isFormComplete ? "checkmark-circle" : "ellipsis-horizontal-circle"}
+              size={24}
               color={isFormComplete ? colors.success : colors.textSecondary}
             />
-            <Text style={styles.completionText}>
-              {isFormComplete ? "Ready to complete registration!" : "Complete selections below"}
+            <Text style={styles.progressText}>
+              {isFormComplete ? "Ready to go!" : "Complete these items"}
             </Text>
           </View>
           {!isFormComplete && (
-            <Text style={styles.completionHint}>
-              Interests: {interestsCount}/{MIN_SELECTIONS} | Looking for: {lookingForCount}/{MIN_SELECTIONS}
-            </Text>
+            <View style={styles.checklistContainer}>
+              <View style={styles.checklistItem}>
+                <Ionicons
+                  name={hasCivilStatus ? "checkmark-circle" : "ellipse-outline"}
+                  size={18}
+                  color={hasCivilStatus ? colors.success : colors.textSecondary}
+                />
+                <Text style={[styles.checklistText, hasCivilStatus && styles.checklistTextDone]}>
+                  Civil Status
+                </Text>
+              </View>
+              <View style={styles.checklistItem}>
+                <Ionicons
+                  name={hasMinInterests ? "checkmark-circle" : "ellipse-outline"}
+                  size={18}
+                  color={hasMinInterests ? colors.success : colors.textSecondary}
+                />
+                <Text style={[styles.checklistText, hasMinInterests && styles.checklistTextDone]}>
+                  {interestsCount}/{MIN_INTERESTS} Interests
+                </Text>
+              </View>
+              <View style={styles.checklistItem}>
+                <Ionicons
+                  name={hasMinLookingFor ? "checkmark-circle" : "ellipse-outline"}
+                  size={18}
+                  color={hasMinLookingFor ? colors.success : colors.textSecondary}
+                />
+                <Text style={[styles.checklistText, hasMinLookingFor && styles.checklistTextDone]}>
+                  Looking For
+                </Text>
+              </View>
+            </View>
           )}
         </Animated.View>
       </SafeAreaView>
@@ -177,10 +253,10 @@ export default function Step4AboutYou({ navigation }: Props) {
       <View style={styles.wrapper}>
         <ScrollView
           style={styles.container}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* About You Card */}
+          {/* Main Card */}
           <Animated.View
             style={[
               styles.card,
@@ -190,101 +266,109 @@ export default function Step4AboutYou({ navigation }: Props) {
               },
             ]}
           >
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Your Profile</Text>
-              <View style={styles.requiredBadge}>
-                <Text style={styles.requiredText}>Required</Text>
+            {/* Civil Status - Moved from Step 1 */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Civil Status *</Text>
+                {hasCivilStatus && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                )}
               </View>
+              <Text style={styles.sectionHint}>
+                What is your current relationship status?
+              </Text>
+              <SelectField
+                label=""
+                placeholder="Select civil status"
+                value={values.civilStatus}
+                onPress={() => setCivilStatusPickerVisible(true)}
+              />
             </View>
 
+            <View style={styles.divider} />
+
             {/* Bio */}
-            <View style={styles.inputSection}>
-              <Text style={styles.sectionTitle}>Short Bio (Optional)</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Short Introduction</Text>
               <Text style={styles.sectionHint}>
-                Share something interesting about yourself
+                Share a little about yourself (optional)
               </Text>
               <TextInputField
                 label=""
-                placeholder="e.g., Retired teacher who loves gardening..."
+                placeholder="E.g., Retired teacher who loves to cook..."
                 value={values.bio}
                 onChangeText={(t) => setFieldValue("bio", t)}
                 multiline
               />
             </View>
 
+            <View style={styles.divider} />
+
             {/* Interests */}
-            <View style={styles.inputSection}>
-              <View style={styles.sectionTitleRow}>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Your Interests *</Text>
-                <Text style={[
-                  styles.selectionCount,
-                  hasMinInterests && styles.selectionCountComplete
-                ]}>
-                  {interestsCount}/{MIN_SELECTIONS} min
-                </Text>
+                <View style={[styles.countBadge, hasMinInterests && styles.countBadgeComplete]}>
+                  <Text style={[styles.countText, hasMinInterests && styles.countTextComplete]}>
+                    {interestsCount}/{MIN_INTERESTS}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.sectionHint}>
-                Select at least {MIN_SELECTIONS} interests that describe you
+                Select things you enjoy (minimum {MIN_INTERESTS})
               </Text>
               <PillSelector
                 items={INTEREST_OPTIONS}
                 value={values.interests || []}
                 onChange={(val) => setFieldValue("interests", val)}
               />
-              {!hasMinInterests && interestsCount > 0 && (
-                <Text style={styles.selectionWarning}>
-                  Select {MIN_SELECTIONS - interestsCount} more interest{MIN_SELECTIONS - interestsCount > 1 ? 's' : ''}
-                </Text>
-              )}
             </View>
 
+            <View style={styles.divider} />
+
             {/* Looking For */}
-            <View style={styles.inputSection}>
-              <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionTitle}>What are you looking for? *</Text>
-                <Text style={[
-                  styles.selectionCount,
-                  hasMinLookingFor && styles.selectionCountComplete
-                ]}>
-                  {lookingForCount}/{MIN_SELECTIONS} min
-                </Text>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>What Are You Looking For? *</Text>
+                <View style={[styles.countBadge, hasMinLookingFor && styles.countBadgeComplete]}>
+                  <Text style={[styles.countText, hasMinLookingFor && styles.countTextComplete]}>
+                    {lookingForCount}/{MIN_LOOKING_FOR}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.sectionHint}>
-                Select at least {MIN_SELECTIONS} options for what you'd like to find on Tander
+                What do you hope to find on Tander? (minimum {MIN_LOOKING_FOR})
               </Text>
               <PillSelector
                 items={LOOKING_FOR_OPTIONS}
                 value={values.lookingFor || []}
                 onChange={(val) => setFieldValue("lookingFor", val)}
               />
-              {!hasMinLookingFor && lookingForCount > 0 && (
-                <Text style={styles.selectionWarning}>
-                  Select {MIN_SELECTIONS - lookingForCount} more option{MIN_SELECTIONS - lookingForCount > 1 ? 's' : ''}
-                </Text>
-              )}
             </View>
           </Animated.View>
 
-          {/* Encouragement Card */}
-          {!isFormComplete && (
+          {/* Info Card */}
+          {isFormComplete && (
             <Animated.View
               style={[
-                styles.infoCard,
+                styles.successCard,
                 {
                   opacity: cardAnim.opacity,
                   transform: [{ translateY: cardAnim.translateY }],
                 },
               ]}
             >
-              <Ionicons name="bulb" size={24} color="#F59E0B" />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoTitle}>Almost there!</Text>
-                <Text style={styles.infoText}>
-                  Select at least {MIN_SELECTIONS} interests and {MIN_SELECTIONS} options for what you're looking for to complete your registration.
+              <Ionicons name="sparkles" size={28} color={colors.success} />
+              <View style={styles.successContent}>
+                <Text style={styles.successTitle}>Congratulations!</Text>
+                <Text style={styles.successText}>
+                  You're ready to use Tander! Tap "Complete Registration" to get started.
                 </Text>
               </View>
             </Animated.View>
           )}
+
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
         {/* Bottom Navigation */}
@@ -303,40 +387,51 @@ export default function Step4AboutYou({ navigation }: Props) {
             activeOpacity={0.7}
             disabled={isSubmitting}
           >
-            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+            <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.nextButton,
-              !isFormComplete && styles.nextButtonMuted,
-              isSubmitting && styles.nextButtonDisabled,
+              !isFormComplete && styles.nextButtonDisabled,
+              isSubmitting && styles.nextButtonSubmitting,
             ]}
             onPress={handleComplete}
             activeOpacity={0.8}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isFormComplete}
           >
             {isSubmitting ? (
               <>
                 <ActivityIndicator size="small" color={colors.white} />
-                <Text style={styles.nextText}>
-                  Completing...
-                </Text>
+                <Text style={styles.nextText}>Processing...</Text>
               </>
             ) : (
               <>
-                <Text style={[styles.nextText, !isFormComplete && styles.nextTextMuted]}>
-                  {isFormComplete ? "Complete Registration" : "Complete Selections"}
+                <Text style={[styles.nextText, !isFormComplete && styles.nextTextDisabled]}>
+                  {isFormComplete ? "Complete Registration" : "Complete All Fields"}
                 </Text>
                 <Ionicons
                   name={isFormComplete ? "checkmark-circle" : "chevron-forward"}
-                  size={20}
-                  color={isFormComplete ? colors.white : "#9CA3AF"}
+                  size={24}
+                  color={isFormComplete ? colors.white : colors.disabledText}
                 />
               </>
             )}
           </TouchableOpacity>
         </Animated.View>
+
+        {/* Civil Status Picker */}
+        <PickerModal
+          visible={civilStatusPickerVisible}
+          title="Select Civil Status"
+          options={CIVIL_STATUS_OPTIONS}
+          selectedValue={values.civilStatus}
+          onSelect={async (value) => {
+            await setFieldValue("civilStatus", value, true);
+          }}
+          onClose={() => setCivilStatusPickerVisible(false)}
+          enableSearch={false}
+        />
       </View>
     </FullScreen>
   );
@@ -348,13 +443,16 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  scrollContent: {
     padding: 20,
+    paddingBottom: 140,
   },
   headerView: {
     padding: 20,
   },
   header: {
-    marginBottom: 8,
+    marginBottom: 12,
     marginTop: 8,
   },
   titleRow: {
@@ -364,45 +462,62 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 24,
   },
-  completionIndicator: {
+
+  // Progress Card
+  progressCard: {
     backgroundColor: colors.white,
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 12,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.borderMedium,
   },
-  completionRow: {
+  progressRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
-  completionText: {
-    fontSize: 14,
+  progressText: {
+    fontSize: 17,
     fontWeight: "600",
     color: colors.textPrimary,
   },
-  completionHint: {
-    fontSize: 14, // Increased for elderly users
+  checklistContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  checklistItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  checklistText: {
+    fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 4,
-    marginLeft: 26,
+  },
+  checklistTextDone: {
+    color: colors.success,
+    textDecorationLine: "line-through",
   },
 
-  // Card styles
+  // Card
   card: {
     backgroundColor: colors.white,
     borderRadius: 20,
-    padding: 20,
+    padding: 24,
     marginBottom: 16,
     shadowColor: colors.shadowMedium,
     shadowOpacity: 0.08,
@@ -410,93 +525,73 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+  section: {
+    marginBottom: 8,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  requiredBadge: {
-    backgroundColor: "#FEE2E2",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  requiredText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#DC2626",
-  },
-
-  // Input sections
-  inputSection: {
-    marginBottom: 20,
-  },
-  sectionTitleRow: {
+  sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "700",
     color: colors.textPrimary,
   },
-  selectionCount: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textSecondary,
-    backgroundColor: colors.backgroundLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  selectionCountComplete: {
-    backgroundColor: "#D1FAE5",
-    color: "#059669",
-  },
-  selectionWarning: {
-    fontSize: 12,
-    color: "#F59E0B",
-    marginTop: 8,
-    fontWeight: "500",
-  },
   sectionHint: {
-    fontSize: 15, // Increased for elderly users
+    fontSize: 15,
     color: colors.textSecondary,
     marginBottom: 12,
-    lineHeight: 20,
+    lineHeight: 22,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderLight,
+    marginVertical: 20,
   },
 
-  // Info Card
-  infoCard: {
-    flexDirection: "row",
-    backgroundColor: "#FEF3C7",
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    alignItems: "flex-start",
-    marginBottom: 16,
+  // Count Badge
+  countBadge: {
+    backgroundColor: colors.backgroundLight,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  infoContent: {
+  countBadgeComplete: {
+    backgroundColor: colors.successLight,
+  },
+  countText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  countTextComplete: {
+    color: colors.successDark,
+  },
+
+  // Success Card
+  successCard: {
+    flexDirection: "row",
+    backgroundColor: colors.successLight,
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+    alignItems: "center",
+  },
+  successContent: {
     flex: 1,
   },
-  infoTitle: {
-    fontSize: 15,
+  successTitle: {
+    fontSize: 18,
     fontWeight: "700",
-    color: "#92400E",
+    color: colors.successDark,
     marginBottom: 4,
   },
-  infoText: {
-    fontSize: 13,
-    color: "#92400E",
-    lineHeight: 18,
+  successText: {
+    fontSize: 15,
+    color: colors.successDark,
+    lineHeight: 22,
   },
 
   // Bottom Navigation
@@ -506,7 +601,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -518,13 +612,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -2 },
     shadowRadius: 8,
     elevation: 4,
+    gap: 16,
   },
-  // Increased back button size for elderly users
   backButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -532,12 +626,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     backgroundColor: colors.primary,
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 24,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 16,
     gap: 8,
     shadowColor: colors.primary,
     shadowOpacity: 0.3,
@@ -545,20 +638,23 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  nextButtonMuted: {
-    backgroundColor: colors.borderMedium,
+  nextButtonDisabled: {
+    backgroundColor: colors.disabled,
     shadowOpacity: 0.05,
     elevation: 0,
   },
-  nextButtonDisabled: {
-    opacity: 0.7,
+  nextButtonSubmitting: {
+    opacity: 0.8,
   },
   nextText: {
     color: colors.white,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
-  nextTextMuted: {
-    color: "#9CA3AF",
+  nextTextDisabled: {
+    color: colors.disabledText,
+  },
+  bottomSpacer: {
+    height: 20,
   },
 });

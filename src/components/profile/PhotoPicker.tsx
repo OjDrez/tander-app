@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 
 import colors from '@/src/config/colors';
 import AppText from '../inputs/AppText';
+import { useToast } from '@/src/context/ToastContext';
 
 // Maximum file size: 10MB in bytes
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -44,6 +44,7 @@ export default function PhotoPicker({
   title = 'Add Photo',
 }: PhotoPickerProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const { warning, error } = useToast();
 
   /**
    * Validates that the photo file size is within the 10MB limit
@@ -58,17 +59,13 @@ export default function PhotoPicker({
         const fileSizeMB = fileInfo.size / (1024 * 1024);
 
         if (fileInfo.size > MAX_FILE_SIZE_BYTES) {
-          Alert.alert(
-            'Photo Too Large',
-            `Your photo is ${fileSizeMB.toFixed(1)}MB. Please choose a photo smaller than ${MAX_FILE_SIZE_MB}MB.`,
-            [{ text: 'OK', style: 'default' }]
-          );
+          warning(`Your photo is ${fileSizeMB.toFixed(1)}MB. Please choose a photo smaller than ${MAX_FILE_SIZE_MB}MB.`);
           return false;
         }
       }
       return true;
-    } catch (error) {
-      console.error('Error checking file size:', error);
+    } catch (err) {
+      console.error('Error checking file size:', err);
       // Allow upload if we can't check size - let server validate
       return true;
     }
@@ -77,11 +74,7 @@ export default function PhotoPicker({
   const requestCameraPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(
-        'Camera Permission Needed',
-        'Please allow camera access in your device settings to take photos.',
-        [{ text: 'OK', style: 'default' }]
-      );
+      warning('Please allow camera access in your device settings to take photos.');
       return false;
     }
     return true;
@@ -90,11 +83,7 @@ export default function PhotoPicker({
   const requestLibraryPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(
-        'Photo Library Permission Needed',
-        'Please allow photo library access in your device settings to choose photos.',
-        [{ text: 'OK', style: 'default' }]
-      );
+      warning('Please allow photo library access in your device settings to choose photos.');
       return false;
     }
     return true;
@@ -126,9 +115,9 @@ export default function PhotoPicker({
         onPhotoSelected(uri);
         onClose();
       }
-    } catch (error) {
-      console.error('Camera error:', error);
-      Alert.alert('Error', 'Could not take photo. Please try again.');
+    } catch (err) {
+      console.error('Camera error:', err);
+      error('Could not take photo. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -160,9 +149,9 @@ export default function PhotoPicker({
         onPhotoSelected(uri);
         onClose();
       }
-    } catch (error) {
-      console.error('Library error:', error);
-      Alert.alert('Error', 'Could not select photo. Please try again.');
+    } catch (err) {
+      console.error('Library error:', err);
+      error('Could not select photo. Please try again.');
     } finally {
       setIsLoading(false);
     }

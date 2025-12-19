@@ -62,6 +62,7 @@ export interface MessageDisplay {
   date: string;
   status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   senderId: number;
+  timestamp: number; // Numeric timestamp for reliable sorting
 }
 
 export interface DateSeparator {
@@ -117,6 +118,19 @@ export interface UserTypingPayload {
 
 export interface MarkReadPayload {
   conversationId: string;
+}
+
+export interface MessageDeliveredPayload {
+  messageId: string;
+  conversationId: string;
+  timestamp: number;
+}
+
+export interface MessagesReadPayload {
+  conversationId: string;
+  messageIds: string[];
+  readBy: number;
+  timestamp: number;
 }
 
 export interface NewMessagePreviewPayload {
