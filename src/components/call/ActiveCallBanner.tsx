@@ -3,7 +3,7 @@
  * Shows a floating banner when there's an active call
  * Allows users to tap to return to the call screen
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   Animated,
   StyleSheet,
@@ -20,25 +20,89 @@ import { useActiveCall } from '@/src/context/ActiveCallContext';
 import { useMainStackNavigation } from '@/src/context/MainStackNavigationContext';
 
 export default function ActiveCallBanner() {
-  const { activeCall, callStatus, hasActiveCall, callDuration, setIsReturningToCall } = useActiveCall();
+  const {
+    activeCall,
+    callStatus,
+    hasActiveCall,
+    callDuration,
+    setIsReturningToCall,
+    peerConnection,
+    clearActiveCall,
+  } = useActiveCall();
   const insets = useSafeAreaInsets();
 
   // Animation for pulsing effect
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(-100)).current;
 
-  // Slide in/out animation
+  // Determine if the call is truly returnable (has a valid connection or is still connecting)
+  // The banner should NOT show if:
+  // 1. Call status is ended/rejected/missed/idle
+  // 2. There's no peer connection and we're not in calling/ringing state
+  const isCallReturnable = useMemo(() => {
+    if (!hasActiveCall || !activeCall) return false;
+
+    // Terminal states - never show banner
+    if (callStatus === 'ended' || callStatus === 'rejected' || callStatus === 'missed' || callStatus === 'idle') {
+      return false;
+    }
+
+    // For calling/ringing states - show banner even without peer connection
+    // (call is being established)
+    if (callStatus === 'calling' || callStatus === 'ringing') {
+      return true;
+    }
+
+    // For connecting/connected states - must have a valid peer connection
+    if (callStatus === 'connecting' || callStatus === 'connected') {
+      // Check if peer connection exists and is not closed
+      if (!peerConnection) return false;
+
+      // Check signaling state - if closed, call is over
+      try {
+        if (peerConnection.signalingState === 'closed') {
+          return false;
+        }
+      } catch (e) {
+        // If we can't read state, connection is likely dead
+        return false;
+      }
+
+      return true;
+    }
+
+    // For busy state - don't show return banner
+    if (callStatus === 'busy') {
+      return false;
+    }
+
+    return false;
+  }, [hasActiveCall, activeCall, callStatus, peerConnection]);
+
+  // Auto-clear stale call state when call becomes non-returnable
+  useEffect(() => {
+    if (hasActiveCall && !isCallReturnable && callStatus !== 'idle') {
+      // Give a brief moment for the state to settle before clearing
+      const timeout = setTimeout(() => {
+        console.log('[ActiveCallBanner] Clearing stale call state, status:', callStatus);
+        clearActiveCall();
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [hasActiveCall, isCallReturnable, callStatus, clearActiveCall]);
+
+  // Slide in/out animation based on returnable state
   useEffect(() => {
     Animated.spring(slideAnim, {
-      toValue: hasActiveCall ? 0 : -100,
+      toValue: isCallReturnable ? 0 : -100,
       friction: 8,
       useNativeDriver: true,
     }).start();
-  }, [hasActiveCall, slideAnim]);
+  }, [isCallReturnable, slideAnim]);
 
   // Pulsing animation when connected
   useEffect(() => {
-    if (callStatus === 'connected') {
+    if (callStatus === 'connected' && isCallReturnable) {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -56,7 +120,7 @@ export default function ActiveCallBanner() {
       pulse.start();
       return () => pulse.stop();
     }
-  }, [callStatus, pulseAnim]);
+  }, [callStatus, isCallReturnable, pulseAnim]);
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -68,7 +132,7 @@ export default function ActiveCallBanner() {
   const mainStackNavigation = useMainStackNavigation();
 
   const handleReturnToCall = () => {
-    if (!activeCall) return;
+    if (!activeCall || !isCallReturnable) return;
 
     // Set flag so CallScreen knows we're returning to an existing call
     setIsReturningToCall(true);
@@ -94,7 +158,8 @@ export default function ActiveCallBanner() {
     }
   };
 
-  if (!hasActiveCall || !activeCall) {
+  // Don't render if call is not returnable
+  if (!isCallReturnable || !activeCall) {
     return null;
   }
 

@@ -156,12 +156,15 @@ function inboxReducer(state: InboxState, action: InboxAction): InboxState {
 /**
  * Process categorized matches into match queue format
  */
-function processMatchQueue(categorized: {
-  chatStarted?: Match[];
-  waitingForUserReply?: Match[];
-  waitingForOtherReply?: Match[];
-  newMatches?: Match[];
-}): {
+function processMatchQueue(
+  categorized: {
+    chatStarted?: Match[];
+    waitingForUserReply?: Match[];
+    waitingForOtherReply?: Match[];
+    newMatches?: Match[];
+  },
+  conversationUserIds?: Set<number>
+): {
   matchQueue: MatchQueuePerson[];
   urgentMatches: Match[];
   matchedUserIds: Set<number>;
@@ -173,7 +176,12 @@ function processMatchQueue(categorized: {
     ...(categorized.waitingForOtherReply || []),
     ...(categorized.newMatches || []),
   ];
-  const matchedUserIds = new Set(allActiveMatches.map((m) => m.matchedUserId));
+  // Combine matchedUserIds from categorized matches with conversation user IDs
+  // This handles backend bug where matchedUserId might be the current user's ID instead of the other user
+  const matchedUserIds = new Set([
+    ...allActiveMatches.map((m) => m.matchedUserId),
+    ...(conversationUserIds || []),
+  ]);
 
   // Combine all matches that can expire for urgency check
   const expiringMatches = [
@@ -264,16 +272,25 @@ export function useInboxData() {
         matchingApi.getInboxMatches(),
       ]);
 
-      // Process categorized matches
-      const { matchQueue, urgentMatches, matchedUserIds } = processMatchQueue(categorized);
+      // Extract user IDs from conversations first (needed for processMatchQueue)
+      const conversationUserIds = new Set(conversations.map((c) => c.userId));
 
-      // Build inbox user IDs set
-      const inboxUserIds = new Set(inboxMatches.map((m) => m.matchedUserId));
+      // Process categorized matches - pass conversation user IDs to fix backend bug
+      const { matchQueue, urgentMatches, matchedUserIds } = processMatchQueue(categorized, conversationUserIds);
+
+      // Build inbox user IDs set from inbox matches
+      // Note: Backend returns matchedUserId which should be the OTHER user's ID
+      // But we also need to check against conversation userIds to handle any inconsistencies
+      const inboxMatchedUserIds = new Set(inboxMatches.map((m) => m.matchedUserId));
+
+      // Combine both sets - if a conversation exists OR user is in inbox matches, show it
+      // This handles the case where backend might return wrong matchedUserId
+      const inboxUserIds = new Set([...inboxMatchedUserIds, ...conversationUserIds]);
 
       console.log(
         `[useInboxData] Loaded: ${conversations.length} conversations, ` +
         `${matchQueue.length} queue items, ${urgentMatches.length} urgent, ` +
-        `${inboxUserIds.size} inbox users`
+        `${inboxUserIds.size} inbox users (matchedUserIds: ${Array.from(inboxMatchedUserIds)}, convUserIds: ${Array.from(conversationUserIds)})`
       );
 
       dispatch({

@@ -112,7 +112,16 @@ export const getConversations = async (): Promise<ConversationPreview[]> => {
     const myUsername = getCurrentUsername() || await getCurrentUsernameFromToken();
     console.log('[ChatAPI] getConversations - myUserId:', myUserId, 'myUsername:', myUsername);
 
-    return response.data.map((conv) => {
+    // Filter out invalid conversations (self-conversations where user1 == user2)
+    const validConversations = response.data.filter((conv) => {
+      if (conv.user1Id === conv.user2Id) {
+        console.warn('[ChatAPI] Skipping invalid self-conversation:', conv.id, 'user1Id:', conv.user1Id, 'user2Id:', conv.user2Id);
+        return false;
+      }
+      return true;
+    });
+
+    return validConversations.map((conv) => {
       // Determine which user is the "other" user (not me)
       // First try to match by userId (if socket is connected)
       // Then fall back to matching by username (from JWT)

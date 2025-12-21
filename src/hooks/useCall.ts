@@ -12,6 +12,7 @@ import {
   endCall,
   getCurrentUserId,
   initiateCall,
+  isUserOnline,
   registerSocketListener,
   rejectCall,
   sendAnswer,
@@ -209,6 +210,10 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
   const candidateBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectionEstablishedRef = useRef(false);
   const remoteDescriptionSetRef = useRef(false);
+  // BUG #9 FIX: Prevent double-accept
+  const isAcceptingRef = useRef(false);
+  // BUG #4 FIX: Queue for answers that arrive before we're ready
+  const pendingAnswerRef = useRef<AnswerPayload | null>(null);
 
   // Sync state with context when returning to existing call
   useEffect(() => {
@@ -470,11 +475,13 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
 
     logger.debug('[useCall] Flushing', candidates.length, 'batched ICE candidates');
     candidates.forEach(candidate => {
+      // Send candidate string directly - don't JSON.stringify
+      // The backend expects the raw SDP candidate string
       sendIceCandidate(
         currentRoomId,
-        JSON.stringify(candidate),
-        candidate.sdpMid || '',
-        candidate.sdpMLineIndex || 0
+        candidate.candidate || '',
+        candidate.sdpMid || '0',
+        candidate.sdpMLineIndex ?? 0
       );
     });
   }, []);
@@ -483,10 +490,21 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
    * Queue ICE candidate with batching for reliability
    */
   const queueIceCandidate = useCallback((candidate: any, currentRoomId: string) => {
+    // Extract the candidate string properly
+    const candidateString = typeof candidate.candidate === 'string'
+      ? candidate.candidate
+      : '';
+
+    // Skip empty candidates
+    if (!candidateString || candidateString.trim() === '') {
+      logger.debug('[useCall] Skipping empty ICE candidate');
+      return;
+    }
+
     const candidateInit: RTCIceCandidateInit = {
-      candidate: candidate.candidate,
-      sdpMid: candidate.sdpMid || '',
-      sdpMLineIndex: candidate.sdpMLineIndex || 0,
+      candidate: candidateString,
+      sdpMid: candidate.sdpMid ?? '0',
+      sdpMLineIndex: candidate.sdpMLineIndex ?? 0,
     };
 
     candidateBatchRef.current.push(candidateInit);
@@ -700,8 +718,61 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     };
 
     // @ts-ignore - react-native-webrtc types
-    pc.onsignalingstatechange = () => {
+    pc.onsignalingstatechange = async () => {
       logger.debug('[useCall] Signaling state:', pc.signalingState);
+
+      // Process pending answers when we're in the right state (caller side)
+      if (pc.signalingState === 'have-local-offer' && pendingAnswerRef.current && isCallerRef.current) {
+        logger.debug('[useCall] Processing pending answer after signaling state change');
+        const pendingAnswer = pendingAnswerRef.current;
+        pendingAnswerRef.current = null;
+        try {
+          remoteDescriptionSetRef.current = true;
+          await pc.setRemoteDescription(
+            new RTCSessionDescription({ type: 'answer', sdp: pendingAnswer.sdp })
+          );
+          // Process pending ICE candidates
+          for (const candidateInit of pendingCandidatesRef.current) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+            } catch (e) {
+              logger.debug('[useCall] Pending ICE candidate result:', e);
+            }
+          }
+          pendingCandidatesRef.current = [];
+        } catch (e) {
+          logger.error('[useCall] Failed to process pending answer:', e);
+        }
+      }
+
+      // Process pending offers when we're stable (receiver side)
+      if (pc.signalingState === 'stable' && pendingOfferRef.current && !isCallerRef.current && hasAcceptedRef.current) {
+        logger.debug('[useCall] Processing pending offer after signaling state change');
+        const pendingOffer = pendingOfferRef.current;
+        pendingOfferRef.current = null;
+        try {
+          remoteDescriptionSetRef.current = true;
+          await pc.setRemoteDescription(
+            new RTCSessionDescription({ type: 'offer', sdp: pendingOffer.sdp })
+          );
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          if (answer.sdp && roomIdRef.current) {
+            sendAnswer(roomIdRef.current, answer.sdp, 'answer');
+          }
+          // Process pending ICE candidates
+          for (const candidateInit of pendingCandidatesRef.current) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+            } catch (e) {
+              logger.debug('[useCall] Pending ICE candidate result:', e);
+            }
+          }
+          pendingCandidatesRef.current = [];
+        } catch (e) {
+          logger.error('[useCall] Failed to process pending offer:', e);
+        }
+      }
     };
 
     // @ts-ignore - react-native-webrtc types
@@ -895,6 +966,8 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
     candidateBatchRef.current = [];
     connectionEstablishedRef.current = false;
     remoteDescriptionSetRef.current = false;
+    isAcceptingRef.current = false;
+    pendingAnswerRef.current = null;
 
     // Only clear call data if not preserving for reconnection
     if (!preserveCallData) {
@@ -946,6 +1019,14 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
         setError(null);
         isCallerRef.current = true;
         isInitializedRef.current = true;
+
+        // Pre-check: Verify user is online before starting call
+        // This gives immediate feedback instead of waiting for backend response
+        if (!isUserOnline(targetUserId)) {
+          logger.debug('[useCall] Target user is offline, cannot start call');
+          setError('User is not available');
+          return false;
+        }
 
         // Store call data for potential reconnection
         lastCallDataRef.current = { targetUserId, callType: type, callerName };
@@ -1032,6 +1113,31 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
 
           // Start the resend schedule
           scheduleOfferResend();
+
+          // BUG #4 FIX: Check if we received an answer while setting up
+          // (can happen in fast networks)
+          if (pendingAnswerRef.current && pc.signalingState === 'have-local-offer') {
+            logger.debug('[useCall] Processing pending answer that arrived during setup');
+            const pendingAnswer = pendingAnswerRef.current;
+            pendingAnswerRef.current = null;
+            try {
+              remoteDescriptionSetRef.current = true;
+              await pc.setRemoteDescription(
+                new RTCSessionDescription({ type: 'answer', sdp: pendingAnswer.sdp })
+              );
+              // Process pending ICE candidates
+              for (const candidateInit of pendingCandidatesRef.current) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+                } catch (e) {
+                  logger.debug('[useCall] Pending ICE candidate result:', e);
+                }
+              }
+              pendingCandidatesRef.current = [];
+            } catch (e) {
+              logger.error('[useCall] Failed to process pending answer:', e);
+            }
+          }
         }
 
         return true;
@@ -1054,10 +1160,18 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
    */
   const acceptCall = useCallback(async (): Promise<boolean> => {
     try {
+      // BUG #9 FIX: Prevent double-accept
+      if (isAcceptingRef.current) {
+        logger.debug('[useCall] Already accepting call, ignoring duplicate accept');
+        return false;
+      }
+      isAcceptingRef.current = true;
+
       const callData = incomingCallDataRef.current;
       if (!callData) {
         logger.error('[useCall] No incoming call data to accept');
         setError('No incoming call to accept');
+        isAcceptingRef.current = false;
         return false;
       }
 
@@ -1072,6 +1186,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       if (!stream) {
         logger.error('[useCall] Failed to get local media');
         setCallStatus('idle');
+        isAcceptingRef.current = false;
         return false;
       }
 
@@ -1083,6 +1198,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
         stopLocalMedia();
         setCallStatus('idle');
         setError(result.error || 'Failed to answer call');
+        isAcceptingRef.current = false;
         return false;
       }
 
@@ -1095,6 +1211,8 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       if (pendingOffer) {
         logger.debug('[useCall] Processing pending offer');
         try {
+          // BUG #3 FIX: Track remote description state
+          remoteDescriptionSetRef.current = true;
           await pc.setRemoteDescription(
             new RTCSessionDescription({ type: 'offer', sdp: pendingOffer.sdp })
           );
@@ -1134,6 +1252,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       logger.error('[useCall] Failed to accept call:', err);
       setError('Failed to accept call');
       stopLocalMedia();
+      isAcceptingRef.current = false;
       return false;
     }
   }, [getLocalMedia, stopLocalMedia, createPeerConnection, addLocalTracksToConnection]);
@@ -1398,6 +1517,33 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       }
     );
 
+    // Call error (e.g., user offline, not matched, etc.)
+    const cleanupCallError = registerSocketListener<{ error: string; message: string; targetUserId?: number }>(
+      'call-error',
+      (payload) => {
+        logger.debug('[useCall] Call error received:', payload);
+        // Clear ring timeout
+        if (ringTimeoutRef.current) {
+          clearTimeout(ringTimeoutRef.current);
+          ringTimeoutRef.current = null;
+        }
+
+        // Set appropriate error message based on error type
+        let errorMessage = payload.message || 'Call failed';
+        if (payload.error === 'user_offline') {
+          errorMessage = 'User is not available';
+        } else if (payload.error === 'not_matched') {
+          errorMessage = 'You can only call users you have matched with';
+        } else if (payload.error === 'busy') {
+          errorMessage = 'User is busy on another call';
+        }
+
+        setError(errorMessage);
+        setCallStatus('ended');
+        cleanup();
+      }
+    );
+
     // WebRTC offer from caller
     const cleanupOffer = registerSocketListener<OfferPayload>(
       'receive-offer',
@@ -1433,7 +1579,10 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
         logger.debug('[useCall] Processing offer immediately');
         const pc = peerConnectionRef.current;
         if (!pc) {
-          logger.error('[useCall] No peer connection to process offer');
+          // BUG #8 FIX: Instead of dropping, queue the offer
+          // This handles the race condition where hasAcceptedRef is true but PC isn't created yet
+          logger.debug('[useCall] No peer connection yet - queueing offer for when PC is ready');
+          pendingOfferRef.current = payload;
           return;
         }
 
@@ -1443,6 +1592,8 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
             return;
           }
 
+          // BUG #3 FIX: Track remote description state
+          remoteDescriptionSetRef.current = true;
           await pc.setRemoteDescription(
             new RTCSessionDescription({ type: 'offer', sdp: payload.sdp })
           );
@@ -1496,17 +1647,26 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
 
         const pc = peerConnectionRef.current;
         if (!pc) {
-          logger.error('[useCall] No peer connection to set answer');
+          // BUG #4 FIX: Queue answer if PC not ready yet
+          logger.debug('[useCall] No peer connection yet - queueing answer');
+          pendingAnswerRef.current = payload;
           return;
         }
 
         try {
           if (pc.signalingState !== 'have-local-offer') {
+            // BUG #4 FIX: If not in the right state, queue for later
+            if (pc.signalingState === 'stable' || pc.signalingState === 'have-remote-offer') {
+              logger.debug('[useCall] Not ready for answer yet (state:', pc.signalingState, ') - queueing');
+              pendingAnswerRef.current = payload;
+              return;
+            }
             logger.debug('[useCall] Cannot set answer - signaling state:', pc.signalingState);
             return;
           }
 
           logger.debug('[useCall] Setting remote answer');
+          remoteDescriptionSetRef.current = true;
           await pc.setRemoteDescription(
             new RTCSessionDescription({ type: 'answer', sdp: payload.sdp })
           );
@@ -1534,46 +1694,44 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       async (payload) => {
         // Ignore our own ICE candidates
         if (payload.senderId === myUserId) {
+          logger.debug('[useCall] Ignoring own ICE candidate');
           return;
         }
 
         // Check room match
         if (payload.roomId !== roomIdRef.current) {
+          logger.debug('[useCall] Ignoring ICE candidate for different room');
           return;
         }
 
-        // Parse the candidate - handle various formats
+        logger.debug('[useCall] Processing incoming ICE candidate');
+
+        // Parse the candidate - now expecting raw SDP string (not JSON)
         let candidateInit: RTCIceCandidateInit;
         try {
-          if (typeof payload.candidate === 'string') {
-            // Try to parse as JSON first (it was JSON.stringify'd when sent)
+          const candidateStr = typeof payload.candidate === 'string'
+            ? payload.candidate
+            : '';
+
+          // The candidate should now be a raw SDP candidate string
+          candidateInit = {
+            candidate: candidateStr,
+            sdpMid: payload.sdpMid ?? '0',
+            sdpMLineIndex: payload.sdpMLineIndex ?? 0,
+          };
+
+          // Fallback: if it looks like JSON (legacy format), try to parse it
+          if (candidateStr.startsWith('{')) {
             try {
-              const parsed = JSON.parse(payload.candidate);
-              // The parsed object might have the candidate string nested
+              const parsed = JSON.parse(candidateStr);
               candidateInit = {
-                candidate: parsed.candidate || payload.candidate,
+                candidate: parsed.candidate || candidateStr,
                 sdpMid: parsed.sdpMid ?? payload.sdpMid ?? '0',
                 sdpMLineIndex: parsed.sdpMLineIndex ?? payload.sdpMLineIndex ?? 0,
               };
             } catch {
-              // If not JSON, use as raw candidate string
-              candidateInit = {
-                candidate: payload.candidate,
-                sdpMid: payload.sdpMid ?? '0',
-                sdpMLineIndex: payload.sdpMLineIndex ?? 0,
-              };
+              // Not valid JSON, use as-is
             }
-          } else if (payload.candidate && typeof payload.candidate === 'object') {
-            // Already an object
-            const c = payload.candidate as { candidate?: string; sdpMid?: string; sdpMLineIndex?: number };
-            candidateInit = {
-              candidate: c.candidate || '',
-              sdpMid: c.sdpMid ?? payload.sdpMid ?? '0',
-              sdpMLineIndex: c.sdpMLineIndex ?? payload.sdpMLineIndex ?? 0,
-            };
-          } else {
-            logger.warn('[useCall] Invalid candidate format');
-            return;
           }
         } catch (parseErr) {
           logger.warn('[useCall] Failed to parse ICE candidate:', parseErr);
@@ -1582,19 +1740,24 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
 
         // Skip empty candidates (end-of-candidates signal)
         if (!candidateInit.candidate || candidateInit.candidate.trim() === '') {
+          logger.debug('[useCall] Skipping empty ICE candidate');
           return;
         }
 
         const pc = peerConnectionRef.current;
         if (pc && pc.remoteDescription && pc.remoteDescription.type) {
           try {
+            logger.debug('[useCall] Adding ICE candidate to peer connection');
             await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+            logger.debug('[useCall] ICE candidate added successfully');
           } catch (err) {
             // ICE candidate errors are often non-fatal in WebRTC
             // The connection can still establish with remaining candidates
+            logger.debug('[useCall] ICE candidate add result:', err);
           }
         } else {
           // Queue for later when remote description is set
+          logger.debug('[useCall] Queueing ICE candidate (no remote description yet)');
           pendingCandidatesRef.current.push(candidateInit);
         }
       }
@@ -1606,6 +1769,7 @@ export const useCall = (options: UseCallOptions = {}): UseCallReturn => {
       cleanupAnswered();
       cleanupRejected();
       cleanupEnded();
+      cleanupCallError();
       cleanupOffer();
       cleanupAnswer();
       cleanupIce();

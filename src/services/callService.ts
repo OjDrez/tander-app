@@ -33,6 +33,14 @@ export const generateCallRoomId = (userId1: number, userId2: number): string => 
 };
 
 /**
+ * Check if a user is currently online
+ * Uses the WebSocket's tracked online users set
+ */
+export const isUserOnline = (userId: number): boolean => {
+  return wsService.isUserOnline(userId);
+};
+
+/**
  * Initiate a call
  */
 export const initiateCall = async (
@@ -233,6 +241,14 @@ const transformCallPayload = (message: any, event: string): any => {
         receiverUsername: message.username,
         timestamp: message.timestamp || Date.now(),
       };
+    case 'call-error':
+      return {
+        error: message.error || 'unknown_error',
+        message: message.message || 'Call failed',
+        targetUserId: message.targetUserId,
+        roomId: message.roomId,
+        timestamp: message.timestamp || Date.now(),
+      };
     default:
       return message;
   }
@@ -265,8 +281,9 @@ const transformWebRTCPayload = (message: any, event: string): any => {
       return {
         ...basePayload,
         candidate: message.candidate,
-        sdpMid: message.sdpMid,
-        sdpMLineIndex: message.sdpMLineIndex,
+        // Provide defaults if backend doesn't send these fields
+        sdpMid: message.sdpMid ?? '0',
+        sdpMLineIndex: message.sdpMLineIndex ?? 0,
       };
     default:
       return message;

@@ -30,6 +30,8 @@ import { CallStatus } from "@/src/types/chat";
 import { isNativeAudioAvailable } from "@/src/utility/audioManager";
 import { useActiveCall } from "@/src/context/ActiveCallContext";
 import { callLogger as logger } from "@/src/utility/logger";
+import { useCallNetworkMonitor, NetworkQuality } from "@/src/hooks/useNetworkStatus";
+import { playHapticFeedback, stopCallSound } from "@/src/utility/callSounds";
 // Use extracted, memoized components
 import {
   ConnectionQualityIndicator,
@@ -261,6 +263,33 @@ function CallScreenContent({ route, isVideoCall = false }: CallScreenProps) {
     switchCamera,
   } = callHook;
 
+  // Network status tracking during call
+  const [networkWarning, setNetworkWarning] = useState<string | null>(null);
+
+  // Monitor network during active call
+  useCallNetworkMonitor({
+    isActive: callStatus === 'connected' || callStatus === 'connecting',
+    onNetworkLost: () => {
+      logger.debug('[CallScreen] Network lost during call');
+      setNetworkWarning('Network connection lost. Attempting to reconnect...');
+      playHapticFeedback('warning');
+    },
+    onNetworkRestored: () => {
+      logger.debug('[CallScreen] Network restored');
+      setNetworkWarning(null);
+      playHapticFeedback('success');
+    },
+    onQualityChange: (quality: NetworkQuality) => {
+      if (quality === 'poor') {
+        setNetworkWarning('Poor network connection. Call quality may be affected.');
+      } else if (quality === 'offline') {
+        setNetworkWarning('No network connection.');
+      } else {
+        setNetworkWarning(null);
+      }
+    },
+  });
+
   // Clear the returning flag once we've rendered
   useEffect(() => {
     if (isReturningToCall) {
@@ -372,9 +401,29 @@ function CallScreenContent({ route, isVideoCall = false }: CallScreenProps) {
     } else {
       setHasStartedCall(true);
       logger.debug("Starting call with type:", effectiveCallType);
-      startCall(userId, effectiveCallType, callerName).catch((err) => {
-        logger.error("Failed to start call:", err);
-      });
+      startCall(userId, effectiveCallType, callerName)
+        .then((success) => {
+          if (!success) {
+            // Call failed to start - clear the active call context immediately
+            logger.debug("Call failed to start - clearing active call context");
+            activeCallContext.clearActiveCall();
+            // Navigate back after showing error briefly
+            setTimeout(() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              }
+            }, 1500);
+          }
+        })
+        .catch((err) => {
+          logger.error("Failed to start call:", err);
+          activeCallContext.clearActiveCall();
+          setTimeout(() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            }
+          }, 1500);
+        });
     }
 
     // Cleanup function - only cancel vibration on unmount
@@ -384,7 +433,7 @@ function CallScreenContent({ route, isVideoCall = false }: CallScreenProps) {
         vibrationActiveRef.current = false;
       }
     };
-  }, [isIncoming, userId, effectiveCallType, callerName, startCall, hasStartedCall, isReturning]);
+  }, [isIncoming, userId, effectiveCallType, callerName, startCall, hasStartedCall, isReturning, activeCallContext, navigation]);
 
   const handleAccept = useCallback(async () => {
     vibrationActiveRef.current = false;
@@ -587,6 +636,28 @@ function CallScreenContent({ route, isVideoCall = false }: CallScreenProps) {
               </AppText>
             </View>
           )}
+
+          {/* Network warning banner */}
+          {networkWarning && !error && (
+            <View style={styles.networkWarningBanner}>
+              <Ionicons name="cellular-outline" size={16} color={colors.warning} />
+              <AppText size="small" color={colors.warning} style={styles.errorText}>
+                {networkWarning}
+              </AppText>
+            </View>
+          )}
+
+          {/* Reconnecting indicator */}
+          {isReconnecting && (
+            <View style={styles.reconnectingBanner}>
+              <Animated.View style={styles.reconnectingSpinner}>
+                <Ionicons name="refresh" size={18} color={colors.accentTeal} />
+              </Animated.View>
+              <AppText size="small" color={colors.accentTeal} style={styles.errorText}>
+                Reconnecting...
+              </AppText>
+            </View>
+          )}
         </View>
 
         {/* Local video preview - Show immediately when we have local stream (Messenger-like) */}
@@ -610,24 +681,46 @@ function CallScreenContent({ route, isVideoCall = false }: CallScreenProps) {
         <SafeAreaView edges={["bottom"]} style={styles.bottomSection}>
           {showIncomingUI ? (
             // Incoming call controls - Large, clear buttons
-            <View style={styles.incomingControls}>
-              <ControlButton
-                icon="close"
-                label="Decline"
-                danger
-                size="large"
-                onPress={handleDecline}
-                accessibilityHint="Double tap to decline this call"
-              />
+            <View style={styles.incomingControlsContainer}>
+              <View style={styles.incomingControls}>
+                <ControlButton
+                  icon="close"
+                  label="Decline"
+                  danger
+                  size="large"
+                  onPress={handleDecline}
+                  accessibilityHint="Double tap to decline this call"
+                />
 
-              <ControlButton
-                icon={effectiveCallType === "video" ? "videocam" : "call"}
-                label="Accept"
-                success
-                size="large"
-                onPress={handleAccept}
-                accessibilityHint={`Double tap to accept this ${callType} call`}
-              />
+                <ControlButton
+                  icon={effectiveCallType === "video" ? "videocam" : "call"}
+                  label="Accept"
+                  success
+                  size="large"
+                  onPress={handleAccept}
+                  accessibilityHint={`Double tap to accept this ${callType} call`}
+                />
+              </View>
+
+              {/* Audio-only option for video calls */}
+              {effectiveCallType === "video" && (
+                <TouchableOpacity
+                  style={styles.audioOnlyButton}
+                  onPress={() => {
+                    // Accept but immediately turn off camera
+                    handleAccept();
+                    // Camera will be off by default - user can enable later
+                    setTimeout(() => toggleCamera(), 500);
+                  }}
+                  accessibilityLabel="Accept as audio only"
+                  accessibilityHint="Double tap to accept this call with your camera off"
+                >
+                  <Ionicons name="mic" size={18} color={colors.white} />
+                  <AppText size="small" weight="medium" color={colors.white}>
+                    Accept as Audio Only
+                  </AppText>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             // Active call controls - Clear labels and large targets
@@ -847,6 +940,29 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
   },
+  networkWarningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
+    backgroundColor: "rgba(255,165,0,0.2)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  reconnectingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
+    backgroundColor: "rgba(0,200,200,0.2)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  reconnectingSpinner: {
+    // Simple rotation would need Animated - just static for now
+  },
 
   // Local Preview - Larger for better visibility
   localPreviewContainer: {
@@ -881,12 +997,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingBottom: Platform.OS === "ios" ? 20 : 28,
   },
+  incomingControlsContainer: {
+    alignItems: "center",
+  },
   incomingControls: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
     paddingHorizontal: 32,
     paddingVertical: 24,
+    width: "100%",
+  },
+  audioOnlyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    marginTop: 8,
   },
   activeControls: {
     alignItems: "center",

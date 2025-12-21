@@ -121,14 +121,14 @@ export const CALL_TIMEOUTS = {
   RECONNECT_ATTEMPTS: 5,
   /** Time to wait for ICE gathering (ms) */
   ICE_GATHERING_TIMEOUT: 15000,
-  /** Time to establish WebRTC connection (ms) */
-  CONNECTION_TIMEOUT: 45000,
+  /** Time to establish WebRTC connection (ms) - reduced from 45s to 10s for faster failure detection */
+  CONNECTION_TIMEOUT: 10000,
   /** Delay before attempting ICE restart (ms) */
   ICE_RESTART_DELAY: 2000,
-  /** Delay before resending offer (ms) */
-  OFFER_RESEND_DELAY: 2000,
-  /** Interval between offer resends (ms) */
-  OFFER_RESEND_INTERVAL: 3000,
+  /** Delay before resending offer (ms) - reduced for faster offer delivery */
+  OFFER_RESEND_DELAY: 500,
+  /** Interval between offer resends (ms) - reduced for more responsive retries */
+  OFFER_RESEND_INTERVAL: 2000,
   /** Maximum number of offer resend attempts */
   MAX_OFFER_RESENDS: 5,
   /** Heartbeat interval for connection monitoring (ms) */

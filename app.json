@@ -45,7 +45,8 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET"
       ],
       "useNextNotificationsApi": true,
       "blockedPermissions": [],
@@ -101,8 +102,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "31806c49-df01-475b-9fc1-fe6eb7b72cdb"
+        "projectId": "0c6ae2ae-600f-4f39-937c-821b13684da0"
       }
-    }
+    },
+    "owner": "justjusdave"
   }
 }

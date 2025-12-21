@@ -12,6 +12,9 @@ import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { useChat } from "@/src/hooks/useChat";
 import { useSocketConnection } from "@/src/hooks/useSocket";
 import { useKeyboardHeight } from "@/src/hooks/useKeyboardHeight";
+import { ensureCallPermissions } from "@/src/hooks/useCallPermissions";
+import { useNetworkStatus, isNetworkSuitableForCall } from "@/src/hooks/useNetworkStatus";
+import { useThrottle } from "@/src/hooks/useDebounce";
 import {
   getConversationMessages,
   formatMessageTime,
@@ -292,21 +295,110 @@ export default function ConversationScreen({
     setChatError(null);
   }, []);
 
-  const handleVideoCall = () => {
+  // Network status for call availability
+  const networkStatus = useNetworkStatus();
+
+  // Video call with permission and network checks
+  const handleVideoCallInternal = useCallback(async () => {
+    // Check network first
+    const networkCheck = isNetworkSuitableForCall(networkStatus);
+    if (!networkCheck.suitable) {
+      Alert.alert("Cannot Make Call", networkCheck.warning || "No internet connection");
+      return;
+    }
+    if (networkCheck.warning) {
+      // Show warning but allow to proceed
+      Alert.alert(
+        "Connection Warning",
+        networkCheck.warning,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Call Anyway",
+            onPress: async () => {
+              const permResult = await ensureCallPermissions("video");
+              if (permResult.granted) {
+                navigation.navigate("VideoCallScreen", {
+                  userId: otherUserId,
+                  username: otherUserName,
+                  callType: "video",
+                });
+              } else {
+                Alert.alert("Permission Required", permResult.message || "Camera and microphone access needed");
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Check permissions
+    const permResult = await ensureCallPermissions("video");
+    if (!permResult.granted) {
+      Alert.alert("Permission Required", permResult.message || "Camera and microphone access needed");
+      return;
+    }
+
     navigation.navigate("VideoCallScreen", {
       userId: otherUserId,
       username: otherUserName,
       callType: "video",
     });
-  };
+  }, [navigation, otherUserId, otherUserName, networkStatus]);
 
-  const handleVoiceCall = () => {
+  // Voice call with permission and network checks
+  const handleVoiceCallInternal = useCallback(async () => {
+    // Check network first
+    const networkCheck = isNetworkSuitableForCall(networkStatus);
+    if (!networkCheck.suitable) {
+      Alert.alert("Cannot Make Call", networkCheck.warning || "No internet connection");
+      return;
+    }
+    if (networkCheck.warning) {
+      // Show warning but allow to proceed
+      Alert.alert(
+        "Connection Warning",
+        networkCheck.warning,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Call Anyway",
+            onPress: async () => {
+              const permResult = await ensureCallPermissions("audio");
+              if (permResult.granted) {
+                navigation.navigate("VoiceCallScreen", {
+                  userId: otherUserId,
+                  username: otherUserName,
+                  callType: "audio",
+                });
+              } else {
+                Alert.alert("Permission Required", permResult.message || "Microphone access needed");
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Check permissions
+    const permResult = await ensureCallPermissions("audio");
+    if (!permResult.granted) {
+      Alert.alert("Permission Required", permResult.message || "Microphone access needed");
+      return;
+    }
+
     navigation.navigate("VoiceCallScreen", {
       userId: otherUserId,
       username: otherUserName,
       callType: "audio",
     });
-  };
+  }, [navigation, otherUserId, otherUserName, networkStatus]);
+
+  // Throttle call buttons to prevent rapid double-taps (1 second cooldown)
+  const handleVideoCall = useThrottle(handleVideoCallInternal, 1000);
+  const handleVoiceCall = useThrottle(handleVoiceCallInternal, 1000);
 
   // Handle retry failed message
   const handleRetryMessage = useCallback(async (messageId: string) => {

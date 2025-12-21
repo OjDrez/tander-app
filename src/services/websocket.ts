@@ -43,8 +43,21 @@ class WebSocketService {
   private globalListeners: MessageCallback[] = [];
 
   async connect(): Promise<boolean> {
-    if (this.connectionState === 'connected') return true;
+    // If already connected, check if we need to reconnect with a new token
+    if (this.connectionState === 'connected') {
+      // Fetch current token to see if it changed (different user logged in)
+      const currentToken = await AsyncStorage.getItem(TOKEN_KEY);
+      if (currentToken === this.token) {
+        return true; // Same token, stay connected
+      }
+      // Different token - disconnect and reconnect with new credentials
+      console.log('[WS] Token changed, reconnecting with new credentials');
+      this.disconnect();
+    }
     if (this.connectionState === 'connecting') return false;
+
+    // Reset reconnect attempts to allow reconnection
+    this.reconnectAttempts = 0;
 
     this.token = await AsyncStorage.getItem(TOKEN_KEY);
     if (!this.token) {
@@ -112,6 +125,9 @@ class WebSocketService {
   disconnect(): void {
     this.stopHeartbeat();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    // Reset reconnect attempts to prevent auto-reconnect with stale token
+    this.reconnectAttempts = this.maxReconnectAttempts;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -120,6 +136,8 @@ class WebSocketService {
     this.onlineUsers.clear();
     this.currentUserId = null;
     this.currentUsername = null;
+    // Clear cached token to force fresh fetch on next connect
+    this.token = null;
   }
 
   private send(message: WSMessage): void {

@@ -144,4 +144,83 @@ export function usePreventDoubleClick<T extends (...args: any[]) => Promise<any>
 // Need to import useState for usePreventDoubleClick
 import { useState } from "react";
 
+/**
+ * Hook specifically for call button
+ * Combines debounce + async lock + cooldown
+ * Prevents rapid taps and accidental double-calls
+ */
+export function useCallButtonGuard(
+  onCall: (userId: number, callType: 'audio' | 'video') => Promise<boolean>,
+  options: {
+    debounceMs?: number;
+    cooldownMs?: number;
+  } = {}
+): {
+  initiateCall: (userId: number, callType: 'audio' | 'video') => Promise<void>;
+  isDisabled: boolean;
+  isLoading: boolean;
+} {
+  const { debounceMs = 500, cooldownMs = 3000 } = options;
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isOnCooldown, setIsOnCooldown] = useState(false);
+  const lastCallTimeRef = useRef<number>(0);
+  const onCallRef = useRef(onCall);
+
+  // Keep callback ref updated
+  useEffect(() => {
+    onCallRef.current = onCall;
+  }, [onCall]);
+
+  const initiateCall = useCallback(
+    async (userId: number, callType: 'audio' | 'video') => {
+      const now = Date.now();
+
+      // Check debounce
+      if (now - lastCallTimeRef.current < debounceMs) {
+        console.log('[CallButton] Debounced - too fast');
+        return;
+      }
+
+      // Check cooldown
+      if (isOnCooldown) {
+        console.log('[CallButton] On cooldown');
+        return;
+      }
+
+      // Check if already loading
+      if (isLoading) {
+        console.log('[CallButton] Already initiating call');
+        return;
+      }
+
+      lastCallTimeRef.current = now;
+      setIsLoading(true);
+
+      try {
+        const success = await onCallRef.current(userId, callType);
+
+        if (success) {
+          // Start cooldown after successful call initiation
+          setIsOnCooldown(true);
+          setTimeout(() => {
+            setIsOnCooldown(false);
+          }, cooldownMs);
+        }
+      } catch (error) {
+        console.error('[CallButton] Error initiating call:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [debounceMs, cooldownMs, isLoading, isOnCooldown]
+  );
+
+  return {
+    initiateCall,
+    isDisabled: isLoading || isOnCooldown,
+    isLoading,
+  };
+}
+
 export default useDebounce;
