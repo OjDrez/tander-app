@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 import colors from '@/src/config/colors';
 import { blockReportApi } from '@/src/api/blockReportApi';
 import AppText from '../inputs/AppText';
+import { useToast } from '@/src/context/ToastContext';
 
 interface BlockUserModalProps {
   visible: boolean;
@@ -36,23 +36,17 @@ export default function BlockUserModal({
   onBlocked,
 }: BlockUserModalProps) {
   const [isBlocking, setIsBlocking] = useState(false);
+  const { success, error } = useToast();
 
   const handleBlock = async () => {
     setIsBlocking(true);
     try {
       await blockReportApi.blockUser(userId);
-
-      Alert.alert('User Blocked', `You have blocked ${userName}. They won't be able to contact you.`, [
-        {
-          text: 'OK',
-          onPress: () => {
-            onClose();
-            onBlocked?.();
-          },
-        },
-      ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to block user. Please try again.');
+      success(`You have blocked ${userName}. They won't be able to contact you.`);
+      onClose();
+      onBlocked?.();
+    } catch (err: any) {
+      error(err.message || 'Failed to block user. Please try again.');
     } finally {
       setIsBlocking(false);
     }

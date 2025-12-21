@@ -43,7 +43,10 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_CONNECT"
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET"
       ],
       "useNextNotificationsApi": true,
       "blockedPermissions": [],
@@ -81,7 +84,13 @@
       "expo-notifications",
       "expo-file-system",
       "expo-image-picker",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow TanderApp to use Face ID for quick sign-in."
+        }
+      ]
     ],
     "web": {
       "favicon": "./src/assets/icon.png",
@@ -93,8 +102,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "31806c49-df01-475b-9fc1-fe6eb7b72cdb"
+        "projectId": "0c6ae2ae-600f-4f39-937c-821b13684da0"
       }
-    }
+    },
+    "owner": "justjusdave"
   }
 }

@@ -63,6 +63,7 @@ export interface UpdateAboutYouRequest {
   bio?: string;
   interests: string[];
   lookingFor: string[];
+  civilStatus?: string;
 }
 
 export interface UpdateAboutYouResponse {
@@ -183,7 +184,8 @@ export const authApi = {
     username: string,
     bio: string | undefined,
     interests: string[],
-    lookingFor: string[]
+    lookingFor: string[],
+    civilStatus?: string
   ): Promise<UpdateAboutYouResponse> => {
     try {
       console.log('🔵 [authApi.updateAboutYou] Starting About You update...');
@@ -191,12 +193,16 @@ export const authApi = {
       console.log('🔵 [authApi.updateAboutYou] Bio:', bio ? 'Yes' : 'No');
       console.log('🔵 [authApi.updateAboutYou] Interests:', interests);
       console.log('🔵 [authApi.updateAboutYou] Looking for:', lookingFor);
+      console.log('🔵 [authApi.updateAboutYou] Civil Status:', civilStatus);
 
       // Build query params
       const params = new URLSearchParams();
       params.append('username', username);
       if (bio) {
         params.append('bio', bio);
+      }
+      if (civilStatus) {
+        params.append('civilStatus', civilStatus);
       }
       interests.forEach(interest => params.append('interests', interest));
       lookingFor.forEach(item => params.append('lookingFor', item));
@@ -214,7 +220,15 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     try {
+      // Clear authentication token
       await AsyncStorage.removeItem(TOKEN_KEY);
+
+      // FIXED: Clear pending chat messages to prevent data leakage between users
+      await AsyncStorage.removeItem('@tander_pending_messages');
+
+      // Clear any other user-specific cached data
+      // Add more keys here as needed for other features
+      console.log('[authApi.logout] Successfully cleared user data');
     } catch (error) {
       console.error('Logout error:', error);
     }

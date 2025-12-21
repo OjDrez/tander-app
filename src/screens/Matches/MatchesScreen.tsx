@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Platform,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,11 +16,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import AppText from '@/src/components/inputs/AppText';
 import FullScreen from '@/src/components/layout/FullScreen';
+import LoadingIndicator from '@/src/components/common/LoadingIndicator';
 import MatchListItem from '@/src/components/matches/MatchListItem';
 import colors from '@/src/config/colors';
 import { AppStackParamList } from '@/src/navigation/NavigationTypes';
 import { matchingApi } from '@/src/api/matchingApi';
 import { Match, MatchStats } from '@/src/types/matching';
+import { useToast } from '@/src/context/ToastContext';
 
 /**
  * MatchesScreen
@@ -35,6 +36,7 @@ import { Match, MatchStats } from '@/src/types/matching';
  */
 export default function MatchesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { warning, error: toastError, confirm } = useToast();
 
   const [matches, setMatches] = useState<Match[]>([]);
   const [stats, setStats] = useState<MatchStats | null>(null);
@@ -86,11 +88,7 @@ export default function MatchesScreen() {
   // Handle start/continue chat
   const handleStartChat = (match: Match) => {
     if (match.status === 'EXPIRED') {
-      Alert.alert(
-        'Match Expired',
-        'This match has expired because no conversation was started. Keep swiping to find new matches!',
-        [{ text: 'OK' }]
-      );
+      warning('This match has expired because no conversation was started. Keep swiping to find new matches!');
       return;
     }
 
@@ -104,30 +102,27 @@ export default function MatchesScreen() {
 
   // Handle unmatch
   const handleUnmatch = async (matchId: number, userName: string) => {
-    Alert.alert(
-      'Unmatch',
-      `Are you sure you want to unmatch with ${userName}? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unmatch',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await matchingApi.unmatch(matchId);
-              // Remove from local state
-              setMatches((prev) => prev.filter((m) => m.id !== matchId));
-              // Update stats
-              if (stats) {
-                setStats({ ...stats, activeMatches: stats.activeMatches - 1 });
-              }
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to unmatch');
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirm({
+      title: 'Unmatch',
+      message: `Are you sure you want to unmatch with ${userName}? This cannot be undone.`,
+      type: 'danger',
+      confirmText: 'Unmatch',
+      cancelText: 'Cancel',
+    });
+
+    if (confirmed) {
+      try {
+        await matchingApi.unmatch(matchId);
+        // Remove from local state
+        setMatches((prev) => prev.filter((m) => m.id !== matchId));
+        // Update stats
+        if (stats) {
+          setStats({ ...stats, activeMatches: stats.activeMatches - 1 });
+        }
+      } catch (err: any) {
+        toastError(err.message || 'Failed to unmatch');
+      }
+    }
   };
 
   // Render match item
@@ -180,12 +175,10 @@ export default function MatchesScreen() {
   const renderEmpty = () => {
     if (isLoading) {
       return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="body" color={colors.textSecondary} style={styles.emptyText}>
-            Loading your matches...
-          </AppText>
-        </View>
+        <LoadingIndicator
+          variant="inline"
+          message="Loading your matches..."
+        />
       );
     }
 

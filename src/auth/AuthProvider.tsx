@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { AuthContext, Phase1RegistrationData, RegistrationFlowState } from './AuthContext';
 import authApi, { LoginRequest, RegisterRequest, CompleteProfileRequest, VerifyIdResponse } from '../api/authApi';
 import { onAuthError, AuthErrorCode } from '../api/config';
-import { disconnectSocket } from '../services/socket';
+import { disconnect as disconnectSocket } from '../services/chatService';
 import biometricService from '../services/biometricService';
 
 interface AuthProviderProps {
@@ -100,6 +100,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (biometricAvailable) {
         await biometricService.saveCredentials(credentials.username, credentials.password);
         console.log('[AuthProvider] Credentials saved for biometric login');
+
+        // Sync biometric enabled status with backend
+        try {
+          const { userApi } = await import('../api/userApi');
+          await userApi.enableBiometric();
+          console.log('[AuthProvider] Biometric status synced with backend');
+        } catch (apiError) {
+          console.warn('[AuthProvider] Failed to sync biometric with backend:', apiError);
+          // Continue even if backend sync fails - local storage is primary
+        }
       }
     } catch (error: any) {
       // If profile is incomplete, store credentials and flow state
@@ -202,7 +212,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      // Disconnect socket first
+      disconnectSocket();
+
+      // Clear API token and local storage
       await authApi.logout();
+
+      // Clear auth state
       setToken(null);
       setIsAuthenticated(false);
       setPhase1Data(null);
@@ -211,7 +227,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // NOTE: Biometric credentials are NOT cleared on logout
       // This allows users to use biometric login after logging out
       // Credentials are only cleared when user disables biometrics in Settings
-      console.log('[AuthProvider] Logged out (biometric credentials preserved for quick login)');
+      console.log('[AuthProvider] Logged out successfully');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;

@@ -1,29 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  connectSocket,
-  disconnectSocket,
-  ensureSocketConnection,
+  connect as chatServiceConnect,
+  disconnect as chatServiceDisconnect,
   getConnectionState,
   getCurrentUserId,
   getCurrentUsername,
-  isSocketAuthenticated,
-  registerSocketListener,
-  socket,
-} from '../services/socket';
-import { SocketConnectionState, UserOfflinePayload, UserOnlinePayload } from '../types/chat';
-
-// Session replacement payload from backend
-interface SessionReplacedPayload {
-  message: string;
-  reason?: string;
-  timestamp?: number;
-}
+  isConnected,
+  getOnlineUsers,
+  subscribeToOnlineUsers,
+  onConnectionStateChange,
+  ConnectionState,
+} from '../services/chatService';
 
 interface UseSocketReturn {
   isConnected: boolean;
   isAuthenticated: boolean;
-  connectionState: SocketConnectionState;
+  connectionState: ConnectionState;
   userId: number | null;
   username: string | null;
   connect: () => Promise<boolean>;
@@ -33,116 +25,66 @@ interface UseSocketReturn {
 }
 
 /**
- * Hook for managing Socket.IO connection state
- * Handles session replacement when user logs in from another device
+ * Hook for managing WebSocket connection state
+ * Supports both STOMP (Azure) and Socket.IO (legacy)
  */
 export const useSocket = (): UseSocketReturn => {
-  const [isConnected, setIsConnected] = useState(socket.connected);
-  const [isAuthenticated, setIsAuthenticated] = useState(isSocketAuthenticated());
-  const [connectionState, setConnectionState] = useState<SocketConnectionState>(getConnectionState());
+  const [isConnectedState, setIsConnected] = useState(isConnected());
+  const [isAuthenticated, setIsAuthenticated] = useState(isConnected());
+  const [connectionState, setConnectionState] = useState<ConnectionState>(getConnectionState());
   const [userId, setUserId] = useState<number | null>(getCurrentUserId());
   const [username, setUsername] = useState<string | null>(getCurrentUsername());
-  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(getOnlineUsers());
   const [wasSessionReplaced, setWasSessionReplaced] = useState(false);
-
-  const onlineUsersRef = useRef<Set<number>>(new Set());
-  const sessionReplacedAlertShown = useRef(false);
+  const [sessionReplacedAlertShown, setSessionReplacedAlertShown] = useState(false);
 
   useEffect(() => {
-    // Update state from socket
-    const updateState = () => {
-      setIsConnected(socket.connected);
-      setIsAuthenticated(isSocketAuthenticated());
-      setConnectionState(getConnectionState());
-      setUserId(getCurrentUserId());
-      setUsername(getCurrentUsername());
-    };
-
-    // Listen for connection events
-    const cleanupConnect = registerSocketListener('connect', () => {
-      setIsConnected(true);
-      setConnectionState('connected');
-      setWasSessionReplaced(false);
-      sessionReplacedAlertShown.current = false;
+    // Subscribe to online users changes
+    const unsubscribeOnlineUsers = subscribeToOnlineUsers((users) => {
+      console.log('[useSocket] Online users updated:', users.size, 'users');
+      setOnlineUsers(users);
     });
 
-    const cleanupDisconnect = registerSocketListener('disconnect', () => {
-      setIsConnected(false);
-      setIsAuthenticated(false);
-      setConnectionState('disconnected');
-      onlineUsersRef.current.clear();
-      setOnlineUsers(new Set());
-    });
+    // Subscribe to connection state changes
+    const unsubscribeConnection = onConnectionStateChange((state) => {
+      console.log('[useSocket] Connection state changed:', state);
+      setConnectionState(state);
 
-    const cleanupAuthenticated = registerSocketListener('authenticated', (data: { userId: number; username: string }) => {
-      setIsAuthenticated(true);
-      setConnectionState('authenticated');
-      setUserId(data.userId);
-      setUsername(data.username);
-      setWasSessionReplaced(false);
-    });
+      const connected = state === 'connected' || state === 'authenticated';
+      setIsConnected(connected);
+      setIsAuthenticated(connected);
 
-    const cleanupAuthError = registerSocketListener('auth_error', () => {
-      setIsAuthenticated(false);
-      setConnectionState('error');
-    });
-
-    // Handle session replacement (logged in from another device)
-    const cleanupSessionReplaced = registerSocketListener<SessionReplacedPayload>(
-      'session_replaced',
-      (payload) => {
-        console.log('[useSocket] Session replaced:', payload.message);
-        setWasSessionReplaced(true);
+      if (connected) {
+        setWasSessionReplaced(false);
+        setSessionReplacedAlertShown(false);
+        setUserId(getCurrentUserId());
+        setUsername(getCurrentUsername());
+      } else if (state === 'disconnected') {
         setIsAuthenticated(false);
-        setConnectionState('disconnected');
-
-        // Show alert only once per session replacement
-        if (!sessionReplacedAlertShown.current) {
-          sessionReplacedAlertShown.current = true;
-          Alert.alert(
-            'Signed Out',
-            'You have been signed in on another device. Please log in again to continue using this device.',
-            [{ text: 'OK', style: 'default' }]
-          );
-        }
+      } else if (state === 'error') {
+        setIsAuthenticated(false);
       }
-    );
-
-    // Track online users
-    const cleanupUserOnline = registerSocketListener<UserOnlinePayload>('user_online', (payload) => {
-      onlineUsersRef.current.add(payload.userId);
-      setOnlineUsers(new Set(onlineUsersRef.current));
     });
 
-    const cleanupUserOffline = registerSocketListener<UserOfflinePayload>('user_offline', (payload) => {
-      onlineUsersRef.current.delete(payload.userId);
-      setOnlineUsers(new Set(onlineUsersRef.current));
-    });
-
-    // Initial state
-    updateState();
+    // Note: Session replacement handling would need to be implemented
+    // in the STOMP service if needed for Azure deployment
 
     return () => {
-      cleanupConnect();
-      cleanupDisconnect();
-      cleanupAuthenticated();
-      cleanupAuthError();
-      cleanupSessionReplaced();
-      cleanupUserOnline();
-      cleanupUserOffline();
+      unsubscribeOnlineUsers();
+      unsubscribeConnection();
     };
   }, []);
 
   const connect = useCallback(async (): Promise<boolean> => {
-    return connectSocket();
+    return chatServiceConnect();
   }, []);
 
   const disconnect = useCallback((): void => {
-    disconnectSocket();
+    chatServiceDisconnect();
   }, []);
 
   return {
-    isConnected,
+    isConnected: isConnectedState,
     isAuthenticated,
     connectionState,
     userId,
@@ -155,26 +97,19 @@ export const useSocket = (): UseSocketReturn => {
 };
 
 /**
- * Hook for ensuring socket connection on mount
+ * Hook for accessing socket connection state
+ * NOTE: Does NOT auto-connect - RealTimeProvider handles connection globally
+ * This hook only provides access to connection state and online users
  */
 export const useSocketConnection = (): UseSocketReturn => {
   const socketState = useSocket();
 
-  useEffect(() => {
-    // Auto-connect on mount
-    ensureSocketConnection().catch(console.error);
-
-    // Keep-alive ping every 30 seconds
-    const pingInterval = setInterval(() => {
-      if (socket.connected) {
-        socket.emit('ping', {});
-      }
-    }, 30000);
-
-    return () => {
-      clearInterval(pingInterval);
-    };
-  }, []);
+  // NOTE: Removed auto-connect, ping intervals, and online user refresh intervals
+  // These are now handled globally by:
+  // - RealTimeProvider: handles connection/reconnection
+  // - socket.ts: has built-in heartbeat (HEARTBEAT_INTERVAL = 25s)
+  // - socket.ts: requests online users on reconnect
+  // Having multiple components call these causes connection flooding
 
   return socketState;
 };

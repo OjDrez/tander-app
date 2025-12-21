@@ -1,6 +1,7 @@
 import colors from "@/src/config/colors";
 import AppText from "@/src/components/inputs/AppText";
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import MainNavigationBar, {
   MainNavigationTab,
 } from "@/src/components/navigation/MainNavigationBar";
@@ -129,12 +130,10 @@ export default function ViewMeScreen() {
     return (
       <FullScreen statusBarStyle="dark" style={styles.screen}>
         <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <AppText size="body" color={colors.textSecondary} style={styles.loadingText}>
-              Loading your activity...
-            </AppText>
-          </View>
+          <LoadingIndicator
+            variant="inline"
+            message="Loading your activity..."
+          />
         </SafeAreaView>
         <MainNavigationBar activeTab="Matches" onTabPress={handleTabPress} />
       </FullScreen>

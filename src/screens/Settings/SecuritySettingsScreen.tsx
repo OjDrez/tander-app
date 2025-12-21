@@ -4,7 +4,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -15,16 +14,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import AppText from "@/src/components/inputs/AppText";
 import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { userApi } from "@/src/api/userApi";
 import { securitySettingsApi, SecuritySettings } from "@/src/api/securitySettingsApi";
+import { useToast } from "@/src/context/ToastContext";
 
 type SecurityNav = NativeStackNavigationProp<AppStackParamList>;
 
 export default function SecuritySettingsScreen() {
   const navigation = useNavigation<SecurityNav>();
+  const { success, error, info, confirm, alert } = useToast();
 
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,13 +47,9 @@ export default function SecuritySettingsScreen() {
       ]);
       setIsVerified(user.verified);
       setSettings(secSettings);
-    } catch (error) {
-      console.error("Failed to load security settings:", error);
-      Alert.alert(
-        "Could Not Load Settings",
-        "We had trouble loading your security settings. Please try again.",
-        [{ text: "OK" }]
-      );
+    } catch (err) {
+      console.error("Failed to load security settings:", err);
+      error("We had trouble loading your security settings. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -67,53 +65,41 @@ export default function SecuritySettingsScreen() {
     if (isUpdating) return;
 
     if (enabled) {
-      Alert.alert(
-        "Enable Extra Security?",
-        "Two-factor authentication adds an extra layer of protection to your account.\n\nWhen enabled, you'll need to enter a code sent to your phone or email whenever you sign in.\n\nHow would you like to receive your codes?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Send to My Phone (SMS)",
-            onPress: () => enableTwoFactor("SMS"),
-          },
-          {
-            text: "Send to My Email",
-            onPress: () => enableTwoFactor("EMAIL"),
-          },
-        ]
-      );
+      // Show options for 2FA method
+      const smsConfirmed = await confirm({
+        title: "Enable Extra Security?",
+        message: "Two-factor authentication adds an extra layer of protection. How would you like to receive your codes?",
+        type: "info",
+        confirmText: "Send to Phone (SMS)",
+        cancelText: "Send to Email",
+      });
+
+      if (smsConfirmed) {
+        await enableTwoFactor("SMS");
+      } else {
+        await enableTwoFactor("EMAIL");
+      }
     } else {
-      Alert.alert(
-        "Turn Off Extra Security?",
-        "Are you sure you want to turn off two-factor authentication?\n\nThis will make your account less secure. We recommend keeping it on.",
-        [
-          { text: "Keep It On", style: "cancel" },
-          {
-            text: "Yes, Turn It Off",
-            style: "destructive",
-            onPress: async () => {
-              setIsUpdating(true);
-              try {
-                const updatedSettings = await securitySettingsApi.setTwoFactor(false);
-                setSettings(updatedSettings);
-                Alert.alert(
-                  "Two-Factor Authentication Disabled",
-                  "Your extra security has been turned off. You can turn it back on anytime.",
-                  [{ text: "OK" }]
-                );
-              } catch (error: any) {
-                Alert.alert(
-                  "Could Not Update Setting",
-                  error.message || "Something went wrong. Please try again.",
-                  [{ text: "OK" }]
-                );
-              } finally {
-                setIsUpdating(false);
-              }
-            },
-          },
-        ]
-      );
+      const confirmed = await confirm({
+        title: "Turn Off Extra Security?",
+        message: "This will make your account less secure. We recommend keeping it on.",
+        type: "warning",
+        confirmText: "Yes, Turn It Off",
+        cancelText: "Keep It On",
+      });
+
+      if (confirmed) {
+        setIsUpdating(true);
+        try {
+          const updatedSettings = await securitySettingsApi.setTwoFactor(false);
+          setSettings(updatedSettings);
+          info("Two-factor authentication disabled. You can turn it back on anytime.");
+        } catch (err: any) {
+          error(err.message || "Something went wrong. Please try again.");
+        } finally {
+          setIsUpdating(false);
+        }
+      }
     }
   };
 
@@ -123,17 +109,9 @@ export default function SecuritySettingsScreen() {
       const updatedSettings = await securitySettingsApi.setTwoFactor(true, method);
       setSettings(updatedSettings);
       const methodName = method === "SMS" ? "phone (SMS)" : "email";
-      Alert.alert(
-        "Extra Security Enabled!",
-        `Great! Two-factor authentication is now on.\n\nYou'll receive a verification code via ${methodName} whenever you sign in.`,
-        [{ text: "Got It!" }]
-      );
-    } catch (error: any) {
-      Alert.alert(
-        "Could Not Enable",
-        error.message || "Something went wrong. Please try again.",
-        [{ text: "OK" }]
-      );
+      success(`Two-factor authentication is now on! You'll receive codes via ${methodName}.`);
+    } catch (err: any) {
+      error(err.message || "Something went wrong. Please try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -146,19 +124,13 @@ export default function SecuritySettingsScreen() {
     try {
       const updatedSettings = await securitySettingsApi.setLoginNotifications(enabled);
       setSettings(updatedSettings);
-      Alert.alert(
-        enabled ? "Login Alerts Enabled" : "Login Alerts Disabled",
-        enabled
-          ? "You will now receive a notification whenever someone signs into your account."
-          : "You will no longer receive login notifications. You can turn them back on anytime.",
-        [{ text: "OK" }]
-      );
-    } catch (error: any) {
-      Alert.alert(
-        "Could Not Update Setting",
-        error.message || "Something went wrong. Please try again.",
-        [{ text: "OK" }]
-      );
+      if (enabled) {
+        success("You will receive a notification whenever someone signs into your account.");
+      } else {
+        info("Login notifications disabled. You can turn them back on anytime.");
+      }
+    } catch (err: any) {
+      error(err.message || "Something went wrong. Please try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -166,14 +138,10 @@ export default function SecuritySettingsScreen() {
 
   if (isLoading) {
     return (
-      <FullScreen statusBarStyle="dark" style={styles.screen}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <AppText size="h4" color={colors.textSecondary} style={{ marginTop: 20 }}>
-            Loading security settings...
-          </AppText>
-        </View>
-      </FullScreen>
+      <LoadingIndicator
+        variant="fullscreen"
+        message="Loading security settings..."
+      />
     );
   }
 
@@ -265,40 +233,16 @@ export default function SecuritySettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Account Security Section */}
+          {/* Two-Factor Authentication Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="lock-closed-outline" size={24} color={colors.textMuted} />
               <AppText size="body" weight="bold" color={colors.textMuted}>
-                ACCOUNT SECURITY
+                EXTRA SECURITY
               </AppText>
             </View>
 
             <View style={styles.cardGroup}>
-              {/* Change Password */}
-              <TouchableOpacity
-                style={styles.listCard}
-                activeOpacity={0.85}
-                onPress={() => handleNavigate("ChangePasswordScreen")}
-                accessibilityRole="button"
-                accessibilityLabel="Change your password"
-              >
-                <View style={styles.itemLeft}>
-                  <View style={styles.iconBadge}>
-                    <Ionicons name="key-outline" size={26} color={colors.accentBlue} />
-                  </View>
-                  <View style={styles.itemTextContainer}>
-                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
-                      Change Password
-                    </AppText>
-                    <AppText size="small" color={colors.textSecondary}>
-                      Update your login password
-                    </AppText>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-
               {/* Two-Factor Authentication */}
               <View style={styles.listCard}>
                 <View style={styles.itemLeft}>
@@ -360,66 +304,6 @@ export default function SecuritySettingsScreen() {
                   style={styles.switch}
                 />
               </View>
-            </View>
-          </View>
-
-          {/* Privacy & Safety Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="eye-off-outline" size={24} color={colors.textMuted} />
-              <AppText size="body" weight="bold" color={colors.textMuted}>
-                PRIVACY & SAFETY
-              </AppText>
-            </View>
-
-            <View style={styles.cardGroup}>
-              {/* Blocked Users */}
-              <TouchableOpacity
-                style={styles.listCard}
-                activeOpacity={0.85}
-                onPress={() => handleNavigate("BlockedUsersScreen")}
-                accessibilityRole="button"
-                accessibilityLabel="Manage blocked users"
-              >
-                <View style={styles.itemLeft}>
-                  <View style={styles.iconBadge}>
-                    <Ionicons name="person-remove-outline" size={26} color={colors.accentBlue} />
-                  </View>
-                  <View style={styles.itemTextContainer}>
-                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
-                      Blocked Users
-                    </AppText>
-                    <AppText size="small" color={colors.textSecondary}>
-                      View and manage people you've blocked
-                    </AppText>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              {/* Privacy Settings */}
-              <TouchableOpacity
-                style={styles.listCard}
-                activeOpacity={0.85}
-                onPress={() => handleNavigate("PrivacyScreen")}
-                accessibilityRole="button"
-                accessibilityLabel="Privacy controls"
-              >
-                <View style={styles.itemLeft}>
-                  <View style={styles.iconBadge}>
-                    <Ionicons name="shield-outline" size={26} color={colors.accentBlue} />
-                  </View>
-                  <View style={styles.itemTextContainer}>
-                    <AppText size="h4" weight="semibold" color={colors.textPrimary}>
-                      Privacy Controls
-                    </AppText>
-                    <AppText size="small" color={colors.textSecondary}>
-                      Control who can see your profile
-                    </AppText>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
             </View>
           </View>
 

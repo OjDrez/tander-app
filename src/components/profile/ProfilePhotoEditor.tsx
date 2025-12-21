@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -13,6 +12,7 @@ import colors from '@/src/config/colors';
 import { photoApi } from '@/src/api/photoApi';
 import AppText from '../inputs/AppText';
 import PhotoPicker from './PhotoPicker';
+import { useToast } from '@/src/context/ToastContext';
 
 interface ProfilePhotoEditorProps {
   profilePhotoUrl: string | null;
@@ -43,14 +43,11 @@ export default function ProfilePhotoEditor({
   const [photoPickerMode, setPhotoPickerMode] = useState<'profile' | 'additional'>('profile');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const { info, error } = useToast();
 
   const handleOpenPhotoPicker = (mode: 'profile' | 'additional') => {
     if (mode === 'additional' && additionalPhotos.length >= maxAdditionalPhotos) {
-      Alert.alert(
-        'Maximum Photos Reached',
-        `You can add up to ${maxAdditionalPhotos} additional photos.`,
-        [{ text: 'OK' }]
-      );
+      info(`You can add up to ${maxAdditionalPhotos} additional photos.`);
       return;
     }
     setPhotoPickerMode(mode);
@@ -68,8 +65,8 @@ export default function ProfilePhotoEditor({
         await photoApi.uploadAdditionalPhotos([uri], setUploadProgress);
       }
       onPhotosUpdated();
-    } catch (error: any) {
-      Alert.alert('Upload Failed', error.message || 'Please try again.');
+    } catch (err: any) {
+      error(err.message || 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);

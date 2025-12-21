@@ -36,19 +36,15 @@ const notifyAuthError = (errorCode: AuthErrorCode, message: string) => {
   });
 };
 
+// Production API URL
+const AZURE_API_URL = 'https://api.tanderconnect.com';
+
 // Platform-specific API URL configuration
-// - iOS Simulator: http://localhost:8080
-// - Android Emulator: http://10.0.2.2:8080
-// - Physical Device: Replace with your computer's IP address (e.g., http://192.168.1.100:8080)
+// - Production: Azure App Service
+// - Development: Can use localhost or Azure
 const getApiBaseUrl = () => {
-  if (__DEV__) {
-    if (Platform.OS === 'android') {
-      return 'https://layers-requirements-expand-locks.trycloudflare.com'; // Android emulator
-    }
-    return 'https://layers-requirements-expand-locks.trycloudflare.com'; // iOS simulator or web
-  }
-  // Production URL - update this for production deployment
-  return 'https://layers-requirements-expand-locks.trycloudflare.com';
+  // Always use Azure backend (production-ready)
+  return AZURE_API_URL;
 };
 
 export const API_BASE_URL = getApiBaseUrl();

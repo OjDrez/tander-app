@@ -4,11 +4,18 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useRef } from "react";
 import {
   Animated,
+  Dimensions,
   Platform,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
+
+// Get screen width for responsive bubble sizing
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// On tablets (width > 600), use narrower bubbles for better readability
+const IS_TABLET = SCREEN_WIDTH > 600;
+const BUBBLE_MAX_WIDTH = IS_TABLET ? "65%" : "85%";
 
 type MessageStatus = "sending" | "sent" | "delivered" | "read" | "failed";
 
@@ -62,8 +69,8 @@ const StatusIndicator = ({ status }: { status?: MessageStatus }) => {
       style={styles.statusIndicator}
       accessibilityLabel={`Message status: ${config.label}`}
     >
-      <Ionicons name={config.icon as any} size={18} color={config.color} />
-      <AppText size="small" weight="semibold" color={config.color}>
+      <Ionicons name={config.icon as any} size={20} color={config.color} />
+      <AppText size="body" weight="semibold" color={config.color}>
         {config.label}
       </AppText>
     </View>
@@ -96,7 +103,7 @@ const SendingIndicator = () => {
   return (
     <Animated.View style={[styles.sendingIndicatorContainer, { transform: [{ scale: scaleAnim }] }]}>
       <Ionicons name="time-outline" size={20} color={colors.textMuted} />
-      <AppText size="small" weight="medium" color={colors.textMuted}>
+      <AppText size="body" weight="medium" color={colors.textMuted}>
         Sending...
       </AppText>
     </Animated.View>
@@ -120,12 +127,12 @@ export default function MessageBubble({
       accessibilityRole="text"
       accessibilityLabel={`${isOwn ? "You sent" : "They sent"}: ${text}. Time: ${time}. ${status === "read" ? "Message has been read." : status === "delivered" ? "Message delivered." : status === "sent" ? "Message sent." : status === "sending" ? "Message is sending." : status === "failed" ? "Message failed to send." : ""}`}
     >
-      {/* Label showing who sent the message - SENIOR-FRIENDLY */}
+      {/* Label showing who sent the message - SENIOR-FRIENDLY: Larger text for 60+ users */}
       <View style={styles.senderLabel}>
-        <AppText size="small" weight="semibold" color={isOwn ? colors.accentTeal : colors.primary}>
+        <AppText size="body" weight="semibold" color={isOwn ? colors.accentTeal : colors.primary}>
           {isOwn ? "You" : "Them"}
         </AppText>
-        <AppText size="small" color={colors.textSecondary}>
+        <AppText size="body" weight="medium" color={colors.textPrimary}>
           • {time}
         </AppText>
       </View>
@@ -161,7 +168,7 @@ export default function MessageBubble({
       {isFailed && isOwn && (onRetry || onDelete) && (
         <View style={styles.failedActionsContainer}>
           <AppText size="body" weight="semibold" color={colors.danger} style={styles.failedText}>
-            This message didn't send
+            This message did not send
           </AppText>
           <View style={styles.failedActions}>
             {onRetry && (
@@ -206,14 +213,15 @@ export default function MessageBubble({
  * - Extra large text (h4 size = 20px+)
  * - Generous padding (24px horizontal, 18px vertical)
  * - Very high line height (32px) for easy reading
- * - Max width 85% for comfortable reading
+ * - Responsive max width (85% on phones, 65% on tablets) for comfortable reading
  * - Clear sender labels above each message
- * - Status indicators with text labels
- * - Large, labeled action buttons
+ * - Status indicators with text labels (not just icons)
+ * - Large, labeled action buttons (56px minimum touch target)
+ * - High contrast colors for better visibility
  */
 const styles = StyleSheet.create({
   container: {
-    maxWidth: "85%",
+    maxWidth: BUBBLE_MAX_WIDTH,
     marginBottom: 20,
   },
   alignEnd: {

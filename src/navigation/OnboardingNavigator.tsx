@@ -1,6 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
-import AccountIntroScreen from "../screens/Auth/AccountIntroScreen";
+import AccountIntroScreen from "../screens/Registration/AccountIntroScreen";
 import SplashScreen from "../screens/Auth/SplashScreen";
 import WelcomeScreen from "../screens/Auth/WelcomeScreen";
 import OnboardingFlowScreen from "../screens/Onboarding/OnboardingFlowScreen";

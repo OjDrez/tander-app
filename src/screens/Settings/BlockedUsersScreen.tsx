@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   StyleSheet,
@@ -13,10 +12,12 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import FullScreen from "@/src/components/layout/FullScreen";
+import LoadingIndicator from "@/src/components/common/LoadingIndicator";
 import AppText from "@/src/components/inputs/AppText";
 import colors from "@/src/config/colors";
 import { blockReportApi, BlockedUser } from "@/src/api/blockReportApi";
 import { photoApi } from "@/src/api/photoApi";
+import { useToast } from "@/src/context/ToastContext";
 
 /**
  * BlockedUsersScreen
@@ -26,6 +27,7 @@ import { photoApi } from "@/src/api/photoApi";
  */
 export default function BlockedUsersScreen() {
   const navigation = useNavigation();
+  const { success, error, confirm } = useToast();
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [unblockingId, setUnblockingId] = useState<number | null>(null);
@@ -41,13 +43,9 @@ export default function BlockedUsersScreen() {
     try {
       const users = await blockReportApi.getBlockedUsers();
       setBlockedUsers(users);
-    } catch (error) {
-      console.error("Failed to load blocked users:", error);
-      Alert.alert(
-        "Could Not Load Blocked Users",
-        "We had trouble loading your blocked users list. Please try again.",
-        [{ text: "OK" }]
-      );
+    } catch (err) {
+      console.error("Failed to load blocked users:", err);
+      error("We had trouble loading your blocked users list. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -55,41 +53,27 @@ export default function BlockedUsersScreen() {
 
   const handleGoBack = () => navigation.goBack();
 
-  const handleUnblock = (user: BlockedUser) => {
-    Alert.alert(
-      "Unblock This Person?",
-      `Are you sure you want to unblock ${user.name}?\n\nOnce unblocked, they will be able to:\n• See your profile again\n• Send you messages\n• Match with you`,
-      [
-        {
-          text: "No, Keep Blocked",
-          style: "cancel",
-        },
-        {
-          text: "Yes, Unblock",
-          style: "destructive",
-          onPress: async () => {
-            setUnblockingId(user.id);
-            try {
-              await blockReportApi.unblockUser(user.id);
-              setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
-              Alert.alert(
-                "User Unblocked",
-                `${user.name} has been unblocked successfully.`,
-                [{ text: "OK" }]
-              );
-            } catch (error: any) {
-              Alert.alert(
-                "Could Not Unblock",
-                error.message || "Something went wrong. Please try again.",
-                [{ text: "OK, I'll Try Again" }]
-              );
-            } finally {
-              setUnblockingId(null);
-            }
-          },
-        },
-      ]
-    );
+  const handleUnblock = async (user: BlockedUser) => {
+    const confirmed = await confirm({
+      title: "Unblock This Person?",
+      message: `Are you sure you want to unblock ${user.name}? Once unblocked, they will be able to see your profile, send you messages, and match with you.`,
+      type: "warning",
+      confirmText: "Yes, Unblock",
+      cancelText: "No, Keep Blocked",
+    });
+
+    if (confirmed) {
+      setUnblockingId(user.id);
+      try {
+        await blockReportApi.unblockUser(user.id);
+        setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
+        success(`${user.name} has been unblocked successfully.`);
+      } catch (err: any) {
+        error(err.message || "Something went wrong. Please try again.");
+      } finally {
+        setUnblockingId(null);
+      }
+    }
   };
 
   const getPhotoUrl = (url: string | null) => {
@@ -286,12 +270,10 @@ export default function BlockedUsersScreen() {
 
         {/* Content */}
         {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <AppText size="h4" color={colors.textSecondary}>
-              Loading blocked users...
-            </AppText>
-          </View>
+          <LoadingIndicator
+            variant="inline"
+            message="Loading blocked users..."
+          />
         ) : (
           <FlatList
             data={blockedUsers}

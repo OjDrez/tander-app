@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import colors from "../../config/colors";
 
 interface SelectFieldProps {
   label: string;
@@ -64,8 +65,9 @@ export default function SelectField({
   };
 
   return (
-    <View style={{ marginBottom: 20 }}>
+    <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
+      <Text style={styles.helper}>Tap to select from options</Text>
 
       <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         <Pressable
@@ -73,6 +75,9 @@ export default function SelectField({
           onPress={onPress}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
+          accessibilityRole="button"
+          accessibilityLabel={`Select ${label}`}
+          accessibilityHint="Opens selection menu"
         >
           <Text style={[styles.valueText, !value && styles.placeholder]}>
             {value || placeholder}
@@ -95,10 +100,21 @@ export default function SelectField({
 }
 
 const styles = StyleSheet.create({
+  container: {
+    marginBottom: 20,
+  },
   label: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 6,
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+    color: colors.textPrimary,
+  },
+
+  helper: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 8,
+    fontWeight: "500",
   },
 
   box: {
@@ -106,42 +122,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
 
-    backgroundColor: "#F4F4F4",
-    paddingVertical: 14,
+    backgroundColor: colors.backgroundSecondary,
+    paddingVertical: 18,
     paddingHorizontal: 16,
     borderRadius: 14,
+    minHeight: 60,
 
-    shadowColor: "#000",
+    shadowColor: colors.black,
     shadowOpacity: 0.05,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
 
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
+    borderWidth: 2,
+    borderColor: colors.borderMedium,
   },
 
   valueText: {
-    fontSize: 15,
-    color: "#111",
+    fontSize: 18,
+    color: colors.textPrimary,
+    fontWeight: "600",
   },
 
   placeholder: {
-    color: "#999",
+    color: colors.placeholder,
+    fontWeight: "500",
   },
 
   icon: {
-    width: 14,
-    height: 14,
-    tintColor: "#888",
+    width: 18,
+    height: 18,
+    tintColor: colors.textSecondary,
   },
 
   errorBox: {
-    borderColor: "#FF6B6B",
+    borderColor: colors.errorBorder,
   },
 
   errorText: {
-    color: "#FF4D4D",
-    fontSize: 12,
-    marginTop: 4,
+    color: colors.errorBorder,
+    fontSize: 15,
+    marginTop: 8,
+    fontWeight: "600",
   },
 });

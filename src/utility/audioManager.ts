@@ -104,6 +104,7 @@ export const initializeCallAudio = async (isVideoCall: boolean = false): Promise
 
 /**
  * Set audio output to speaker
+ * Returns true if operation succeeded, false otherwise
  */
 export const setAudioToSpeaker = async (): Promise<boolean> => {
   console.log('[AudioManager] Setting audio to speaker');
@@ -111,18 +112,24 @@ export const setAudioToSpeaker = async (): Promise<boolean> => {
   if (state.nativeAvailable && InCallManager) {
     try {
       InCallManager.setSpeakerphoneOn(true);
+      state.currentRoute = 'speaker';
       console.log('[AudioManager] Native speaker mode enabled');
+      return true;
     } catch (error) {
       console.error('[AudioManager] Failed to set speaker:', error);
+      // Don't update state if native call failed
+      return false;
     }
   }
 
+  // Fallback mode - always succeeds (UI-only)
   state.currentRoute = 'speaker';
   return true;
 };
 
 /**
  * Set audio output to earpiece
+ * Returns true if operation succeeded, false otherwise
  */
 export const setAudioToEarpiece = async (): Promise<boolean> => {
   console.log('[AudioManager] Setting audio to earpiece');
@@ -130,12 +137,17 @@ export const setAudioToEarpiece = async (): Promise<boolean> => {
   if (state.nativeAvailable && InCallManager) {
     try {
       InCallManager.setSpeakerphoneOn(false);
+      state.currentRoute = 'earpiece';
       console.log('[AudioManager] Native earpiece mode enabled');
+      return true;
     } catch (error) {
       console.error('[AudioManager] Failed to set earpiece:', error);
+      // Don't update state if native call failed
+      return false;
     }
   }
 
+  // Fallback mode - always succeeds (UI-only)
   state.currentRoute = 'earpiece';
   return true;
 };

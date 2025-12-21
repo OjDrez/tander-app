@@ -28,6 +28,7 @@ import BlockedUsersScreen from "../screens/Settings/BlockedUsersScreen";
 import SecuritySettingsScreen from "../screens/Settings/SecuritySettingsScreen";
 import HelpCenterScreen from "../screens/Settings/HelpCenterScreen";
 import Step2IdVerification from "../screens/Registration/Step2IdVerification";
+import BreathingExerciseScreen from "../screens/Tandy/BreathingExerciseScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
 import { AppStackParamList } from "./NavigationTypes";
@@ -85,6 +86,7 @@ export default function AppNavigator() {
       <Stack.Screen name="VideoCallScreen" component={VideoCallScreen} />
       <Stack.Screen name="VoiceCallScreen" component={VoiceCallScreen} />
       <Stack.Screen name="IncomingCallScreen" component={IncomingCallScreen} />
+      <Stack.Screen name="BreathingExerciseScreen" component={BreathingExerciseScreen} />
     </Stack.Navigator>
   );
 }

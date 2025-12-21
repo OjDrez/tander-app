@@ -6,6 +6,7 @@ import {
   MatchStats,
   MatchCheckResponse,
   PaginatedResponse,
+  CategorizedMatches,
 } from '../types/matching';
 
 /**
@@ -149,6 +150,95 @@ export const matchingApi = {
     } catch (error: any) {
       console.error('L [matchingApi.getMatchedUserIds] Error:', error.response?.data || error.message);
       throw new Error(error.response?.data?.message || 'Failed to fetch matched user IDs');
+    }
+  },
+  // ==================== BUMBLE-STYLE CATEGORIZED MATCHES ====================
+
+  /**
+   * Get all matches categorized by status (Bumble-style)
+   * Returns matches in 4 categories:
+   * - chatStarted: Both users have messaged (shows in INBOX)
+   * - waitingForUserReply: Other user sent first, waiting for user's reply
+   * - waitingForOtherReply: User sent first, waiting for other's reply
+   * - newMatches: No messages sent yet
+   */
+  getCategorizedMatches: async (): Promise<CategorizedMatches> => {
+    try {
+      console.log('[matchingApi.getCategorizedMatches] Fetching categorized matches');
+      const response = await apiClient.get<CategorizedMatches>('/api/matches/categorized');
+      console.log('[matchingApi.getCategorizedMatches] Categories:',
+        'chatStarted:', response.data.chatStarted?.length || 0,
+        'waitingForUserReply:', response.data.waitingForUserReply?.length || 0,
+        'waitingForOtherReply:', response.data.waitingForOtherReply?.length || 0,
+        'newMatches:', response.data.newMatches?.length || 0
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('[matchingApi.getCategorizedMatches] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to fetch categorized matches');
+    }
+  },
+
+  /**
+   * Get matches where chat has fully started (INBOX)
+   * Both users have exchanged messages - these never expire
+   */
+  getInboxMatches: async (): Promise<Match[]> => {
+    try {
+      console.log('[matchingApi.getInboxMatches] Fetching inbox matches');
+      const response = await apiClient.get<Match[]>('/api/matches/inbox');
+      console.log('[matchingApi.getInboxMatches] Found:', response.data.length, 'conversations');
+      return response.data;
+    } catch (error: any) {
+      console.error('[matchingApi.getInboxMatches] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to fetch inbox matches');
+    }
+  },
+
+  /**
+   * Get matches waiting for current user to reply
+   * Other user sent first message, user needs to respond
+   */
+  getMatchesWaitingForMe: async (): Promise<Match[]> => {
+    try {
+      console.log('[matchingApi.getMatchesWaitingForMe] Fetching matches waiting for my reply');
+      const response = await apiClient.get<Match[]>('/api/matches/waiting-for-me');
+      console.log('[matchingApi.getMatchesWaitingForMe] Found:', response.data.length, 'waiting');
+      return response.data;
+    } catch (error: any) {
+      console.error('[matchingApi.getMatchesWaitingForMe] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to fetch matches waiting for reply');
+    }
+  },
+
+  /**
+   * Get matches where user is waiting for other's reply
+   * User sent first message, waiting for other to respond
+   */
+  getMatchesWaitingForThem: async (): Promise<Match[]> => {
+    try {
+      console.log('[matchingApi.getMatchesWaitingForThem] Fetching matches waiting for their reply');
+      const response = await apiClient.get<Match[]>('/api/matches/waiting-for-them');
+      console.log('[matchingApi.getMatchesWaitingForThem] Found:', response.data.length, 'waiting');
+      return response.data;
+    } catch (error: any) {
+      console.error('[matchingApi.getMatchesWaitingForThem] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to fetch matches waiting for reply');
+    }
+  },
+
+  /**
+   * Get completely new matches with no messages yet
+   */
+  getNewMatches: async (): Promise<Match[]> => {
+    try {
+      console.log('[matchingApi.getNewMatches] Fetching new matches');
+      const response = await apiClient.get<Match[]>('/api/matches/new');
+      console.log('[matchingApi.getNewMatches] Found:', response.data.length, 'new matches');
+      return response.data;
+    } catch (error: any) {
+      console.error('[matchingApi.getNewMatches] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to fetch new matches');
     }
   },
 };

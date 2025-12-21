@@ -202,13 +202,15 @@
 // }
 
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React, { useState, useEffect } from "react";
+import { useNavigation } from "@react-navigation/native";
+import React, { useState, useEffect, ReactNode } from "react";
 import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import MainNavigationBar, {
   MainNavigationTab,
 } from "../components/navigation/MainNavigationBar";
+import ActiveCallBanner from "../components/call/ActiveCallBanner";
 
 // TAB SCREENS
 import HomeScreen from "../screens/Home/HomeScreen";
@@ -231,10 +233,17 @@ import MatchesScreen from "../screens/Matches/MatchesScreen";
 import ProfileViewScreen from "../screens/Profile/ProfileViewScreen";
 import PeopleViewedMeScreen from "../screens/ViewMe/PeopleViewedMeScreen";
 import ViewProfileScreen from "../screens/ViewMe/ViewProfileScreen";
+import BreathingExerciseScreen from "../screens/Tandy/BreathingExerciseScreen";
 
 // SERVICES
 import { notificationService } from "../services/notificationService";
 import { matchingApi } from "../api/matchingApi";
+
+// CONTEXT - Extracted to avoid circular dependency
+import {
+  MainStackNavigationProvider,
+  MainStackNavigation,
+} from "../context/MainStackNavigationContext";
 
 import { AppStackParamList } from "./NavigationTypes";
 
@@ -274,14 +283,39 @@ function Tabs({ activeTab }: { activeTab: MainNavigationTab }) {
 // Screens where the bottom navigation should be visible
 const MAIN_TAB_SCREENS = ["Tabs", "TabRoot"];
 
+// Screens where the active call banner should NOT be shown (already on a call screen)
+const CALL_SCREENS = ["VideoCallScreen", "VoiceCallScreen", "IncomingCallScreen"];
+
+/* ---------------------- NAVIGATION PROVIDER WRAPPER ---------------------- */
+// This component captures the MainStack navigation and provides it to children outside the navigator
+function NavigationProviderScreen({
+  children,
+  setNavigation
+}: {
+  children: ReactNode;
+  setNavigation: (nav: MainStackNavigation) => void;
+}) {
+  const navigation = useNavigation<MainStackNavigation>();
+
+  useEffect(() => {
+    setNavigation(navigation);
+  }, [navigation, setNavigation]);
+
+  return <>{children}</>;
+}
+
 /* ---------------------- MAIN LAYOUT ---------------------- */
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<MainNavigationTab>("Home");
   const [currentRouteName, setCurrentRouteName] = useState<string>("Tabs");
+  const [mainStackNav, setMainStackNav] = useState<MainStackNavigation | null>(null);
 
   // Only show bottom nav on main tab screens (Home, Inbox, Matches, Profile)
   const showBottomNav = MAIN_TAB_SCREENS.includes(currentRouteName);
+
+  // Don't show call banner when already on a call screen
+  const showCallBanner = !CALL_SCREENS.includes(currentRouteName);
 
   // Initialize notifications and schedule expiration reminders
   useEffect(() => {
@@ -294,9 +328,9 @@ export default function AppLayout() {
         const matches = await matchingApi.getMatchesList();
         await notificationService.scheduleExpirationReminders(matches);
 
-        console.log('✅ Notifications initialized');
+        console.log('Notifications initialized');
       } catch (error) {
-        console.error('❌ Failed to initialize notifications:', error);
+        console.error('Failed to initialize notifications:', error);
       }
     };
 
@@ -304,93 +338,108 @@ export default function AppLayout() {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* MAIN STACK */}
+    <MainStackNavigationProvider navigation={mainStackNav}>
       <View style={{ flex: 1 }}>
-        <MainStack.Navigator
-          screenOptions={{ headerShown: false }}
-          screenListeners={{
-            state: (e) => {
-              // Track navigation state changes to show/hide bottom nav
-              const state = e.data.state;
-              if (state && state.routes && state.routes.length > 0) {
-                const route = state.routes[state.index];
-                setCurrentRouteName(route?.name || "Tabs");
-              }
-            },
-          }}
-        >
-          {/* TABS */}
-          <MainStack.Screen name="Tabs">
-            {() => <Tabs activeTab={activeTab} />}
-          </MainStack.Screen>
+        {/* ACTIVE CALL BANNER - Shows when there's an ongoing call and user navigated away */}
+        {showCallBanner && <ActiveCallBanner />}
 
-          {/* DISCOVERY & MATCHING */}
-          <MainStack.Screen
-            name="DiscoveryScreen"
-            component={DiscoveryScreen}
-          />
-          <MainStack.Screen
-            name="MyMatchesScreen"
-            component={MatchesScreen}
-          />
+        {/* MAIN STACK */}
+        <View style={{ flex: 1 }}>
+          <MainStack.Navigator
+            screenOptions={{ headerShown: false }}
+            screenListeners={{
+              state: (e) => {
+                // Track navigation state changes to show/hide bottom nav
+                const state = e.data.state;
+                if (state && state.routes && state.routes.length > 0) {
+                  const route = state.routes[state.index];
+                  setCurrentRouteName(route?.name || "Tabs");
+                }
+              },
+            }}
+          >
+            {/* TABS - wrapped to capture navigation context */}
+            <MainStack.Screen name="Tabs">
+              {() => (
+                <NavigationProviderScreen setNavigation={setMainStackNav}>
+                  <Tabs activeTab={activeTab} />
+                </NavigationProviderScreen>
+              )}
+            </MainStack.Screen>
 
-          {/* CHAT & MESSAGING */}
-          <MainStack.Screen
-            name="ConversationScreen"
-            component={ConversationScreen}
-          />
-          <MainStack.Screen
-            name="InboxEmptyScreen"
-            component={InboxEmptyScreen}
-          />
+            {/* DISCOVERY & MATCHING */}
+            <MainStack.Screen
+              name="DiscoveryScreen"
+              component={DiscoveryScreen}
+            />
+            <MainStack.Screen
+              name="MyMatchesScreen"
+              component={MatchesScreen}
+            />
 
-          {/* CELEBRATION */}
-          <MainStack.Screen
-            name="MatchCelebrationScreen"
-            component={MatchCelebrationScreen}
-          />
+            {/* CHAT & MESSAGING */}
+            <MainStack.Screen
+              name="ConversationScreen"
+              component={ConversationScreen}
+            />
+            <MainStack.Screen
+              name="InboxEmptyScreen"
+              component={InboxEmptyScreen}
+            />
 
-          {/* PROFILE SCREENS */}
-          <MainStack.Screen
-            name="PeopleViewedMeScreen"
-            component={PeopleViewedMeScreen}
-          />
-          <MainStack.Screen
-            name="ViewProfileScreen"
-            component={ViewProfileScreen}
-          />
-          <MainStack.Screen
-            name="ProfileViewScreen"
-            component={ProfileViewScreen}
-          />
+            {/* CELEBRATION */}
+            <MainStack.Screen
+              name="MatchCelebrationScreen"
+              component={MatchCelebrationScreen}
+            />
 
-          {/* CALLS */}
-          <MainStack.Screen
-            name="VideoCallScreen"
-            component={VideoCallScreen}
+            {/* PROFILE SCREENS */}
+            <MainStack.Screen
+              name="PeopleViewedMeScreen"
+              component={PeopleViewedMeScreen}
+            />
+            <MainStack.Screen
+              name="ViewProfileScreen"
+              component={ViewProfileScreen}
+            />
+            <MainStack.Screen
+              name="ProfileViewScreen"
+              component={ProfileViewScreen}
+            />
+
+            {/* CALLS */}
+            <MainStack.Screen
+              name="VideoCallScreen"
+              component={VideoCallScreen}
+            />
+            <MainStack.Screen
+              name="VoiceCallScreen"
+              component={VoiceCallScreen}
+            />
+            <MainStack.Screen
+              name="IncomingCallScreen"
+              component={IncomingCallScreen}
+            />
+
+            {/* TANDY BREATHING EXERCISE */}
+            <MainStack.Screen
+              name="BreathingExerciseScreen"
+              component={BreathingExerciseScreen}
+            />
+          </MainStack.Navigator>
+        </View>
+
+        {/* FIXED BOTTOM NAVIGATION BAR - Only visible on main tab screens */}
+        {showBottomNav && (
+          <MainNavigationBar
+            activeTab={activeTab}
+            onTabPress={(tab) => setActiveTab(tab)}
+            style={{
+              paddingBottom: Platform.OS === "android" ? insets.bottom : 10,
+            }}
           />
-          <MainStack.Screen
-            name="VoiceCallScreen"
-            component={VoiceCallScreen}
-          />
-          <MainStack.Screen
-            name="IncomingCallScreen"
-            component={IncomingCallScreen}
-          />
-        </MainStack.Navigator>
+        )}
       </View>
-
-      {/* FIXED BOTTOM NAVIGATION BAR - Only visible on main tab screens */}
-      {showBottomNav && (
-        <MainNavigationBar
-          activeTab={activeTab}
-          onTabPress={(tab) => setActiveTab(tab)}
-          style={{
-            paddingBottom: Platform.OS === "android" ? insets.bottom : 10,
-          }}
-        />
-      )}
-    </View>
+    </MainStackNavigationProvider>
   );
 }

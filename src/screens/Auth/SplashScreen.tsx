@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import FullScreen from "../../components/layout/FullScreen";
 import NavigationService from "../../navigation/NavigationService";
+import colors from "../../config/colors";
 
 // Allow animation on LinearGradient
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
@@ -109,7 +110,7 @@ export default function SplashScreen() {
       <Animated.View style={[styles.wrapper, { opacity: fadeOut }]}>
         {/* -------------------- Animated Background Gradient -------------------- */}
         <AnimatedGradient
-          colors={["#C8E6E2", "#FFE2C1"]}
+          colors={colors.gradients.main.array}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           locations={[loc1, loc2]}

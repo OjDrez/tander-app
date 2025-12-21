@@ -1,4 +1,5 @@
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 // Secure storage keys
@@ -6,17 +7,26 @@ const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
 const STORED_USERNAME_KEY = 'biometric_username';
 const STORED_PASSWORD_KEY = 'biometric_password';
 
-// Dynamically import SecureStore to handle Expo Go gracefully
-let SecureStore: typeof import('expo-secure-store') | null = null;
-let secureStoreAvailable = false;
+// Track if SecureStore is available (will be checked on first use)
+let secureStoreAvailable: boolean | null = null;
 
-// Try to load SecureStore - will fail in Expo Go
-try {
-  SecureStore = require('expo-secure-store');
-  secureStoreAvailable = true;
-} catch (error) {
-  console.log('[BiometricService] expo-secure-store not available (Expo Go mode)');
-  secureStoreAvailable = false;
+// Check if SecureStore is actually available
+async function checkSecureStoreAvailable(): Promise<boolean> {
+  if (secureStoreAvailable !== null) {
+    return secureStoreAvailable;
+  }
+
+  try {
+    // Try a simple operation to verify SecureStore works
+    const testKey = '__securestore_test__';
+    await SecureStore.setItemAsync(testKey, 'test');
+    await SecureStore.deleteItemAsync(testKey);
+    secureStoreAvailable = true;
+  } catch (error) {
+    secureStoreAvailable = false;
+  }
+
+  return secureStoreAvailable;
 }
 
 export type BiometricType = 'face' | 'finger' | null;
@@ -32,13 +42,19 @@ export const biometricService = {
    */
   async isAvailable(): Promise<boolean> {
     try {
-      // SecureStore must be available for biometric login to work
-      if (!secureStoreAvailable || !SecureStore) {
-        console.log('[BiometricService] SecureStore not available - biometrics disabled');
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      if (!compatible) {
         return false;
       }
-      const compatible = await LocalAuthentication.hasHardwareAsync();
+
       const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!enrolled) {
+        return false;
+      }
+
+      // SecureStore check - needed for storing credentials
+      await checkSecureStoreAvailable();
+
       return compatible && enrolled;
     } catch (error) {
       console.error('[BiometricService] Error checking availability:', error);
@@ -118,14 +134,13 @@ export const biometricService = {
    */
   async saveCredentials(username: string, password: string): Promise<boolean> {
     try {
-      if (!secureStoreAvailable || !SecureStore) {
-        console.log('[BiometricService] SecureStore not available - cannot save credentials');
+      const storeAvailable = await checkSecureStoreAvailable();
+      if (!storeAvailable) {
         return false;
       }
       await SecureStore.setItemAsync(STORED_USERNAME_KEY, username);
       await SecureStore.setItemAsync(STORED_PASSWORD_KEY, password);
       await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, 'true');
-      console.log('[BiometricService] Credentials saved successfully');
       return true;
     } catch (error) {
       console.error('[BiometricService] Error saving credentials:', error);
@@ -138,7 +153,8 @@ export const biometricService = {
    */
   async getCredentials(): Promise<{ username: string; password: string } | null> {
     try {
-      if (!secureStoreAvailable || !SecureStore) {
+      const storeAvailable = await checkSecureStoreAvailable();
+      if (!storeAvailable) {
         return null;
       }
       const username = await SecureStore.getItemAsync(STORED_USERNAME_KEY);
@@ -159,7 +175,8 @@ export const biometricService = {
    */
   async isBiometricLoginEnabled(): Promise<boolean> {
     try {
-      if (!secureStoreAvailable || !SecureStore) {
+      const storeAvailable = await checkSecureStoreAvailable();
+      if (!storeAvailable) {
         return false;
       }
       const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
@@ -187,13 +204,13 @@ export const biometricService = {
    */
   async clearCredentials(): Promise<void> {
     try {
-      if (!secureStoreAvailable || !SecureStore) {
+      const storeAvailable = await checkSecureStoreAvailable();
+      if (!storeAvailable) {
         return;
       }
       await SecureStore.deleteItemAsync(STORED_USERNAME_KEY);
       await SecureStore.deleteItemAsync(STORED_PASSWORD_KEY);
       await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
-      console.log('[BiometricService] Credentials cleared');
     } catch (error) {
       console.error('[BiometricService] Error clearing credentials:', error);
     }
@@ -204,7 +221,8 @@ export const biometricService = {
    */
   async disableBiometricLogin(): Promise<void> {
     try {
-      if (!secureStoreAvailable || !SecureStore) {
+      const storeAvailable = await checkSecureStoreAvailable();
+      if (!storeAvailable) {
         return;
       }
       await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, 'false');
@@ -218,7 +236,8 @@ export const biometricService = {
    */
   async enableBiometricLogin(): Promise<boolean> {
     try {
-      if (!secureStoreAvailable || !SecureStore) {
+      const storeAvailable = await checkSecureStoreAvailable();
+      if (!storeAvailable) {
         return false;
       }
       const hasCredentials = await this.hasStoredCredentials();
@@ -245,27 +264,23 @@ export const biometricService = {
       // Check availability
       const available = await this.isAvailable();
       if (!available) {
-        console.log('[BiometricService] Biometrics not available');
         return null;
       }
 
       // Check if enabled and has credentials
       const enabled = await this.isBiometricLoginEnabled();
       if (!enabled) {
-        console.log('[BiometricService] Biometric login not enabled');
         return null;
       }
 
       const hasCredentials = await this.hasStoredCredentials();
       if (!hasCredentials) {
-        console.log('[BiometricService] No stored credentials');
         return null;
       }
 
       // Perform biometric authentication
       const authenticated = await this.authenticate('Sign in to Tander');
       if (!authenticated) {
-        console.log('[BiometricService] Biometric authentication failed');
         return null;
       }
 

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -20,11 +19,13 @@ import colors from "@/src/config/colors";
 import { AppStackParamList } from "@/src/navigation/NavigationTypes";
 import { userApi } from "@/src/api/userApi";
 import { PasswordErrors } from "@/src/types/settings";
+import { useToast } from "@/src/context/ToastContext";
 
 type ChangePasswordNav = NativeStackNavigationProp<AppStackParamList>;
 
 export default function ChangePasswordScreen() {
   const navigation = useNavigation<ChangePasswordNav>();
+  const { success, error, confirm } = useToast();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -77,48 +78,38 @@ export default function ChangePasswordScreen() {
         newPassword: newPassword,
       });
 
-      Alert.alert(
-        "Password Changed Successfully!",
-        "Your password has been updated. Please use your new password the next time you log in.",
-        [
-          {
-            text: "OK, Got It",
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-    } catch (error: any) {
+      success("Your password has been updated. Please use your new password the next time you log in.");
+      navigation.goBack();
+    } catch (err: any) {
       // Clear password fields on error for security
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
 
-      if (error.message?.toLowerCase().includes("incorrect") ||
-          error.message?.toLowerCase().includes("wrong") ||
-          error.message?.toLowerCase().includes("invalid")) {
+      if (err.message?.toLowerCase().includes("incorrect") ||
+          err.message?.toLowerCase().includes("wrong") ||
+          err.message?.toLowerCase().includes("invalid")) {
         setErrors({ current: "The current password you entered is not correct. Please try again." });
       } else {
-        Alert.alert(
-          "Could Not Change Password",
-          error.message || "Something went wrong. Please check your information and try again.",
-          [{ text: "OK, I'll Try Again" }]
-        );
+        error(err.message || "Something went wrong. Please check your information and try again.");
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (currentPassword || newPassword || confirmPassword) {
-      Alert.alert(
-        "Discard Changes?",
-        "You have entered some information. Are you sure you want to go back without saving?",
-        [
-          { text: "Stay Here", style: "cancel" },
-          { text: "Yes, Go Back", style: "destructive", onPress: () => navigation.goBack() },
-        ]
-      );
+      const confirmed = await confirm({
+        title: "Discard Changes?",
+        message: "You have entered some information. Are you sure you want to go back without saving?",
+        type: "warning",
+        confirmText: "Yes, Go Back",
+        cancelText: "Stay Here",
+      });
+      if (confirmed) {
+        navigation.goBack();
+      }
     } else {
       navigation.goBack();
     }

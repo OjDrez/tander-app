@@ -177,6 +177,57 @@ export const userApi = {
       throw new Error(error.response?.data?.message || 'Failed to fetch user profile');
     }
   },
+
+  /**
+   * Enable biometric authentication for the current user
+   */
+  enableBiometric: async (): Promise<{ success: boolean; message: string; biometricEnabled: boolean }> => {
+    try {
+      console.log('🔵 [userApi.enableBiometric] Enabling biometric authentication...');
+
+      const response = await apiClient.post<{ success: boolean; message: string; biometricEnabled: boolean }>('/user/enable-biometric', {});
+
+      console.log('✅ [userApi.enableBiometric] Biometric enabled successfully');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [userApi.enableBiometric] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to enable biometric authentication');
+    }
+  },
+
+  /**
+   * Disable biometric authentication for the current user
+   */
+  disableBiometric: async (): Promise<{ success: boolean; message: string; biometricEnabled: boolean }> => {
+    try {
+      console.log('🔵 [userApi.disableBiometric] Disabling biometric authentication...');
+
+      const response = await apiClient.post<{ success: boolean; message: string; biometricEnabled: boolean }>('/user/disable-biometric', {});
+
+      console.log('✅ [userApi.disableBiometric] Biometric disabled successfully');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [userApi.disableBiometric] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to disable biometric authentication');
+    }
+  },
+
+  /**
+   * Get biometric authentication status for the current user
+   */
+  getBiometricStatus: async (): Promise<{ success: boolean; biometricEnabled: boolean }> => {
+    try {
+      console.log('🔵 [userApi.getBiometricStatus] Fetching biometric status...');
+
+      const response = await apiClient.get<{ success: boolean; biometricEnabled: boolean }>('/user/biometric-status');
+
+      console.log('✅ [userApi.getBiometricStatus] Biometric status:', response.data.biometricEnabled);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [userApi.getBiometricStatus] Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to get biometric status');
+    }
+  },
 };
 
 export default userApi;
