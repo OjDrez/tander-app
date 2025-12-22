@@ -75,6 +75,12 @@ export default function MyProfileScreen() {
     try {
       setError(null);
       const data = await userApi.getCurrentUser();
+      console.log("📷 [MyProfile] Loaded profile data:", {
+        username: data.username,
+        profilePhotoUrl: data.profilePhotoUrl,
+        additionalPhotos: data.additionalPhotos,
+        additionalPhotosType: typeof data.additionalPhotos,
+      });
       setProfile(data);
     } catch (err: any) {
       console.error("Failed to load profile:", err);
@@ -217,7 +223,14 @@ export default function MyProfileScreen() {
 
   const getAdditionalPhotos = (): string[] => {
     if (profile?.additionalPhotos) {
-      return userApi.parseAdditionalPhotos(profile.additionalPhotos);
+      const parsed = userApi.parseAdditionalPhotos(profile.additionalPhotos);
+      console.log("📷 [MyProfile] getAdditionalPhotos:", {
+        raw: profile.additionalPhotos,
+        rawType: typeof profile.additionalPhotos,
+        parsed,
+        parsedLength: parsed.length,
+      });
+      return parsed;
     }
     return [];
   };
