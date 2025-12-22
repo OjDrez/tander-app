@@ -100,11 +100,11 @@
     "experiments": {
       "reactCompiler": true
     },
+    "owner": "edgeteam",
     "extra": {
       "eas": {
-        "projectId": "0c6ae2ae-600f-4f39-937c-821b13684da0"
+        "projectId": "31806c49-df01-475b-9fc1-fe6eb7b72cdb"
       }
-    },
-    "owner": "justjusdave"
+    }
   }
 }
