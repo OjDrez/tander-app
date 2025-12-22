@@ -342,11 +342,21 @@ export default function TandyScreen() {
 
     try {
       // Send message to backend with location for sponsor recommendations
+      console.log('📤 [TANDY DEBUG] Sending message to backend...');
       const response = await tandyApi.sendMessage({
         message: userMessage,
         latitude: userLocation?.latitude,
         longitude: userLocation?.longitude,
         includeSponsorAds: true,
+      });
+
+      // Debug logging for troubleshooting
+      console.log('📥 [TANDY DEBUG] Response received:', {
+        success: response.success,
+        hasAssistantMessage: !!response.assistantMessage,
+        error: response.error,
+        detectedLanguage: response.detectedLanguage,
+        hasSponsorAd: response.hasSponsorAd,
       });
 
       if (response.success && response.assistantMessage) {
@@ -412,27 +422,46 @@ export default function TandyScreen() {
           }
         }
       } else {
-        // Show error message in current language
+        // Show error message with debug info
+        console.error('❌ [TANDY DEBUG] Backend returned error:', response.error);
+
+        // In dev mode, show the actual error for debugging
+        const debugInfo = __DEV__ && response.error
+          ? `\n\n[DEBUG: ${response.error}]`
+          : '';
+
         const errorMsg: Message = {
           id: `error-${Date.now()}`,
           role: 'assistant',
           content: getText(
             "I'm sorry, something went wrong. Please try again.",
             "Pasensya na po, may problema. Subukan mo po ulit."
-          ),
+          ) + debugInfo,
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, errorMsg]);
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
+    } catch (error: any) {
+      // Enhanced error logging for debugging
+      console.error('❌ [TANDY DEBUG] Network/API error:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
+      // In dev mode, show the actual error for debugging
+      const debugInfo = __DEV__ && error?.response?.data?.message
+        ? `\n\n[DEBUG: ${error?.response?.data?.message || error?.message}]`
+        : __DEV__ && error?.message
+        ? `\n\n[DEBUG: ${error?.message}]`
+        : '';
+
       const errorMsg: Message = {
         id: `error-${Date.now()}`,
         role: 'assistant',
         content: getText(
           "I'm having trouble connecting. Please try again.",
           "May problema po sa koneksyon. Subukan mo po ulit."
-        ),
+        ) + debugInfo,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMsg]);

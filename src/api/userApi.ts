@@ -21,7 +21,7 @@ export interface UserProfile {
   interests?: string;
   lookingFor?: string;
   profilePhotoUrl?: string;
-  additionalPhotos?: string;
+  additionalPhotos?: string | string[];  // Can be JSON string or array from backend
   verified: boolean;
   profileCompleted: boolean;
 }
@@ -99,12 +99,21 @@ export const userApi = {
   },
 
   /**
-   * Parse additional photos from JSON string
+   * Parse additional photos from JSON string or array
+   * Handles both cases: when backend returns an array directly or a JSON string
    */
-  parseAdditionalPhotos: (additionalPhotosJson?: string): string[] => {
-    if (!additionalPhotosJson) return [];
+  parseAdditionalPhotos: (additionalPhotos?: string | string[]): string[] => {
+    if (!additionalPhotos) return [];
+
+    // If it's already an array, return it directly
+    if (Array.isArray(additionalPhotos)) {
+      return additionalPhotos;
+    }
+
+    // If it's a string, try to parse it as JSON
     try {
-      return JSON.parse(additionalPhotosJson);
+      const parsed = JSON.parse(additionalPhotos);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
