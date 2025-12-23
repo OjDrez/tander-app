@@ -1,10 +1,4 @@
-import GradientButton from "@/src/components/buttons/GradientButton";
-import SocialButton from "@/src/components/buttons/SocialButton";
-import AuthFooterLink from "@/src/components/common/AuthFooterLink";
-import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
-import FullScreen from "@/src/components/layout/FullScreen";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -17,44 +11,45 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
-import AppTextInput from "../../components/common/AppTextInput";
-import FormCard from "../../components/common/FormCard";
-import colors from "../../config/colors";
-
-import { loginSchema } from "@/src/validation/schemas/login";
+import { LinearGradient } from "expo-linear-gradient";
 import { Formik } from "formik";
 
+import FullScreen from "@/src/components/layout/FullScreen";
+import GradientButton from "@/src/components/buttons/GradientButton";
+import SocialButton from "@/src/components/buttons/SocialButton";
 import UniversalBiometricButton from "@/src/components/buttons/UniversalBiometricButton";
-import NavigationService from "@/src/navigation/NavigationService";
+import AuthFooterLink from "@/src/components/common/AuthFooterLink";
+import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
+import AppHeaderWithLogo from "@/src/components/common/AppHeaderWithLogo";
+import AppTextInput from "@/src/components/common/AppTextInput";
+import FormCard from "@/src/components/common/FormCard";
 
-// 🔥 Our new Google login hook
+import colors from "@/src/config/colors";
+import { loginSchema } from "@/src/validation/schemas/login";
+
+import NavigationService from "@/src/navigation/NavigationService";
+import biometricService from "@/src/services/biometricService";
+
 import { useToast } from "@/src/context/ToastContext";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useGoogleLogin } from "@/src/hooks/useGoogleLogin";
-import biometricService from "@/src/services/biometricService";
 
 export default function LoginScreen() {
   const [agree, setAgree] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768; // Centers card on tablets to prevent stretched layouts
 
-  // 🎉 Import Google login handler
+  const toast = useToast();
+  const { login } = useAuth();
   const { login: googleLogin } = useGoogleLogin();
 
-  // 🎉 Import auth handler
-  const { login } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
 
-  // 🎉 Import toast handler
-  const toast = useToast();
-
-  // Check biometric availability on mount and when screen gains focus
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       checkBiometricStatus();
     }, [])
   );
@@ -66,7 +61,6 @@ export default function LoginScreen() {
     setBiometricEnabled(enabled);
   };
 
-  // ⭐ GOOGLE LOGIN HANDLER
   const handleGoogleLogin = async () => {
     try {
       const user = await googleLogin();
@@ -75,7 +69,6 @@ export default function LoginScreen() {
         return;
       }
 
-      console.log("GOOGLE USER:", user);
       toast.success("Successfully signed in with Google!");
       NavigationService.replace("LoginSuccessScreen");
     } catch (err) {
@@ -84,49 +77,39 @@ export default function LoginScreen() {
     }
   };
 
-  // ⭐ BIOMETRIC HANDLER - Now performs actual login with stored credentials
   const handleBiometricLogin = async () => {
     try {
       setIsLoading(true);
-
-      // Get credentials after biometric authentication
       const credentials = await biometricService.performBiometricLogin();
 
       if (!credentials) {
-        // No credentials stored or biometric failed - show message
-        const biometricType = await biometricService.getBiometricType();
-        const biometricLabel = biometricService.getBiometricLabel(biometricType);
-        toast.error(`${biometricLabel} authentication failed. Please try again.`);
+        const type = await biometricService.getBiometricType();
+        toast.error(
+          `${biometricService.getBiometricLabel(type)} authentication failed.`
+        );
         return;
       }
 
-      // Perform actual login with stored credentials
       await login(credentials);
       toast.success("Welcome back!");
       NavigationService.replace("HomeScreen");
     } catch (error: any) {
       console.error("Biometric login error:", error);
 
-      // Handle specific errors like profile/ID incomplete
       if (error.profileIncomplete) {
         toast.warning("Please complete your profile first.");
-        setTimeout(() => {
-          NavigationService.navigate("Auth", {
-            screen: "Register",
-            params: { screen: "Step1" }
-          });
-        }, 1500);
+        NavigationService.navigate("Auth", {
+          screen: "Register",
+          params: { screen: "Step1" },
+        });
       } else if (error.idVerificationIncomplete) {
         toast.warning("Please complete ID verification first.");
-        setTimeout(() => {
-          NavigationService.navigate("Auth", {
-            screen: "Register",
-            params: { screen: "Step2" }
-          });
-        }, 1500);
+        NavigationService.navigate("Auth", {
+          screen: "Register",
+          params: { screen: "Step2" },
+        });
       } else {
         toast.error("Login failed. Please try with your password.");
-        // Clear stored credentials if they're invalid
         await biometricService.clearCredentials();
         setBiometricEnabled(false);
       }
@@ -153,22 +136,21 @@ export default function LoginScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 12 : 0} // Prevents keyboard overlap on iOS
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 12 : 0}
       >
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            isLargeScreen && styles.scrollContentLarge, // Centers card on tablets to avoid stretching
-            { paddingBottom: Math.max(insets.bottom, 24) }, // Keeps buttons away from home indicator
+            isLargeScreen && styles.scrollContentLarge,
+            { paddingBottom: Math.max(insets.bottom, 24) },
           ]}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled" // Ensures taps on inputs/buttons work while keyboard is open
         >
           <View style={[styles.cardWrapper, isLargeScreen && styles.cardWrapperLarge]}>
             <FormCard
               title="Login to your account"
               subtitle="Welcome back, we missed you!"
-              style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
             >
               <View style={styles.content}>
                 <Formik
@@ -177,16 +159,14 @@ export default function LoginScreen() {
                   onSubmit={async (values, { setSubmitting }) => {
                     try {
                       setIsLoading(true);
-
                       await login(values);
 
-                      // Credentials are saved automatically in AuthProvider
-                      // Show appropriate message based on biometric availability
                       if (biometricAvailable) {
-                        const biometricType = await biometricService.getBiometricType();
-                        const biometricLabel = biometricService.getBiometricLabel(biometricType);
+                        const type = await biometricService.getBiometricType();
                         setBiometricEnabled(true);
-                        toast.success(`Login successful! ${biometricLabel} has been enabled for faster sign-in.`);
+                        toast.success(
+                          `${biometricService.getBiometricLabel(type)} enabled for faster sign-in.`
+                        );
                       } else {
                         toast.success("Login successful! Welcome back.");
                       }
@@ -194,67 +174,11 @@ export default function LoginScreen() {
                       NavigationService.replace("HomeScreen");
                     } catch (error: any) {
                       console.error("Login error:", error);
-
-                      // Check if error is due to incomplete profile (profile_completed = false)
-                      if (error.profileIncomplete) {
-                        toast.showToast({
-                          type: 'warning',
-                          message: "Please complete your profile to continue.",
-                          duration: 6000,
-                          action: {
-                            label: 'Complete Profile',
-                            onPress: () => NavigationService.navigate("Auth", {
-                              screen: "Register",
-                              params: { screen: "Step1" }
-                            }),
-                          },
-                        });
-
-                        // Auto-redirect to Step1 after a short delay
-                        setTimeout(() => {
-                          NavigationService.navigate("Auth", {
-                            screen: "Register",
-                            params: { screen: "Step1" }
-                          });
-                        }, 1500);
-                      }
-                      // Check if error is due to ID verification incomplete (id_verified = false)
-                      else if (error.idVerificationIncomplete) {
-                        const status = error.idVerificationStatus || 'PENDING';
-                        let message = "Please complete ID verification to continue.";
-
-                        if (status === 'REJECTED') {
-                          message = "Your ID verification was rejected. You must be 60+ years old to use Tander.";
-                        } else if (status === 'FAILED') {
-                          message = "ID verification failed. Please try again with a clearer photo.";
-                        }
-
-                        toast.showToast({
-                          type: 'warning',
-                          message,
-                          duration: 6000,
-                          action: {
-                            label: 'Verify ID',
-                            onPress: () => NavigationService.navigate("Auth", {
-                              screen: "Register",
-                              params: { screen: "Step2" }
-                            }),
-                          },
-                        });
-
-                        // Auto-redirect to Step2 (ID Verification) after a short delay
-                        setTimeout(() => {
-                          NavigationService.navigate("Auth", {
-                            screen: "Register",
-                            params: { screen: "Step2" }
-                          });
-                        }, 1500);
-                      }
-                      else if (error.code === 'INVALID_CREDENTIALS') {
-                        toast.error("Incorrect username or password. Please try again.");
-                      } else {
-                        toast.error(error.message || "An error occurred. Please try again.");
-                      }
+                      toast.error(
+                        error.code === "INVALID_CREDENTIALS"
+                          ? "Incorrect username or password."
+                          : error.message || "Login failed."
+                      );
                     } finally {
                       setIsLoading(false);
                       setSubmitting(false);
@@ -270,7 +194,6 @@ export default function LoginScreen() {
                     touched,
                   }) => (
                     <>
-                      {/* Username */}
                       <AppTextInput
                         icon="person-outline"
                         placeholder="Email or Username"
@@ -281,7 +204,6 @@ export default function LoginScreen() {
                         error={touched.username ? errors.username : null}
                       />
 
-                      {/* Password */}
                       <AppTextInput
                         icon="lock-closed-outline"
                         placeholder="Password"
@@ -292,20 +214,16 @@ export default function LoginScreen() {
                         error={touched.password ? errors.password : null}
                       />
 
-                      {/* Forgot Password: negative margins previously risked clipping on small screens */}
-                      <TouchableOpacity onPress={() => console.log("Forgot")}>
+                      <TouchableOpacity>
                         <Text style={styles.forgotText}>Forgot Password?</Text>
                       </TouchableOpacity>
 
-                      {/* LOGIN */}
                       <GradientButton
                         title={isLoading ? "Logging in..." : "Login"}
                         onPress={handleSubmit}
                         disabled={!values.username || !values.password || isLoading}
-                        style={{ marginTop: 5 }}
                       />
 
-                      {/* ⭐ BIOMETRIC LOGIN - Only show if device supports it AND user has enabled it */}
                       {biometricAvailable && biometricEnabled && (
                         <View style={styles.biometricRow}>
                           <UniversalBiometricButton
@@ -316,15 +234,12 @@ export default function LoginScreen() {
 
                       <Text style={styles.dividerText}>continue with</Text>
 
-                      {/* 🍎 APPLE LOGIN (Later we implement this) */}
                       <SocialButton
                         title="Continue with Apple"
                         icon={require("../../assets/icons/apple.png")}
                         onPress={() => toast.info("Apple login coming soon!")}
-                        style={{ marginTop: 10 }}
                       />
 
-                      {/* 🔥 GOOGLE LOGIN */}
                       <SocialButton
                         title="Continue with Google"
                         icon={require("../../assets/icons/google.png")}
@@ -333,23 +248,19 @@ export default function LoginScreen() {
                         style={{ marginTop: 10 }}
                       />
 
-                      {/* SIGNUP LINK */}
-                      <View style={{ marginTop: 10, marginBottom: 10 }}>
-                        <AuthFooterLink
-                          label="Don't have an account?"
-                          actionText="Sign Up"
-                          onPress={() =>
-                            NavigationService.navigate("Onboarding", {
-                              screen: "AccountIntroScreen",
-                            })
-                          }
-                        />
-                      </View>
+                      <AuthFooterLink
+                        label="Don't have an account?"
+                        actionText="Sign Up"
+                        onPress={() =>
+                          NavigationService.navigate("Onboarding", {
+                            screen: "AccountIntroScreen",
+                          })
+                        }
+                      />
 
-                      {/* TERMS CHECKBOX */}
                       <CheckboxWithLabel
                         checked={agree}
-                        label="I agree to the Terms and Condition and Privacy Policy"
+                        label="I agree to the Terms and Privacy Policy"
                         onToggle={() => setAgree(!agree)}
                       />
                     </>
@@ -365,21 +276,17 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
+  flex: { flex: 1 },
   headerView: {
-    justifyContent: "center",
     alignItems: "center",
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "flex-end", // Ensures form is reachable on small screens with scroll
+    justifyContent: "flex-end",
     paddingHorizontal: 24,
-    paddingTop: 12,
   },
   scrollContentLarge: {
-    justifyContent: "center", // Centers on tablets/larger devices to prevent top stretching
+    justifyContent: "center",
   },
   cardWrapper: {
     width: "100%",
@@ -393,21 +300,18 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     textAlign: "right",
-    marginTop: 4,
-    marginBottom: 5,
+    marginVertical: 6,
     color: colors.accentTeal,
     fontSize: 14,
     fontWeight: "500",
   },
   biometricRow: {
-    justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
-    marginBottom: 12,
+    marginVertical: 20,
   },
   dividerText: {
     textAlign: "center",
     color: colors.textMuted,
-    marginTop: 10,
+    marginVertical: 8,
   },
 });
