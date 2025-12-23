@@ -4,9 +4,18 @@ import AuthFooterLink from "@/src/components/common/AuthFooterLink";
 import CheckboxWithLabel from "@/src/components/common/CheckboxWithLabel";
 import FullScreen from "@/src/components/layout/FullScreen";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import AppHeaderWithLogo from "../../components/common/AppHeaderWithLogo";
 import AppTextInput from "../../components/common/AppTextInput";
@@ -30,6 +39,9 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768; // Centers card on tablets to prevent stretched layouts
 
   // 🎉 Import Google login handler
   const { login: googleLogin } = useGoogleLogin();
@@ -138,219 +150,250 @@ export default function LoginScreen() {
       </SafeAreaView>
 
       {/* FORM */}
-      <View style={styles.body}>
-        <FormCard
-          title="Login to your account"
-          subtitle="Welcome back, we missed you!"
-          style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 12 : 0} // Prevents keyboard overlap on iOS
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            isLargeScreen && styles.scrollContentLarge, // Centers card on tablets to avoid stretching
+            { paddingBottom: Math.max(insets.bottom, 24) }, // Keeps buttons away from home indicator
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" // Ensures taps on inputs/buttons work while keyboard is open
         >
-          <View style={styles.content}>
-            <Formik
-              initialValues={{ username: "", password: "" }}
-              validationSchema={loginSchema}
-              onSubmit={async (values, { setSubmitting }) => {
-                try {
-                  setIsLoading(true);
-
-                  await login(values);
-
-                  // Credentials are saved automatically in AuthProvider
-                  // Show appropriate message based on biometric availability
-                  if (biometricAvailable) {
-                    const biometricType = await biometricService.getBiometricType();
-                    const biometricLabel = biometricService.getBiometricLabel(biometricType);
-                    setBiometricEnabled(true);
-                    toast.success(`Login successful! ${biometricLabel} has been enabled for faster sign-in.`);
-                  } else {
-                    toast.success("Login successful! Welcome back.");
-                  }
-
-                  NavigationService.replace("HomeScreen");
-                } catch (error: any) {
-                  console.error("Login error:", error);
-
-                  // Check if error is due to incomplete profile (profile_completed = false)
-                  if (error.profileIncomplete) {
-                    toast.showToast({
-                      type: 'warning',
-                      message: "Please complete your profile to continue.",
-                      duration: 6000,
-                      action: {
-                        label: 'Complete Profile',
-                        onPress: () => NavigationService.navigate("Auth", {
-                          screen: "Register",
-                          params: { screen: "Step1" }
-                        }),
-                      },
-                    });
-
-                    // Auto-redirect to Step1 after a short delay
-                    setTimeout(() => {
-                      NavigationService.navigate("Auth", {
-                        screen: "Register",
-                        params: { screen: "Step1" }
-                      });
-                    }, 1500);
-                  }
-                  // Check if error is due to ID verification incomplete (id_verified = false)
-                  else if (error.idVerificationIncomplete) {
-                    const status = error.idVerificationStatus || 'PENDING';
-                    let message = "Please complete ID verification to continue.";
-
-                    if (status === 'REJECTED') {
-                      message = "Your ID verification was rejected. You must be 60+ years old to use Tander.";
-                    } else if (status === 'FAILED') {
-                      message = "ID verification failed. Please try again with a clearer photo.";
-                    }
-
-                    toast.showToast({
-                      type: 'warning',
-                      message,
-                      duration: 6000,
-                      action: {
-                        label: 'Verify ID',
-                        onPress: () => NavigationService.navigate("Auth", {
-                          screen: "Register",
-                          params: { screen: "Step2" }
-                        }),
-                      },
-                    });
-
-                    // Auto-redirect to Step2 (ID Verification) after a short delay
-                    setTimeout(() => {
-                      NavigationService.navigate("Auth", {
-                        screen: "Register",
-                        params: { screen: "Step2" }
-                      });
-                    }, 1500);
-                  }
-                  else if (error.code === 'INVALID_CREDENTIALS') {
-                    toast.error("Incorrect username or password. Please try again.");
-                  } else {
-                    toast.error(error.message || "An error occurred. Please try again.");
-                  }
-                } finally {
-                  setIsLoading(false);
-                  setSubmitting(false);
-                }
-              }}
+          <View style={[styles.cardWrapper, isLargeScreen && styles.cardWrapperLarge]}>
+            <FormCard
+              title="Login to your account"
+              subtitle="Welcome back, we missed you!"
+              style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
             >
-              {({
-                handleChange,
-                handleSubmit,
-                handleBlur,
-                values,
-                errors,
-                touched,
-              }) => (
-                <>
-                  {/* Username */}
-                  <AppTextInput
-                    icon="person-outline"
-                    placeholder="Email or Username"
-                    autoCapitalize="none"
-                    value={values.username}
-                    onChangeText={handleChange("username")}
-                    onBlur={handleBlur("username")}
-                    error={touched.username ? errors.username : null}
-                  />
+              <View style={styles.content}>
+                <Formik
+                  initialValues={{ username: "", password: "" }}
+                  validationSchema={loginSchema}
+                  onSubmit={async (values, { setSubmitting }) => {
+                    try {
+                      setIsLoading(true);
 
-                  {/* Password */}
-                  <AppTextInput
-                    icon="lock-closed-outline"
-                    placeholder="Password"
-                    secureTextEntry
-                    value={values.password}
-                    onChangeText={handleChange("password")}
-                    onBlur={handleBlur("password")}
-                    error={touched.password ? errors.password : null}
-                  />
+                      await login(values);
 
-                  {/* Forgot Password */}
-                  <TouchableOpacity onPress={() => console.log("Forgot")}>
-                    <Text style={styles.forgotText}>Forgot Password?</Text>
-                  </TouchableOpacity>
-
-                  {/* LOGIN */}
-                  <GradientButton
-                    title={isLoading ? "Logging in..." : "Login"}
-                    onPress={handleSubmit}
-                    disabled={!values.username || !values.password || isLoading}
-                    style={{ marginTop: 5 }}
-                  />
-
-                  {/* ⭐ BIOMETRIC LOGIN - Only show if device supports it AND user has enabled it */}
-                  {biometricAvailable && biometricEnabled && (
-                    <View style={styles.biometricRow}>
-                      <UniversalBiometricButton
-                        onAuthenticate={handleBiometricLogin}
-                      />
-                    </View>
-                  )}
-
-                  <Text style={styles.dividerText}>continue with</Text>
-
-                  {/* 🍎 APPLE LOGIN (Later we implement this) */}
-                  <SocialButton
-                    title="Continue with Apple"
-                    icon={require("../../assets/icons/apple.png")}
-                    onPress={() => toast.info("Apple login coming soon!")}
-                    style={{ marginTop: 10 }}
-                  />
-
-                  {/* 🔥 GOOGLE LOGIN */}
-                  <SocialButton
-                    title="Continue with Google"
-                    icon={require("../../assets/icons/google.png")}
-                    light
-                    onPress={handleGoogleLogin}
-                    style={{ marginTop: 10 }}
-                  />
-
-                  {/* SIGNUP LINK */}
-                  <View style={{ marginTop: 10, marginBottom: 10 }}>
-                    <AuthFooterLink
-                      label="Don't have an account?"
-                      actionText="Sign Up"
-                      onPress={() =>
-                        NavigationService.navigate("Onboarding", {
-                          screen: "AccountIntroScreen",
-                        })
+                      // Credentials are saved automatically in AuthProvider
+                      // Show appropriate message based on biometric availability
+                      if (biometricAvailable) {
+                        const biometricType = await biometricService.getBiometricType();
+                        const biometricLabel = biometricService.getBiometricLabel(biometricType);
+                        setBiometricEnabled(true);
+                        toast.success(`Login successful! ${biometricLabel} has been enabled for faster sign-in.`);
+                      } else {
+                        toast.success("Login successful! Welcome back.");
                       }
-                    />
-                  </View>
 
-                  {/* TERMS CHECKBOX */}
-                  <CheckboxWithLabel
-                    checked={agree}
-                    label="I agree to the Terms and Condition and Privacy Policy"
-                    onToggle={() => setAgree(!agree)}
-                  />
-                </>
-              )}
-            </Formik>
+                      NavigationService.replace("HomeScreen");
+                    } catch (error: any) {
+                      console.error("Login error:", error);
+
+                      // Check if error is due to incomplete profile (profile_completed = false)
+                      if (error.profileIncomplete) {
+                        toast.showToast({
+                          type: 'warning',
+                          message: "Please complete your profile to continue.",
+                          duration: 6000,
+                          action: {
+                            label: 'Complete Profile',
+                            onPress: () => NavigationService.navigate("Auth", {
+                              screen: "Register",
+                              params: { screen: "Step1" }
+                            }),
+                          },
+                        });
+
+                        // Auto-redirect to Step1 after a short delay
+                        setTimeout(() => {
+                          NavigationService.navigate("Auth", {
+                            screen: "Register",
+                            params: { screen: "Step1" }
+                          });
+                        }, 1500);
+                      }
+                      // Check if error is due to ID verification incomplete (id_verified = false)
+                      else if (error.idVerificationIncomplete) {
+                        const status = error.idVerificationStatus || 'PENDING';
+                        let message = "Please complete ID verification to continue.";
+
+                        if (status === 'REJECTED') {
+                          message = "Your ID verification was rejected. You must be 60+ years old to use Tander.";
+                        } else if (status === 'FAILED') {
+                          message = "ID verification failed. Please try again with a clearer photo.";
+                        }
+
+                        toast.showToast({
+                          type: 'warning',
+                          message,
+                          duration: 6000,
+                          action: {
+                            label: 'Verify ID',
+                            onPress: () => NavigationService.navigate("Auth", {
+                              screen: "Register",
+                              params: { screen: "Step2" }
+                            }),
+                          },
+                        });
+
+                        // Auto-redirect to Step2 (ID Verification) after a short delay
+                        setTimeout(() => {
+                          NavigationService.navigate("Auth", {
+                            screen: "Register",
+                            params: { screen: "Step2" }
+                          });
+                        }, 1500);
+                      }
+                      else if (error.code === 'INVALID_CREDENTIALS') {
+                        toast.error("Incorrect username or password. Please try again.");
+                      } else {
+                        toast.error(error.message || "An error occurred. Please try again.");
+                      }
+                    } finally {
+                      setIsLoading(false);
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                  {({
+                    handleChange,
+                    handleSubmit,
+                    handleBlur,
+                    values,
+                    errors,
+                    touched,
+                  }) => (
+                    <>
+                      {/* Username */}
+                      <AppTextInput
+                        icon="person-outline"
+                        placeholder="Email or Username"
+                        autoCapitalize="none"
+                        value={values.username}
+                        onChangeText={handleChange("username")}
+                        onBlur={handleBlur("username")}
+                        error={touched.username ? errors.username : null}
+                      />
+
+                      {/* Password */}
+                      <AppTextInput
+                        icon="lock-closed-outline"
+                        placeholder="Password"
+                        secureTextEntry
+                        value={values.password}
+                        onChangeText={handleChange("password")}
+                        onBlur={handleBlur("password")}
+                        error={touched.password ? errors.password : null}
+                      />
+
+                      {/* Forgot Password: negative margins previously risked clipping on small screens */}
+                      <TouchableOpacity onPress={() => console.log("Forgot")}>
+                        <Text style={styles.forgotText}>Forgot Password?</Text>
+                      </TouchableOpacity>
+
+                      {/* LOGIN */}
+                      <GradientButton
+                        title={isLoading ? "Logging in..." : "Login"}
+                        onPress={handleSubmit}
+                        disabled={!values.username || !values.password || isLoading}
+                        style={{ marginTop: 5 }}
+                      />
+
+                      {/* ⭐ BIOMETRIC LOGIN - Only show if device supports it AND user has enabled it */}
+                      {biometricAvailable && biometricEnabled && (
+                        <View style={styles.biometricRow}>
+                          <UniversalBiometricButton
+                            onAuthenticate={handleBiometricLogin}
+                          />
+                        </View>
+                      )}
+
+                      <Text style={styles.dividerText}>continue with</Text>
+
+                      {/* 🍎 APPLE LOGIN (Later we implement this) */}
+                      <SocialButton
+                        title="Continue with Apple"
+                        icon={require("../../assets/icons/apple.png")}
+                        onPress={() => toast.info("Apple login coming soon!")}
+                        style={{ marginTop: 10 }}
+                      />
+
+                      {/* 🔥 GOOGLE LOGIN */}
+                      <SocialButton
+                        title="Continue with Google"
+                        icon={require("../../assets/icons/google.png")}
+                        light
+                        onPress={handleGoogleLogin}
+                        style={{ marginTop: 10 }}
+                      />
+
+                      {/* SIGNUP LINK */}
+                      <View style={{ marginTop: 10, marginBottom: 10 }}>
+                        <AuthFooterLink
+                          label="Don't have an account?"
+                          actionText="Sign Up"
+                          onPress={() =>
+                            NavigationService.navigate("Onboarding", {
+                              screen: "AccountIntroScreen",
+                            })
+                          }
+                        />
+                      </View>
+
+                      {/* TERMS CHECKBOX */}
+                      <CheckboxWithLabel
+                        checked={agree}
+                        label="I agree to the Terms and Condition and Privacy Policy"
+                        onToggle={() => setAgree(!agree)}
+                      />
+                    </>
+                  )}
+                </Formik>
+              </View>
+            </FormCard>
           </View>
-        </FormCard>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </FullScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   headerView: {
     justifyContent: "center",
     alignItems: "center",
   },
-  body: {
-    flex: 1,
-    justifyContent: "flex-end",
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "flex-end", // Ensures form is reachable on small screens with scroll
+    paddingHorizontal: 24,
+    paddingTop: 12,
+  },
+  scrollContentLarge: {
+    justifyContent: "center", // Centers on tablets/larger devices to prevent top stretching
+  },
+  cardWrapper: {
+    width: "100%",
+  },
+  cardWrapperLarge: {
+    maxWidth: 440,
+    alignSelf: "center",
   },
   content: {
-    marginHorizontal: 24,
+    marginTop: 6,
   },
   forgotText: {
     textAlign: "right",
-    marginTop: -25,
+    marginTop: 4,
     marginBottom: 5,
     color: colors.accentTeal,
     fontSize: 14,
