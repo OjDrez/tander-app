@@ -214,7 +214,11 @@ export default function LoginScreen() {
                         error={touched.password ? errors.password : null}
                       />
 
-                      <TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() =>
+                          NavigationService.navigate("ForgotPasswordScreen")
+                        }
+                      >
                         <Text style={styles.forgotText}>Forgot Password?</Text>
                       </TouchableOpacity>
 
